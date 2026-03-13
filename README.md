@@ -4,6 +4,8 @@
 [![Platform](https://img.shields.io/badge/platform-Orange%20Pi-orange.svg)](https://www.orangepi.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
+**Language** / 语言: [English](README.md) | [中文](README.zh-CN.md)
+
 A quadruped robot control system based on Unitree Robotics framework, implementing advanced gait control and state machine management for robotic dog applications.
 
 ## Table of Contents
