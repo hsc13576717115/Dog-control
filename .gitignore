@@ -1,0 +1,23 @@
+# Catkin build artifacts
+build/
+devel/
+
+# Python
+*.pyc
+__pycache__/
+*.pyc
+
+# IDE
+.vscode/
+.idea/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Misc
+*.swp
+*.swo
+*~
