@@ -16,8 +16,6 @@
 #include "Gait/WaveGenerator.h"
 #include "control/BalanceCtrl.h"
 #include "interface/IOSDK.h"
-#include "interface/IOROS.h"
-#include "interface/KeyBoard.h"
 #include "message/LowlevelState.h"  // 包含IMU结构体定义
 
 bool running = true;
