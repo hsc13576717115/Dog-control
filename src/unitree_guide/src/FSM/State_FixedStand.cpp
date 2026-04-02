@@ -6,9 +6,9 @@
 #include <Eigen/Core>
 #include <cmath>                 
 
-static constexpr double L0          = 0.108;   
-static constexpr double L1          = 0.225;  
-static constexpr double L2          = 0.255;   
+static constexpr double L0 = 0.08415;   // 髋偏移（髋轴→腿平面）
+static constexpr double L1 = 0.213;   // 大腿长度
+static constexpr double L2 = 0.213;   // 小腿长度 
 static constexpr double Q0_LIMIT_MIN = -2.60;  
 static constexpr double Q0_LIMIT_MAX =  2.60;  
 static constexpr double Q1_LIMIT_MIN = -6.50; 
@@ -65,10 +65,10 @@ void State_FixedStand::enter()
     Vec3 target[4];
     if (_currentMode == NORMAL_STAND) {
         // 正常站立姿态
-        target[0] = Vec3(-0.04,  0.10, -0.27);   // leg0  FL
-        target[1] = Vec3(-0.04, -0.10, -0.27);   // leg1  FR
-        target[2] = Vec3(-0.04,  0.10, -0.27);   // leg2  RL
-        target[3] = Vec3(-0.04, -0.10, -0.27);   // leg3  RR
+        target[0] = Vec3(-0.01,  0.08415, -0.22);   // leg0  FL
+        target[1] = Vec3(-0.01, -0.08415, -0.22);   // leg1  FR
+        target[2] = Vec3(-0.01,  0.08415, -0.22);   // leg2  RL
+        target[3] = Vec3(-0.01, -0.08415, -0.22);   // leg3  RR
         std::cout << "[FixedStand] 当前模式 - 正常站立姿态" << std::endl;
     } else {
         // 匍匐姿态
