@@ -173,7 +173,7 @@ void IOSDK::sendRecv(const UserLowlevel::LowlevelCmd* cmd,
                 if (j == 1)      target = sign * (-160.0f * M_PI / 180.0f);
                 else if (j == 2) target = sign * (-70.0f * M_PI / 180.0f);
                 else {
-                    const float hip = 21.0f * M_PI / 180.0f;
+                    const float hip = 19.0f * M_PI / 180.0f;
                     target = ((leg < 2) ? -sign : sign) * hip;
                 }
 
