@@ -9,9 +9,9 @@
 /* =========================================================
  * 1. 机械与关节参数（轴心坐标系）
  * ========================================================= */
-static constexpr double L0 = 0.108;   // 髋偏移（髋轴→腿平面）
-static constexpr double L1 = 0.225;   // 大腿长度
-static constexpr double L2 = 0.255;   // 小腿长度
+static constexpr double L0 = 0.08415;   // 髋偏移（髋轴→腿平面）
+static constexpr double L1 = 0.213;   // 大腿长度
+static constexpr double L2 = 0.213;   // 小腿长度
 
 static constexpr double Q0_LIMIT_MIN = -2.60;
 static constexpr double Q0_LIMIT_MAX =  2.60;
