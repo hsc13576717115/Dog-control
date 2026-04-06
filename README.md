@@ -1,366 +1,90 @@
-# Dog Control System
+# Dog-control ROS2 Humble Workspace
 
-[![ROS Version](https://img.shields.io/badge/ROS-Noetic-blue.svg)](http://wiki.ros.org/noetic)
-[![Platform](https://img.shields.io/badge/platform-Orange%20Pi-orange.svg)](https://www.orangepi.org/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+This branch is the ROS2 Humble migration for Ubuntu 22.04 on the local Orange Pi machine.
 
-**Language** / 语言: [English](README.md) | [中文](README.zh-CN.md)
+The original ROS1 `catkin_ws` layout has been converted into a ROS2 `qr_ws` workspace. The original `unitree_guide` package is now named `qr_guide`. The control logic is kept as close to the original code as possible; the main changes are the ROS middleware layer, build system, launch files, and workspace structure.
 
-A quadruped robot control system based on Unitree Robotics framework, implementing advanced gait control and state machine management for robotic dog applications.
+## Workspace Layout
 
-## Table of Contents
+Recommended local path:
 
-- [Overview](#overview)
-- [Features](#features)
-- [System Architecture](#system-architecture)
-- [Hardware Requirements](#hardware-requirements)
-- [Software Dependencies](#software-dependencies)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Project Structure](#project-structure)
-- [Configuration](#configuration)
-- [FSM States](#fsm-states)
-- [Contributing](#contributing)
-- [License](#license)
-
-## Overview
-
-This project provides a comprehensive control system for quadruped robots, specifically designed for Unitree robotic platforms. It implements a finite state machine (FSM) architecture with various gaits and control modes, integrated with IMU sensor fusion for precise motion control.
-
-### Key Components
-
-- **unitree_guide**: Main control package implementing gait generation, state management, and robot control
-- **fdilink_ahrs**: IMU/AHRS driver package for sensor data acquisition
-
-## Features
-
-### Motion Control
-- Multiple gait patterns: Trotting, Swing Test, Step Test
-- Balance testing mode
-- Fixed and free standing modes
-- Base movement control
-- Passive mode for safe operation
-
-### Sensor Integration
-- FDILINK AHRS IMU sensor driver
-- Real-time attitude estimation
-- GPS data fusion
-- Magnetic field sensing
-- Velocity and odometry tracking
-
-### Control Architecture
-- Finite State Machine (FSM) design
-- Modular gait generator
-- Feet trajectory planning
-- Joint-level control interface
-
-## System Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      Dog Control System                     │
-├─────────────────────────────────────────────────────────────┤
-│                                                               │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
-│  │   IMU       │    │  Controller │    │   Gait      │     │
-│  │   Driver    │───▶│   Node      │───▶│  Generator  │     │
-│  └─────────────┘    └─────────────┘    └─────────────┘     │
-│         │                  │                  │             │
-│         ▼                  ▼                  ▼             │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
-│  │ Sensor      │    │    FSM      │    │  Feet       │     │
-│  │ Topics      │    │  Manager    │    │  Trajectory │     │
-│  └─────────────┘    └─────────────┘    └─────────────┘     │
-│                                                               │
-└─────────────────────────────────────────────────────────────┘
-```
-
-## Hardware Requirements
-
-### Minimum Requirements
-- **Platform**: Orange Pi (RK3588) or similar ARM64 platform
-- **RAM**: 4GB+ recommended
-- **Storage**: 10GB+ free space
-
-### Peripherals
-- FDILINK AHRS IMU sensor
-- Unitree quadruped robot (A1/Go1 series)
-- USB serial connection for IMU
-- Optional: GPS module
-
-## Software Dependencies
-
-### Core Dependencies
-- **ROS**: Noetic Ninjemmys
-- **Catkin**: Build system
-- **C++ Standard**: C++11 or later
-
-### ROS Packages
 ```bash
-roscpp
-std_msgs
-sensor_msgs
-geometry_msgs
-nav_msgs
-tf
-controller_manager
-joint_state_controller
-robot_state_publisher
-unitree_legged_msgs
+~/qr_ws
 ```
 
-### System Packages
+Main packages inside `src/`:
+
+- `fdilink_ahrs`: official ROS2 IMU driver package
+- `serial_ros2`: source folder of the ROS2 `serial` package
+- `qr_guide`: ROS2 port of the original quadruped control package
+
+## Local Machine Assumptions
+
+This branch is prepared for the current machine:
+
+- Ubuntu 22.04
+- ROS2 Humble
+- Orange Pi 5 Plus
+- Local Unitree actuator SDK path:
+
 ```bash
-# Ubuntu/Debian
+/home/orangepi/unitree_actuator_sdk-main/unitree_actuator_sdk-main
+```
+
+The following local official ROS2 packages are used directly:
+
+- `/home/orangepi/fdilink_ahrs_ROS2`
+- `/home/orangepi/serial_ros2`
+
+## Build Dependencies
+
+```bash
+sudo apt update
 sudo apt install -y \
-    cmake \
-    python3-catkin-tools \
-    libeigen3-dev
+  python3-colcon-common-extensions \
+  python3-evdev \
+  libeigen3-dev \
+  libboost-all-dev \
+  liblcm-dev
 ```
 
-## Installation
-
-### 1. Clone the Repository
+## Build
 
 ```bash
-cd ~/catkin_ws/src
-git clone git@github.com:hsc13576717115/Dog-control.git
+source /opt/ros/humble/setup.bash
+cd ~/qr_ws
+colcon build --symlink-install
+source install/setup.bash
 ```
 
-### 2. Install ROS Dependencies
+## Launch
+
+Prepare the IMU udev rule if needed:
 
 ```bash
-cd ~/catkin_ws
-rosdep install --from-paths src --ignore-src -r -y
+sudo bash ~/qr_ws/src/fdilink_ahrs/wheeltec_udev.sh
 ```
 
-### 3. Build the Workspace
+Run the full stack:
 
 ```bash
-cd ~/catkin_ws
-catkin_make
-# or using catkin tools
-catkin build
+source /opt/ros/humble/setup.bash
+source ~/qr_ws/install/setup.bash
+ros2 launch qr_guide dog.launch.py
 ```
 
-### 4. Source the Workspace
+Useful launch arguments:
 
 ```bash
-source ~/catkin_ws/devel/setup.bash
-# Add to ~/.bashrc for automatic sourcing
-echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc
+ros2 launch qr_guide dog.launch.py \
+  imu_serial_port:=/dev/wheeltec_FDI_IMU_GNSS \
+  imu_serial_baud:=921600 \
+  joy_event_path:=/dev/input/event6
 ```
 
-### 5. Configure USB Permissions (for IMU)
+## Notes
 
-```bash
-# Create udev rule for FDILINK AHRS
-sudo bash ~/catkin_ws/src/fdilink_ahrs/wheeltec_udev.sh
-# Or manually add user to dialout group
-sudo usermod -aG dialout $USER
-```
-
-## Usage
-
-### Launch the Control System
-
-```bash
-roslaunch unitree_guide Dog.launch
-```
-
-This will start:
-1. AHRS/IMU driver node
-2. Event-to-joystick converter
-3. Main robot control node
-
-### Available ROS Topics
-
-#### Published Topics
-| Topic | Type | Description |
-|-------|------|-------------|
-| `/imu` | `sensor_msgs/Imu` | IMU sensor data |
-| `/mag_pose_2d` | `geometry_msgs/Pose2D` | Magnetic heading |
-| `/euler_angles` | `geometry_msgs/Vector3` | Euler angles (roll, pitch, yaw) |
-| `/magnetic` | `geometry_msgs/Vector3` | Magnetic field strength |
-| `/gps/fix` | `sensor_msgs/NavSatFix` | GPS position data |
-| `/system_speed` | `geometry_msgs/Twist` | Body frame velocity |
-| `/NED_odometry` | `nav_msgs/Odometry` | NED frame odometry |
-
-### Manual Control
-
-The system supports joystick control through the event interface. Ensure your input device is properly configured.
-
-## Project Structure
-
-```
-catkin_ws/
-├── src/
-│   ├── unitree_guide/           # Main control package
-│   │   ├── include/
-│   │   │   ├── FSM/             # Finite State Machine states
-│   │   │   │   ├── FSM.h
-│   │   │   │   ├── FSMState.h
-│   │   │   │   ├── State_Passive.h
-│   │   │   │   ├── State_FixedStand.h
-│   │   │   │   ├── State_FreeStand.h
-│   │   │   │   ├── State_Trotting.h
-│   │   │   │   ├── State_SwingTest.h
-│   │   │   │   ├── State_StepTest.h
-│   │   │   │   ├── State_BalanceTest.h
-│   │   │   │   └── State_move_base.h
-│   │   │   ├── Gait/            # Gait generation
-│   │   │   │   ├── GaitGenerator.h
-│   │   │   │   ├── WaveGenerator.h
-│   │   │   │   └── FeetEndCal.h
-│   │   │   ├── control/         # Control algorithms
-│   │   │   ├── interface/       # Robot interface
-│   │   │   ├── common/          # Common utilities
-│   │   │   ├── message/         # Message definitions
-│   │   │   └── thirdParty/      # Third-party libraries
-│   │   ├── src/                 # Source code
-│   │   ├── launch/              # Launch files
-│   │   │   └── Dog.launch
-│   │   ├── scripts/             # Python scripts
-│   │   │   └── event2joy.py
-│   │   ├── CMakeLists.txt
-│   │   └── package.xml
-│   │
-│   └── fdilink_ahrs/            # IMU driver package
-│       ├── include/
-│       │   ├── ahrs_driver.h
-│       │   ├── fdilink_data_struct.h
-│       │   └── crc_table.h
-│       ├── src/
-│       │   ├── ahrs_driver.cpp
-│       │   ├── crc_table.cpp
-│       │   └── imu_tf.cpp
-│       ├── launch/
-│       │   ├── ahrs_data.launch
-│       │   └── tf.launch
-│       ├── data/                # Sensor data logs
-│       ├── wheeltec_udev.sh
-│       ├── CMakeLists.txt
-│       └── package.xml
-│
-├── build/                       # Build artifacts (gitignored)
-├── devel/                       # Development space (gitignored)
-├── .gitignore
-└── README.md
-```
-
-## Configuration
-
-### IMU Sensor Configuration
-
-Edit the IMU parameters in `launch/Dog.launch`:
-
-```xml
-<param name="port"  value="/dev/ttyUSB0"/>      <!-- Serial port -->
-<param name="baud"  value="921600"/>             <!-- Baud rate -->
-<param name="device_type"  value="1"/>           <!-- Coordinate frame mode -->
-```
-
-### Serial Port Setup
-
-```bash
-# List available serial ports
-ls /dev/ttyUSB*
-
-# Test serial connection
-sudo minicom -D /dev/ttyUSB0 -b 921600
-```
-
-## FSM States
-
-The control system implements the following states:
-
-| State | Description |
-|-------|-------------|
-| **Passive** | Safe mode with zero motor torque |
-| **FixedStand** | Standing position with fixed foot placement |
-| **FreeStand** | Dynamic standing with balance adjustment |
-| **Trotting** | Trot gait for locomotion |
-| **SwingTest** | Individual leg swing testing |
-| **StepTest** | Stepping motion test |
-| **BalanceTest** | Balance control testing |
-| **move_base** | Base movement control |
-
-### State Transitions
-
-States are managed through the FSM controller in `FSM/FSM.h`. Transitions can be triggered via:
-- Joystick input
-- ROS service calls
-- Autonomous control logic
-
-## Troubleshooting
-
-### Common Issues
-
-**Issue**: Permission denied accessing `/dev/ttyUSB0`
-```bash
-sudo usermod -aG dialout $USER
-# Log out and log back in
-```
-
-**Issue**: IMU data not publishing
-```bash
-# Check serial connection
-ls -l /dev/ttyUSB*
-# Verify baud rate setting
-# Check IMU driver logs
-rosrun rqt_console rqt_console
-```
-
-**Issue**: Build errors
-```bash
-# Clean build
-catkin_make clean
-catkin_make
-```
-
-## Data Files
-
-The workspace includes trajectory data files:
-- `foot_trajectory_comparison.csv` - Foot trajectory comparison data
-- `jump_trajectory.csv` - Jump motion trajectory data
-
-## Contributing
-
-Contributions are welcome! Please follow these guidelines:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-### Code Style
-- Follow ROS C++ style guide
-- Use meaningful variable names
-- Add comments for complex logic
-- Update documentation for API changes
-
-## References
-
-- [Unitree Robotics](https://www.unitree.com/)
-- [ROS Documentation](http://wiki.ros.org/)
-- [Quadruped Robot Control](https://www.unitree.com/technology)
-- 《四足机器人控制算法--建模、控制与实践》
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- Unitree Robotics for the original control framework
-- FDILINK for the AHRS sensor driver
-- The ROS community
-
-## Contact
-
-For questions and support, please open an issue on GitHub.
-
----
-
-**Last Updated**: 2026-03-13
+- `qr_guide` subscribes to `/imu` from `fdilink_ahrs`.
+- `event2joy.py` has been migrated to `rclpy` and still publishes `/joy`.
+- The old ROS1 launch file has been replaced by `launch/dog.launch.py`.
+- The workspace-specific CSV output paths now point to `~/qr_ws`.

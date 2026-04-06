@@ -40,7 +40,7 @@ public:
     IOInterface() : cmdPanel(new CmdPanel()) {}
     
     // 析构函数：确保释放资源
-    ~IOInterface(){
+    virtual ~IOInterface(){
         if(cmdPanel != nullptr){
             delete cmdPanel;
             cmdPanel = nullptr;

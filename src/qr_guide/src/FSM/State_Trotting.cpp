@@ -107,7 +107,7 @@ void State_Trotting::recordFootTrajectory(const Vec3& pl, const Vec3& ac_rel,
     static std::ofstream csv;
     static bool init = false;
     if (!init) {
-        csv.open("/home/orangepi/catkin_ws/foot_trajectory_comparison.csv",
+        csv.open("/home/orangepi/qr_ws/foot_trajectory_comparison.csv",
                  std::ios::out | std::ios::trunc);
         if (csv.is_open())
             csv << "time,leg,pl_x,pl_y,pl_z,ac_rel_x,ac_rel_y,ac_rel_z\n";
