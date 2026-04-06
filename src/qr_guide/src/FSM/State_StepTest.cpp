@@ -16,7 +16,7 @@ static constexpr double MAX_X_FORWARD  = 0.30;    // 最大前冲距离（m） -
 static constexpr double LANDING_OFFSET = 0.08;    // 落地时足端前移补偿（m）- 确保足端在身体前方缓冲
 static constexpr double JUMP_CYCLE_T   = 3.5;     // 完整跳跃周期（s）：下蹲(3.0s)→起跳(0.2s)→空中(0.2s)→落地(0.3s)
 static constexpr int    TRANSITION_DURATION = 50;
-static const std::string CSV_PATH = "/home/orangepi/catkin_ws/jump_trajectory.csv";
+static const std::string CSV_PATH = "/home/orangepi/qr_ws/jump_trajectory.csv";
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -337,6 +337,5 @@ FSMStateName State_StepTest::checkChange() {
 }
 
 void State_StepTest::calcTau() { }
-
 
 

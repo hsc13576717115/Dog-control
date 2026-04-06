@@ -14,14 +14,15 @@
 #include <unistd.h>
 #include <chrono>
 #include <cmath>
+#include <functional>
 #include <iomanip>
 
 #include <Eigen/Core>
-#include <ros/ros.h>
-#include <sensor_msgs/Joy.h>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/joy.hpp>
 
 #ifdef COMPILE_WITH_MOVE_BASE
-#include <sensor_msgs/JointState.h>
+#include <sensor_msgs/msg/joint_state.hpp>
 #endif
 
 /* ===================== 常量定义 ===================== */
@@ -50,6 +51,7 @@ enum Xbox360JoyMap {
 IOSDK::IOSDK() : _isCalibrated(false) {
     _calibOffset.fill(0.0f);
     _activeLegs = {0, 1, 2, 3};
+    _node = std::make_shared<rclcpp::Node>("qr_guide_io");
 
     std::cout << "[IOSDK] 初始化完成\n";
     std::cout << "[提示] 手动调整至趴下姿态，按 START 完成校准\n";
@@ -72,8 +74,7 @@ IOSDK::IOSDK() : _isCalibrated(false) {
     }
 
 #ifdef COMPILE_WITH_MOVE_BASE
-    _nh = ros::NodeHandle("~");
-    _jointPub = _nh.advertise<sensor_msgs::JointState>("/real_robot/joint_states", 10);
+    _jointPub = _node->create_publisher<sensor_msgs::msg::JointState>("/real_robot/joint_states", 10);
     _jointState.name = {
         "FR_hip","FR_thigh","FR_calf",
         "FL_hip","FL_thigh","FL_calf",
@@ -81,15 +82,13 @@ IOSDK::IOSDK() : _isCalibrated(false) {
         "RL_hip","RL_thigh","RL_calf"
     };
     _jointState.position.resize(12);
-#else
-    int argc = 0;
-    char** argv = nullptr;
-    ros::init(argc, argv, "iosdk_joy_node");
-    _nh = ros::NodeHandle("~");
 #endif
 
-    _joySub = _nh.subscribe<sensor_msgs::Joy>("/joy", 2000,
-                                             &IOSDK::joyCallback, this);
+    _joySub = _node->create_subscription<sensor_msgs::msg::Joy>(
+        "/joy",
+        rclcpp::QoS(2000),
+        std::bind(&IOSDK::joyCallback, this, std::placeholders::_1)
+    );
 
     _currentUserCmd = UserCommand::NONE;
     _currentUserValue = {};
@@ -100,12 +99,11 @@ IOSDK::IOSDK() : _isCalibrated(false) {
 
 IOSDK::~IOSDK() {
     for (auto* s : _serials) delete s;
-    ros::shutdown();
 }
 
 /* ===================== Joy 回调 ===================== */
 
-void IOSDK::joyCallback(const sensor_msgs::Joy::ConstPtr& msg) {
+void IOSDK::joyCallback(const sensor_msgs::msg::Joy::SharedPtr msg) {
     _currentUserCmd = UserCommand::NONE;
 
     const bool validBtn = msg->buttons.size() >= 8;
@@ -156,7 +154,7 @@ void IOSDK::sendRecv(const UserLowlevel::LowlevelCmd* cmd,
 
     state->userCmd   = _currentUserCmd;
     state->userValue = _currentUserValue;
-    ros::spinOnce();
+    rclcpp::spin_some(_node);
 
     /* -------- 校准 -------- */
     if (state->userCmd == UserCommand::L1_X && !_isCalibrated) {
@@ -224,7 +222,7 @@ void IOSDK::sendRecv(const UserLowlevel::LowlevelCmd* cmd,
     }
 
 #ifdef COMPILE_WITH_MOVE_BASE
-    _jointState.header.stamp = ros::Time::now();
+    _jointState.header.stamp = _node->get_clock()->now();
     for (int i = 0; i < 12; ++i)
         _jointState.position[i] = state->motorState[i].q;
     _jointPub.publish(_jointState);
