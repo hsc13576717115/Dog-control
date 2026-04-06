@@ -60,9 +60,10 @@
 
 #include "message/unitree_joystick.h"
 #include "common/enumClass.h"
+#include <cstdio>
 #include <pthread.h>
-#include "thirdParty/unitree_actuator_sdk-main/include/unitreeMotor/unitreeMotor.h"
-#include "thirdParty/unitree_actuator_sdk-main/include/serialPort/SerialPort.h"
+#include "unitreeMotor/unitreeMotor.h"
+#include "serialPort/SerialPort.h"
 // 引入用户命令头文件
 #include "message/LowlevelCmd.h"
 
