@@ -7,8 +7,8 @@
 #include <sched.h>
 #include <iomanip>
 #include <mutex>  // 用于线程安全
-#include <ros/ros.h>
-#include <sensor_msgs/Imu.h>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/imu.hpp>
 
 // 机器人控制相关头文件
 #include "control/ControlFrame.h"
@@ -40,11 +40,11 @@ void setProcessScheduler()
 }
 
 // 全局变量：存储最新的IMU数据（线程安全）
-sensor_msgs::Imu latest_imu_data;
+sensor_msgs::msg::Imu latest_imu_data;
 std::mutex imu_mutex;  // 保护IMU数据的互斥锁
 
 // 外部IMU话题回调函数：接收/imu数据并保存
-void imuCallback(const sensor_msgs::Imu::ConstPtr& msg)
+void imuCallback(const sensor_msgs::msg::Imu::SharedPtr msg)
 {
     std::lock_guard<std::mutex> lock(imu_mutex);  // 加锁防止数据竞争
     latest_imu_data = *msg;
@@ -56,14 +56,17 @@ int main(int argc, char **argv)
     setProcessScheduler();
     std::cout << std::fixed << std::setprecision(3);
 
-    // 初始化ROS节点
-    ros::init(argc, argv, "unitree_external_imu_controller");
-    ros::NodeHandle nh;
-    std::cout << "[IMU] 启动ROS节点，开始订阅外部/imu话题..." << std::endl;
+    // 初始化ROS2节点
+    rclcpp::init(argc, argv);
+    auto imu_node = std::make_shared<rclcpp::Node>("qr_guide_controller");
+    latest_imu_data.orientation.w = 1.0;
+    std::cout << "[IMU] 启动ROS2节点，开始订阅外部/imu话题..." << std::endl;
 
     // 订阅外部IMU话题（来自fdilink_ahrs）
-    ros::Subscriber imu_sub = nh.subscribe<sensor_msgs::Imu>(
-        "/imu", 2000, imuCallback  // 话题名：/imu，队列长度10
+    auto imu_sub = imu_node->create_subscription<sensor_msgs::msg::Imu>(
+        "/imu",
+        rclcpp::QoS(2000),
+        imuCallback
     );
 
     // 机器人控制核心逻辑初始化
@@ -98,11 +101,11 @@ int main(int argc, char **argv)
     }
 
     // 主循环：控制逻辑 + 外部IMU数据注入
-    ros::Rate loop_rate(1000);  // 与控制频率一致（500Hz）
-    while (running && ros::ok())
+    rclcpp::WallRate loop_rate(1000.0);
+    while (running && rclcpp::ok())
     {
         // 1. 读取最新的外部IMU数据（线程安全）
-        sensor_msgs::Imu current_imu;
+        sensor_msgs::msg::Imu current_imu;
         {
             std::lock_guard<std::mutex> lock(imu_mutex);
             current_imu = latest_imu_data;
@@ -131,12 +134,13 @@ int main(int argc, char **argv)
         ctrlFrame.run();
 
         // 4. 处理ROS回调（包括IMU订阅）
-        ros::spinOnce();
+        rclcpp::spin_some(imu_node);
         loop_rate.sleep();
     }
 
     // 资源释放
     delete ctrlComp;  // 内部会释放lowState、ioInter等
+    rclcpp::shutdown();
     std::cout << "[IMU] 程序退出，资源已释放" << std::endl;
     return 0;
 }
