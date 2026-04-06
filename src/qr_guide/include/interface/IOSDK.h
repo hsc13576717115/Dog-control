@@ -53,19 +53,23 @@
 #ifndef IOSDK_H
 #define IOSDK_H
 
-#include <vector>
-#include <set>
 #include <array>
+#include <memory>
+#include <set>
+#include <vector>
 #include <Eigen/Core>
-#include <ros/ros.h>                  // ROS头文件
-#include <sensor_msgs/Joy.h>          // Joy消息头文件
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/joy.hpp>
+#ifdef COMPILE_WITH_MOVE_BASE
+#include <sensor_msgs/msg/joint_state.hpp>
+#endif
 #include "message/LowlevelState.h"
 #include "interface/IOInterface.h"
 #include "message/LowlevelCmd.h"
 #include "unitreeMotor/unitreeMotor.h"
 #include "serialPort/SerialPort.h"
-#include "common/enumClass.h"         // 引入原项目的UserCommand枚举
-#include "interface/CmdPanel.h"       // 引入原项目的UserValue结构体（仅用定义，不使用CmdPanel类）
+#include "common/enumClass.h"
+#include "interface/CmdPanel.h"
 
 typedef Eigen::Matrix<double, 3, 1> Vec3;
 
@@ -81,11 +85,10 @@ public:
     UserValue _currentUserValue;  
 
 private:
-    ros::NodeHandle _nh;                  // ROS节点句柄
-    ros::Subscriber _joySub;              // Joy话题订阅者
-    void joyCallback(const sensor_msgs::Joy::ConstPtr& msg);  // Joy回调函数
+    void joyCallback(const sensor_msgs::msg::Joy::SharedPtr msg);
 
-        
+    rclcpp::Node::SharedPtr _node;
+    rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr _joySub;
 
     std::vector<SerialPort*> _serials;
     MotorCmd  _motorCmd[12];
@@ -109,8 +112,8 @@ private:
     // SerialLowState _serialState;
 
 #ifdef COMPILE_WITH_MOVE_BASE
-    ros::Publisher _jointPub;             // 关节状态发布者
-    sensor_msgs::JointState _jointState;  // 关节状态消息
+    rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr _jointPub;
+    sensor_msgs::msg::JointState _jointState;
 #endif
 };
 
