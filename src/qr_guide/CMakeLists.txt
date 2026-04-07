@@ -39,10 +39,12 @@ if(DEBUG)
 endif()
 
 find_package(ament_cmake REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 find_package(Boost REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
 set(UNITREE_ACTUATOR_SDK_ROOT "/home/orangepi/unitree_actuator_sdk-main/unitree_actuator_sdk-main" CACHE PATH "Local Unitree actuator SDK root")
 set(UNITREE_ACTUATOR_SDK_INCLUDE_DIR "${UNITREE_ACTUATOR_SDK_ROOT}/include")
@@ -55,33 +57,68 @@ if(NOT EXISTS "${UNITREE_ACTUATOR_SDK_LIBRARY}")
     message(FATAL_ERROR "Unitree actuator SDK library was not found at ${UNITREE_ACTUATOR_SDK_LIBRARY}")
 endif()
 
-file(GLOB_RECURSE SRC_LIST
-    "src/*/*.cpp"
-    "src/*/*.cc"
+set(QR_GUIDE_CORE_SOURCES
+    src/config/RobotConfig.cpp
+    src/model/LegKinematics.cpp
+    src/model/RobotModel.cpp
+    src/input/JoystickMapper.cpp
+    src/runtime/ControllerNode.cpp
+    src/runtime/RobotRunner.cpp
+    src/common/LowPassFilter.cpp
+    src/common/unitreeRobot.cpp
+    src/control/Estimator.cpp
+    src/FSM/FSM.cpp
+    src/FSM/FSMState.cpp
+    src/FSM/State_Passive.cpp
+    src/FSM/State_FixedStand.cpp
+    src/FSM/State_Trotting.cpp
+    src/FSM/State_StepTest.cpp
+    src/interface/IOSDK.cpp
+    src/quadProgpp/Array.cc
+    src/quadProgpp/QuadProg++.cc
 )
 
-add_executable(junior_ctrl src/main.cpp ${SRC_LIST})
+add_library(qr_guide_core ${QR_GUIDE_CORE_SOURCES})
+target_include_directories(qr_guide_core PUBLIC
+    include
+    ${Boost_INCLUDE_DIRS}
+    ${EIGEN3_INCLUDE_DIRS}
+    ${UNITREE_ACTUATOR_SDK_INCLUDE_DIR}
+)
+ament_target_dependencies(qr_guide_core
+    ament_index_cpp
+    rclcpp
+    sensor_msgs
+)
+target_compile_options(qr_guide_core PRIVATE -O3)
+target_link_libraries(qr_guide_core
+    yaml-cpp
+    ${UNITREE_ACTUATOR_SDK_LIBRARY}
+    pthread
+)
 
+add_executable(junior_ctrl src/main.cpp)
 target_include_directories(junior_ctrl PRIVATE
     include
     ${Boost_INCLUDE_DIRS}
     ${EIGEN3_INCLUDE_DIRS}
     ${UNITREE_ACTUATOR_SDK_INCLUDE_DIR}
 )
-
 ament_target_dependencies(junior_ctrl
+    ament_index_cpp
     rclcpp
     sensor_msgs
 )
-
 target_compile_options(junior_ctrl PRIVATE -O3)
 target_link_libraries(junior_ctrl
-    ${UNITREE_ACTUATOR_SDK_LIBRARY}
-    pthread
+    qr_guide_core
+    yaml-cpp
 )
 
-install(TARGETS junior_ctrl
-    DESTINATION lib/${PROJECT_NAME}
+install(TARGETS qr_guide_core junior_ctrl
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
 install(PROGRAMS
@@ -89,7 +126,12 @@ install(PROGRAMS
     DESTINATION lib/${PROJECT_NAME}
 )
 
-install(DIRECTORY launch
+install(FILES
+    launch/dog.launch.py
+    DESTINATION share/${PROJECT_NAME}/launch
+)
+
+install(DIRECTORY config
     DESTINATION share/${PROJECT_NAME}
 )
 

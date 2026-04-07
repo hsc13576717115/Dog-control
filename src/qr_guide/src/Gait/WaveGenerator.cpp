@@ -2,6 +2,9 @@
  Copyright (c) 2020-2023, Unitree Robotics.Co.Ltd. All rights reserved.
 ***********************************************************************/
 #include "Gait/WaveGenerator.h"
+
+// 遗留实现：当前主线不再依赖该相位发生器。
+
 #include <iostream>
 #include <sys/time.h>
 #include <math.h>

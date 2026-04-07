@@ -1,120 +1,61 @@
-// #ifndef IOSDK_H
-// #define IOSDK_H
-
-// #include <vector>
-// #include <set>
-// #include <array>
-// #include <Eigen/Core>
-// #include "message/LowlevelState.h"
-// #include "interface/IOInterface.h"
-// #include "message/LowlevelCmd.h"
-// #include "unitreeMotor/unitreeMotor.h"
-// #include "serialPort/SerialPort.h"
-// #include "interface/CmdPanel.h"
-
-// typedef Eigen::Matrix<double, 3, 1> Vec3;
-
-// class IOSDK : public IOInterface {
-// public:
-//     IOSDK();
-//     ~IOSDK();
-//     void sendRecv(const UserLowlevel::LowlevelCmd *cmd, LowlevelState *state) override;
-//     bool isCalibrated() const { return _isCalibrated; }
-//     const std::array<float, 12>& getCalibOffset() const { return _calibOffset; }
-// private:
-//     std::vector<SerialPort*> _serials;
-//     MotorCmd  _motorCmd[12];
-//     MotorData _motorData[12];
-//     CmdPanel* _cmdPanel;
-//     SerialLowState _serialState;
-//     std::set<int> _activeLegs;
-//     std::array<float, 12> _calibOffset;  // 校准偏移：让qUser=0对应L型姿态电机角度
-//     bool _isCalibrated = false;
-//     const UserCommand _calibTriggerKey = UserCommand::L1_X;  // 校准触发键
-//     const float _calibPromptInterval = 5.0f;
-//     double _lastCalibPromptTime = 0.0;
-
-//     // 减速比（全局）
-//     static constexpr float GEAR_HIP = 1.0f;
-//     static constexpr float GEAR_THIGH = 1.0f;
-//     static constexpr float GEAR_CALF = 2.0f;
-//     static constexpr float BASE_GEAR_RATIO = 6.33f;  // 电机基础减速比（GO-M8010-6）
-//     static constexpr float CALF_TOTAL_GEAR = BASE_GEAR_RATIO * GEAR_CALF;  // 小腿总减速比
-
-// #ifdef COMPILE_WITH_MOVE_BASE
-//     ros::NodeHandle _nh;
-//     ros::Publisher _jointPub;
-//     sensor_msgs::JointState _jointState;
-// #endif
-// };
-
-// #endif  // IOSDK_H
-
 #ifndef IOSDK_H
 #define IOSDK_H
 
 #include <array>
-#include <memory>
+#include <cmath>
 #include <set>
+#include <string>
 #include <vector>
-#include <Eigen/Core>
-#include <rclcpp/rclcpp.hpp>
-#include <sensor_msgs/msg/joy.hpp>
-#ifdef COMPILE_WITH_MOVE_BASE
-#include <sensor_msgs/msg/joint_state.hpp>
-#endif
-#include "message/LowlevelState.h"
+
+#include "config/RobotConfig.h"
 #include "interface/IOInterface.h"
 #include "message/LowlevelCmd.h"
-#include "unitreeMotor/unitreeMotor.h"
+#include "message/LowlevelState.h"
 #include "serialPort/SerialPort.h"
-#include "common/enumClass.h"
-#include "interface/CmdPanel.h"
+#include "unitreeMotor/unitreeMotor.h"
 
-typedef Eigen::Matrix<double, 3, 1> Vec3;
-
+// 真实电机 IO 层。
+// 当前职责只保留：串口通信、减速比换算、校准偏差和反馈回填。
 class IOSDK : public IOInterface {
 public:
-    IOSDK();
-    ~IOSDK();
-    void sendRecv(const UserLowlevel::LowlevelCmd *cmd, LowlevelState *state) override;
-    bool isCalibrated() const { return _isCalibrated; }
+    explicit IOSDK(const qr_guide::DriveParameters& drive_parameters);
+    ~IOSDK() override;
+
+    void sendRecv(const UserLowlevel::LowlevelCmd* cmd, LowlevelState* state) override;
+    bool isCalibrated() const override { return _isCalibrated; }
     const std::array<float, 12>& getCalibOffset() const { return _calibOffset; }
 
-    UserCommand _currentUserCmd;          
-    UserValue _currentUserValue;  
-
 private:
-    void joyCallback(const sensor_msgs::msg::Joy::SharedPtr msg);
-
-    rclcpp::Node::SharedPtr _node;
-    rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr _joySub;
+    void openSerialPorts();
+    void initializeMotorMetadata();
+    void maybePrintCalibrationReminder();
+    void tryCalibrate(const LowlevelState& state);
+    void calibrateLeg(int leg);
+    void sendReceiveLeg(int leg, const UserLowlevel::LowlevelCmd* cmd, LowlevelState* state);
+    void populateMotorCommand(int leg, int joint, const UserLowlevel::MotorCmd& user_cmd);
+    void updateMotorStateFromFeedback(int leg, int joint, LowlevelState* state);
+    void markMotorOffline(int leg, int joint, LowlevelState* state) const;
+    float gearRatioForJoint(int joint) const;
+    float calibrationTargetUserAngle(int leg, int joint) const;
 
     std::vector<SerialPort*> _serials;
-    MotorCmd  _motorCmd[12];
+    // 串口顺序固定为 FR / FL / RR / RL。
+    std::array<std::string, 4> _serialPorts;
+    MotorCmd _motorCmd[12];
     MotorData _motorData[12];
     std::set<int> _activeLegs;
-    std::array<float, 12> _calibOffset;  // 校准偏移
+    std::array<float, 12> _calibOffset;
     bool _isCalibrated = false;
-    const UserCommand _calibTriggerKey = UserCommand::L1_X;  // 校准触发键（与原项目枚举匹配）
-    const float _calibPromptInterval = 5.0f;
-    double _lastCalibPromptTime = 0.0;
-
-    // 减速比定义（保留）
-    static constexpr float GEAR_HIP = 1.0f;
-    static constexpr float GEAR_THIGH = 1.0f;
-    static constexpr float GEAR_CALF = 2.0f;
-    static constexpr float BASE_GEAR_RATIO = 6.33f;
-    static constexpr float CALF_TOTAL_GEAR = BASE_GEAR_RATIO * GEAR_CALF;
-
-    // 删除原键盘相关成员（不再使用）
-    // CmdPanel* _cmdPanel;
-    // SerialLowState _serialState;
-
-#ifdef COMPILE_WITH_MOVE_BASE
-    rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr _jointPub;
-    sensor_msgs::msg::JointState _jointState;
-#endif
+    // 校准仍然沿用 START -> L1_X 这条触发链路。
+    const UserCommand _calibTriggerKey = UserCommand::L1_X;
+    const double _calibPromptIntervalSec = 5.0;
+    double _lastCalibPromptTimeSec = 0.0;
+    static constexpr float _degToRad = static_cast<float>(M_PI) / 180.0f;
+    float _baseGearRatio = 6.33f;
+    float _calfTotalGearRatio = 12.66f;
+    float _calibrationHipAngleRad = 0.0f * _degToRad;
+    float _calibrationThighAngleRad = -161.8f * _degToRad;
+    float _calibrationCalfAngleRad = -71.8f * _degToRad;
 };
 
 #endif  // IOSDK_H

@@ -5,11 +5,13 @@
 #include <math.h>
 
 LPFilter::LPFilter(double samplePeriod, double cutFrequency){
+    // 将截止频率换算成离散一阶滤波器权重。
     _weight = 1.0 / ( 1.0 + 1.0/(2.0*M_PI * samplePeriod * cutFrequency) );
     _start  = false;
 }
 
 void LPFilter::addValue(double newValue){
+    // 第一拍直接初始化，后续使用指数平滑。
     if(!_start){
         _start = true;
         _pastValue = newValue;

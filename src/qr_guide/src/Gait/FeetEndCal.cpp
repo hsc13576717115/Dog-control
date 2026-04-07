@@ -3,6 +3,8 @@
 ***********************************************************************/
 #include "Gait/FeetEndCal.h"
 
+// 遗留实现：当前主线不再使用历史 gait 模块。
+
 FeetEndCal::FeetEndCal(CtrlComponents *ctrlComp)
            : _est(ctrlComp->estimator), _lowState(ctrlComp->lowState),
              _robModel(ctrlComp->robotModel){
