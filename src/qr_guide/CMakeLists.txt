@@ -34,6 +34,7 @@ find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(tf2_ros REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
@@ -83,6 +84,7 @@ ament_target_dependencies(qr_guide_core
     nav_msgs
     rclcpp
     sensor_msgs
+    tf2_ros
     visualization_msgs
 )
 target_compile_options(qr_guide_core PRIVATE -O3)
@@ -105,6 +107,7 @@ ament_target_dependencies(junior_ctrl
     nav_msgs
     rclcpp
     sensor_msgs
+    tf2_ros
     visualization_msgs
 )
 target_compile_options(junior_ctrl PRIVATE -O3)
@@ -130,6 +133,10 @@ install(FILES
 )
 
 install(DIRECTORY config
+    DESTINATION share/${PROJECT_NAME}
+)
+
+install(DIRECTORY urdf
     DESTINATION share/${PROJECT_NAME}
 )
 
