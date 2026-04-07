@@ -3,6 +3,8 @@
 ***********************************************************************/
 #include "FSM/State_FreeStand.h"
 
+// 遗留实现：当前主线不再走 FreeStand。
+
 State_FreeStand::State_FreeStand(CtrlComponents *ctrlComp)
              :FSMState(ctrlComp, FSMStateName::FREESTAND, "free stand"){
     _rowMax = 20 * M_PI / 180;

@@ -12,6 +12,8 @@
 #endif  // COMPILE_DEBUG
 
 /*cycloid gait*/
+// 遗留模块：历史步态生成器。
+// 当前主线 trotting 直接在状态内部生成轨迹，不再走该类。
 class GaitGenerator{
 public:
     GaitGenerator(CtrlComponents *ctrlComp);

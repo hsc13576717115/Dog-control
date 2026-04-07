@@ -49,28 +49,28 @@ struct IMU
     }
 
     // 原有方法：获取旋转矩阵
-    RotMat getRotMat(){
+    RotMat getRotMat() const {
         Quat quat;
         quat << quaternion[0], quaternion[1], quaternion[2], quaternion[3];
         return quatToRotMat(quat);
     }
 
     // 原有方法：获取加速度（机体坐标系）
-    Vec3 getAcc(){
+    Vec3 getAcc() const {
         Vec3 acc;
         acc << accelerometer[0], accelerometer[1], accelerometer[2];
         return acc;
     }
 
     // 原有方法：获取陀螺仪数据（机体坐标系）
-    Vec3 getGyro(){
+    Vec3 getGyro() const {
         Vec3 gyro;
         gyro << gyroscope[0], gyroscope[1], gyroscope[2];
         return gyro;
     }
 
     // 原有方法：获取四元数
-    Quat getQuat(){
+    Quat getQuat() const {
         Quat q;
         q << quaternion[0], quaternion[1], quaternion[2], quaternion[3];
         return q;
@@ -85,7 +85,7 @@ struct LowlevelState
     UserValue userValue;    // 原有：用户输入值（摇杆）
 
     // 原有方法：获取所有腿的位置（3x4矩阵）
-    Vec34 getQ(){
+    Vec34 getQ() const {
         Vec34 qLegs;
         for(int i(0); i < 4; ++i){
             qLegs.col(i)(0) = motorState[3*i    ].q;
@@ -96,7 +96,7 @@ struct LowlevelState
     }
 
     // 原有方法：获取所有腿的速度（3x4矩阵）
-    Vec34 getQd(){
+    Vec34 getQd() const {
         Vec34 qdLegs;
         for(int i(0); i < 4; ++i){
             qdLegs.col(i)(0) = motorState[3*i    ].dq;
@@ -107,37 +107,37 @@ struct LowlevelState
     }
 
     // 原有方法：获取旋转矩阵（全局坐标系）
-    RotMat getRotMat(){
+    RotMat getRotMat() const {
         return imu.getRotMat();
     }
 
     // 原有方法：获取加速度（机体坐标系）
-    Vec3 getAcc(){
+    Vec3 getAcc() const {
         return imu.getAcc();
     }
 
     // 原有方法：获取陀螺仪数据（机体坐标系）
-    Vec3 getGyro(){
+    Vec3 getGyro() const {
         return imu.getGyro();
     }
 
     // 原有方法：获取加速度（全局坐标系）
-    Vec3 getAccGlobal(){
+    Vec3 getAccGlobal() const {
         return getRotMat() * getAcc();
     }
 
     // 原有方法：获取陀螺仪数据（全局坐标系）
-    Vec3 getGyroGlobal(){
+    Vec3 getGyroGlobal() const {
         return getRotMat() * getGyro();
     }
 
     // 原有方法：获取偏航角（yaw，全局坐标系）
-    double getYaw(){
+    double getYaw() const {
         return rotMatToRPY(getRotMat())(2);
     }
 
     // 原有方法：获取偏航角速度（全局坐标系）
-    double getDYaw(){
+    double getDYaw() const {
         return getGyroGlobal()(2);
     }
 

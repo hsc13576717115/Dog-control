@@ -122,6 +122,7 @@ void Estimator::_initSystem(){
 }
 
 void Estimator::run(){
+    // 每个控制周期都根据当前接触相位调整 Q / R，再完成一次标准卡尔曼更新。
     _feetH.setZero();
     _feetPosGlobalKine = _robModel->getFeet2BPositions(*_lowState, FrameType::GLOBAL);
     _feetVelGlobalKine = _robModel->getFeet2BVelocities(*_lowState, FrameType::GLOBAL);
@@ -253,4 +254,3 @@ Vec34 Estimator::getPosFeet2BGlobal(){
     }
     return feet2BPos;
 }
-

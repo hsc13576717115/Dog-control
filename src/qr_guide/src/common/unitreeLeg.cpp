@@ -26,6 +26,7 @@ QuadrupedLeg::QuadrupedLeg(int legID, float abadLinkLength, float hipLinkLength,
 
 // Forward Kinematics
 Vec3 QuadrupedLeg::calcPEe2H(Vec3 q){
+    // 旧版 FK 公式，当前新主线中的 LegKinematics::footInHip 与这里保持同源。
     float l1 = _sideSign * _abadLinkLength;
     float l2 = -_hipLinkLength;
     float l3 = -_kneeLinkLength;
@@ -62,6 +63,7 @@ Vec3 QuadrupedLeg::calcVEe(Vec3 q, Vec3 qd){
 
 // Inverse Kinematics
 Vec3 QuadrupedLeg::calcQ(Vec3 pEe, FrameType frame){
+    // 旧版 IK 公式，当前新主线中的 LegKinematics::jointAnglesFromFoot 与这里同源。
     Vec3 pEe2H;
     if(frame == FrameType::HIP)
         pEe2H = pEe;
@@ -117,6 +119,7 @@ Vec3 QuadrupedLeg::calcTau(Vec3 q, Vec3 force){
 
 // Jacobian Matrix
 Mat3 QuadrupedLeg::calcJaco(Vec3 q){
+    // 旧版 Jacobian，当前新主线实现沿用同一推导。
     Mat3 jaco;
 
     float l1 = _abadLinkLength * _sideSign;

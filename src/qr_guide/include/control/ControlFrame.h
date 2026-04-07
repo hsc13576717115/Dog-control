@@ -7,6 +7,8 @@
 #include "FSM/FSM.h"
 #include "control/CtrlComponents.h"
 
+// 旧版控制壳层，当前主线已经由 RobotRunner 取代。
+// 这里保留只是为了兼容历史代码引用。
 class ControlFrame{
 public:
 	ControlFrame(CtrlComponents *ctrlComp);
