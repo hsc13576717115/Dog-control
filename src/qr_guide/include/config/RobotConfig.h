@@ -66,6 +66,7 @@ struct RobotParameters {
     double l0 = 0.0;
     double l1 = 0.0;
     double l2 = 0.0;
+    double foot_radius_m = 0.0;
     DriveParameters drive;
     JointLimitParameters joint_limits;
     StandTargetParameters stand_targets;
@@ -79,9 +80,6 @@ struct RobotParameters {
 
 // 从 YAML 文件加载机器人参数。
 RobotParameters LoadRobotParameters(const std::string& path);
-// 保留 A1 / Go1 参数工厂，主要用于兼容旧接口。
-RobotParameters MakeA1Parameters();
-RobotParameters MakeGo1Parameters();
 
 }  // namespace qr_guide
 
