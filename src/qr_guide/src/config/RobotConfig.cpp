@@ -112,6 +112,9 @@ RobotParameters LoadRobotParameters(const std::string& path) {
     params.l0 = config["robot"]["leg_geometry"]["l0"].as<double>();
     params.l1 = config["robot"]["leg_geometry"]["l1"].as<double>();
     params.l2 = config["robot"]["leg_geometry"]["l2"].as<double>();
+    if (config["robot"]["leg_geometry"]["foot_radius_m"]) {
+        params.foot_radius_m = config["robot"]["leg_geometry"]["foot_radius_m"].as<double>();
+    }
 
     params.drive.serial_ports = ReadLegStringMap(config["robot"]["drive"]["serial_ports"]);
     params.drive.base_gear_ratio = config["robot"]["drive"]["base_gear_ratio"].as<double>();
@@ -133,64 +136,6 @@ RobotParameters LoadRobotParameters(const std::string& path) {
         params.velocity_limit_yaw = ReadVec2(config["robot"]["velocity_limits"]["yaw"]);
     }
 
-    ValidateRightPositiveYConvention(params);
-    return params;
-}
-
-RobotParameters MakeA1Parameters() {
-    RobotParameters params;
-    // 兼容旧接口用的默认参数，不参与当前 custom_quadruped 主线。
-    params.name = "A1";
-    params.body_size_m << 0.267, 0.194, 0.114;
-    params.mass.total_mass_kg = 12.5;
-    params.mass.body_mass_kg = 6.0;
-    params.mass.com_offset_m << 0.01, 0.0, 0.0;
-    params.mass.body_inertia_kg_m2_diag << 0.0158533, 0.0377999, 0.0456542;
-    params.mass.whole_robot_inertia_kg_m2_diag << 0.132, 0.3475, 0.3775;
-    params.hip_mounts_in_body[FR] << 0.1805, 0.0470, 0.0;
-    params.hip_mounts_in_body[FL] << 0.1805, -0.0470, 0.0;
-    params.hip_mounts_in_body[RR] << -0.1805, 0.0470, 0.0;
-    params.hip_mounts_in_body[RL] << -0.1805, -0.0470, 0.0;
-    params.l0 = 0.0838;
-    params.l1 = 0.2000;
-    params.l2 = 0.2000;
-    params.joint_limits.q0 << -2.6, 2.6;
-    params.joint_limits.q1 << -6.5, 6.5;
-    params.joint_limits.q2 << -2.3, 2.3;
-    params.stand_targets.normal_feet_in_hip[FR] << 0.0, 0.1308, -0.3180;
-    params.stand_targets.normal_feet_in_hip[FL] << 0.0, -0.1308, -0.3180;
-    params.stand_targets.normal_feet_in_hip[RR] << 0.0, 0.1308, -0.3180;
-    params.stand_targets.normal_feet_in_hip[RL] << 0.0, -0.1308, -0.3180;
-    params.stand_targets.crouch_feet_in_hip = params.stand_targets.normal_feet_in_hip;
-    ValidateRightPositiveYConvention(params);
-    return params;
-}
-
-RobotParameters MakeGo1Parameters() {
-    RobotParameters params;
-    // 兼容旧接口用的默认参数，不参与当前 custom_quadruped 主线。
-    params.name = "Go1";
-    params.body_size_m << 0.3762, 0.0935, 0.11;
-    params.mass.total_mass_kg = 10.5;
-    params.mass.body_mass_kg = 6.0;
-    params.mass.com_offset_m << 0.04, 0.0, 0.0;
-    params.mass.body_inertia_kg_m2_diag << 0.0337, 0.0407, 0.0613;
-    params.mass.whole_robot_inertia_kg_m2_diag << 0.0792, 0.2085, 0.2265;
-    params.hip_mounts_in_body[FR] << 0.1325, 0.0565, 0.0;
-    params.hip_mounts_in_body[FL] << 0.1325, -0.0565, 0.0;
-    params.hip_mounts_in_body[RR] << -0.1325, 0.0565, 0.0;
-    params.hip_mounts_in_body[RL] << -0.1325, -0.0565, 0.0;
-    params.l0 = 0.085;
-    params.l1 = 0.225;
-    params.l2 = 0.257;
-    params.joint_limits.q0 << -2.6, 2.6;
-    params.joint_limits.q1 << -6.5, 6.5;
-    params.joint_limits.q2 << -2.3, 2.3;
-    params.stand_targets.normal_feet_in_hip[FR] << 0.13, 0.099, -0.335;
-    params.stand_targets.normal_feet_in_hip[FL] << 0.13, -0.099, -0.335;
-    params.stand_targets.normal_feet_in_hip[RR] << -0.13, 0.099, -0.335;
-    params.stand_targets.normal_feet_in_hip[RL] << -0.13, -0.099, -0.335;
-    params.stand_targets.crouch_feet_in_hip = params.stand_targets.normal_feet_in_hip;
     ValidateRightPositiveYConvention(params);
     return params;
 }

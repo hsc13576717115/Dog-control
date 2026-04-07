@@ -7,13 +7,8 @@
 #include <vector>
 #include "common/unitreeRobot.h"
 #include "common/LowPassFilter.h"
-#include "Gait/WaveGenerator.h"
 #include "message/LowlevelState.h"
 #include "string"
-
-#ifdef COMPILE_DEBUG
-    #include "common/PyPlot.h"
-#endif  // COMPILE_DEBUG
 
 #ifdef COMPILE_WITH_MOVE_BASE
     #include <ros/ros.h>
@@ -34,15 +29,12 @@ public:
     ~Estimator();
     Vec3  getPosition();
     Vec3  getVelocity();
+    Vec4  getFeetHeightReference() const;
     Vec3  getFootPos(int i);
     Vec34 getFeetPos();
     Vec34 getFeetVel();
     Vec34 getPosFeet2BGlobal();
     void run();
-
-#ifdef COMPILE_DEBUG
-    void setPyPlot(PyPlot *plot){_testPlot = plot;}
-#endif  // COMPILE_DEBUG
 
 private:
     void _initSystem();
@@ -78,6 +70,7 @@ private:
     RotMat _rotMatB2G;                              // Rotate Matrix: from body to global
     Vec3 _g;
     Vec34 _feetPosGlobalKine, _feetVelGlobalKine;
+    Vec4 _nominalFeetHeight = Vec4::Zero();
 
     LowlevelState* _lowState;
     QuadrupedRobot *_robModel;
@@ -95,9 +88,6 @@ private:
     AvgCov *_uCheck;
     std::string _estName;
 
-#ifdef COMPILE_DEBUG
-    PyPlot *_testPlot;
-#endif  // COMPILE_DEBUG
 #ifdef COMPILE_WITH_MOVE_BASE
     ros::NodeHandle _nh;
     ros::Publisher _pub;

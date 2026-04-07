@@ -33,6 +33,9 @@ public:
     void initialize();
     void run();
     FSMStateName currentStateName() const { return _currentState->_stateName; }
+    std::string currentStateLabel() const {
+        return _currentState ? _currentState->_stateNameString : "unknown";
+    }
 
 private:
     FSMState* getNextState(FSMStateName stateName);

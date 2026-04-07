@@ -43,6 +43,11 @@ Estimator::~Estimator(){
 void Estimator::_initSystem(){
     _g << 0, 0, -9.81;
     _largeVariance = 100;
+    for (int leg = 0; leg < 4; ++leg) {
+        // 当前版本按“世界系原点在地面、足端建模为带半径的球/脚垫中心”处理。
+        // 因此 _feetH 使用脚端半径作为每条腿的高度参考。
+        _nominalFeetHeight(leg) = _robModel->getParameters().foot_radius_m;
+    }
 
     _xhat.setZero();
     _u.setZero();
@@ -99,7 +104,7 @@ void Estimator::_initSystem(){
                0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 1.0 , 0.000,
                0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 0.000 , 1.0;
 
-    /* A1 Worked */
+    /* Input acceleration covariance */
     _Cu <<   268.573,  -43.819, -147.211,
             -43.819 ,  92.949 ,  58.082,
             -147.211,   58.082,  302.120;
@@ -123,7 +128,7 @@ void Estimator::_initSystem(){
 
 void Estimator::run(){
     // 每个控制周期都根据当前接触相位调整 Q / R，再完成一次标准卡尔曼更新。
-    _feetH.setZero();
+    _feetH = _nominalFeetHeight;
     _feetPosGlobalKine = _robModel->getFeet2BPositions(*_lowState, FrameType::GLOBAL);
     _feetVelGlobalKine = _robModel->getFeet2BVelocities(*_lowState, FrameType::GLOBAL);
 
@@ -225,6 +230,10 @@ Vec3 Estimator::getPosition(){
 
 Vec3 Estimator::getVelocity(){
     return _xhat.segment(3, 3);
+}
+
+Vec4 Estimator::getFeetHeightReference() const {
+    return _feetH;
 }
 
 Vec3 Estimator::getFootPos(int i){
