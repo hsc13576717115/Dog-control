@@ -16,12 +16,15 @@
   <depend>rclcpp</depend>
   <depend>rclpy</depend>
   <depend>sensor_msgs</depend>
+  <depend>tf2_ros</depend>
   <depend>visualization_msgs</depend>
   <exec_depend>fdilink_ahrs</exec_depend>
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
   <exec_depend>python3-evdev</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>rviz2</exec_depend>
 
   <export>
