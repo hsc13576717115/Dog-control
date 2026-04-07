@@ -11,6 +11,8 @@
 #include <nav_msgs/msg/odometry.hpp>
 #include <nav_msgs/msg/path.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/joint_state.hpp>
+#include <tf2_ros/transform_broadcaster.h>
 #include <visualization_msgs/msg/marker_array.hpp>
 
 #include "control/CtrlComponents.h"
@@ -34,6 +36,11 @@ private:
                          const ControllerContext& context,
                          const Vec3& position,
                          const RotMat& body_to_world) const;
+    void publishTf(const rclcpp::Time& stamp,
+                   const Vec3& position,
+                   const geometry_msgs::msg::Quaternion& orientation) const;
+    void publishJointStates(const rclcpp::Time& stamp,
+                            const ControllerContext& context) const;
     void publishBodyPath(const rclcpp::Time& stamp,
                          const Vec3& position,
                          const geometry_msgs::msg::Quaternion& orientation);
@@ -65,7 +72,9 @@ private:
     RobotParameters parameters_;
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr body_path_pub_;
+    rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr joint_state_pub_;
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
+    std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
     nav_msgs::msg::Path body_path_;
     std::array<std::deque<geometry_msgs::msg::Point>, NumLeg> actual_foot_trails_;
     std::array<std::deque<geometry_msgs::msg::Point>, NumLeg> command_foot_trails_;
