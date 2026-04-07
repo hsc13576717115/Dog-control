@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.14)
 project(qr_guide)
 
-set(ROBOT_TYPE Go1)
 set(PLATFORM arm64)
 set(SIMULATION OFF)
 set(REAL_ROBOT ON)
@@ -10,22 +9,11 @@ set(MOVE_BASE OFF)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-if(NOT DEFINED ROBOT_TYPE)
-    message(FATAL_ERROR "[CMake ERROR] Have not defined ROBOT_TYPE")
-endif()
 if(NOT DEFINED PLATFORM)
     message(FATAL_ERROR "[CMake ERROR] Have not defined PLATFORM")
 endif()
 if(((SIMULATION) AND (REAL_ROBOT)) OR ((NOT SIMULATION) AND (NOT REAL_ROBOT)))
     message(FATAL_ERROR "[CMake ERROR] The SIMULATION and REAL_ROBOT can only be one ON one OFF")
-endif()
-
-if(${ROBOT_TYPE} STREQUAL "A1")
-    add_compile_definitions(ROBOT_TYPE_A1)
-elseif(${ROBOT_TYPE} STREQUAL "Go1")
-    add_compile_definitions(ROBOT_TYPE_Go1)
-else()
-    message(FATAL_ERROR "[CMake ERROR] The ROBOT_TYPE is error")
 endif()
 
 if(REAL_ROBOT)
@@ -42,8 +30,11 @@ find_package(ament_cmake REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 find_package(Boost REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
 set(UNITREE_ACTUATOR_SDK_ROOT "/home/orangepi/unitree_actuator_sdk-main/unitree_actuator_sdk-main" CACHE PATH "Local Unitree actuator SDK root")
@@ -64,6 +55,7 @@ set(QR_GUIDE_CORE_SOURCES
     src/input/JoystickMapper.cpp
     src/runtime/ControllerNode.cpp
     src/runtime/RobotRunner.cpp
+    src/runtime/VisualizationPublisher.cpp
     src/common/LowPassFilter.cpp
     src/common/unitreeRobot.cpp
     src/control/Estimator.cpp
@@ -87,8 +79,11 @@ target_include_directories(qr_guide_core PUBLIC
 )
 ament_target_dependencies(qr_guide_core
     ament_index_cpp
+    geometry_msgs
+    nav_msgs
     rclcpp
     sensor_msgs
+    visualization_msgs
 )
 target_compile_options(qr_guide_core PRIVATE -O3)
 target_link_libraries(qr_guide_core
@@ -106,8 +101,11 @@ target_include_directories(junior_ctrl PRIVATE
 )
 ament_target_dependencies(junior_ctrl
     ament_index_cpp
+    geometry_msgs
+    nav_msgs
     rclcpp
     sensor_msgs
+    visualization_msgs
 )
 target_compile_options(junior_ctrl PRIVATE -O3)
 target_link_libraries(junior_ctrl
@@ -132,6 +130,10 @@ install(FILES
 )
 
 install(DIRECTORY config
+    DESTINATION share/${PROJECT_NAME}
+)
+
+install(DIRECTORY rviz
     DESTINATION share/${PROJECT_NAME}
 )
 
