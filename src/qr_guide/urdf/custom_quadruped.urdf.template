@@ -3,8 +3,20 @@
   <material name="body_navy">
     <color rgba="0.18 0.20 0.23 1.0"/>
   </material>
+  <material name="body_black">
+    <color rgba="0.08 0.09 0.10 1.0"/>
+  </material>
   <material name="metal_gray">
     <color rgba="0.74 0.77 0.81 1.0"/>
+  </material>
+  <material name="shell_gray">
+    <color rgba="0.52 0.56 0.62 1.0"/>
+  </material>
+  <material name="shell_light">
+    <color rgba="0.93 0.95 0.97 1.0"/>
+  </material>
+  <material name="pure_white">
+    <color rgba="0.98 0.99 1.00 1.0"/>
   </material>
   <material name="accent_orange">
     <color rgba="0.93 0.52 0.23 1.0"/>

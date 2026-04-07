@@ -263,10 +263,11 @@ install/qr_guide/lib/qr_guide/junior_ctrl
 
 当前模型外观说明：
 
-- 机身继续用盒体，方便观察姿态和估计位置
-- 机身外观已经往宇树 Go2 的视觉语言靠拢，增加了更圆润的上壳、前脸灯位和顶部传感器造型
-- 髋侧连杆、大腿和小腿已经改成“细圆柱 + 两端球帽”的胶囊风格
-- 髋、膝、足端连接处会额外显示更圆润的球形关节视觉件
+- 机身直接使用参数驱动的圆角盒体，尺寸仍严格跟随 `body_size_m`，但边缘会更圆滑
+- 腿部不再直接套 Go2 的原始 mesh，而是按你自己的 `hip_mount / L0 / L1 / L2 / foot_radius` 直接生成圆润的参数化模型
+- 髋电机、大腿电机、膝关节、小腿和足端都严格挂在同一条关节链上，因此可视化长度和连接关系与真实参数一致
+- 整体外观只学习 Go2 的视觉语言，例如深浅双色机身、电机壳层次、腿部包覆外壳和脚垫风格，但几何尺寸优先服从你自己的机器人参数
+- 当前外观进一步简化为：机身白色圆角盒体、连杆白色圆柱、脚垫白色球体，关节统一黑色扁平圆柱，方便直接观察关节链是否对齐
 - marker 层的腿骨架、足端点和轨迹也同步做了压细处理，叠加 URDF 时更清爽
 
 这条链路的组成是：
@@ -274,6 +275,7 @@ install/qr_guide/lib/qr_guide/junior_ctrl
 - `launch/dog.launch.py`
   - 读取 `config/custom_quadruped.yaml`
   - 用 `urdf/custom_quadruped.urdf.template` 生成当前机器人的 `robot_description`
+  - 直接按机器人参数生成长方体机身和圆润的参数化腿部外观
   - 启动 `robot_state_publisher`
 - `VisualizationPublisher`
   - 发布 `/joint_states`
