@@ -12,11 +12,6 @@ enum class CtrlPlatform{
     REALROBOT,
 };
 
-enum class RobotType{
-    A1,
-    Go1
-};
-
 enum class UserCommand{
     // EXIT,
     NONE,

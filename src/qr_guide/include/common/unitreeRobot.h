@@ -44,14 +44,4 @@ protected:
     std::shared_ptr<qr_guide::RobotModel> model_;
 };
 
-class A1Robot : public QuadrupedRobot {
-public:
-    A1Robot();
-};
-
-class Go1Robot : public QuadrupedRobot {
-public:
-    Go1Robot();
-};
-
 #endif  // UNITREEROBOT_H
