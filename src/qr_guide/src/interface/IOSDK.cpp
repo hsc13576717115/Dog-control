@@ -1,69 +1,75 @@
 #ifdef COMPILE_WITH_REAL_ROBOT
 
 #include "interface/IOSDK.h"
-#include "message/LowlevelState.h"
-#include "message/LowlevelCmd.h"
-#include "serialPort/SerialPort.h"
-#include "unitreeMotor/unitreeMotor.h"
-#include "FSM/State_SwingTest.h"
-#include "common/enumClass.h"
-#include "interface/CmdPanel.h"
-#include "common/mathTools.h"
 
-#include <iostream>
-#include <unistd.h>
 #include <chrono>
 #include <cmath>
-#include <functional>
-#include <iomanip>
+#include <iostream>
 
-#include <Eigen/Core>
-#include <rclcpp/rclcpp.hpp>
-#include <sensor_msgs/msg/joy.hpp>
+namespace {
 
-#ifdef COMPILE_WITH_MOVE_BASE
-#include <sensor_msgs/msg/joint_state.hpp>
-#endif
+constexpr const char* LEG_NAMES[4] = {"FR", "FL", "RR", "RL"};
+constexpr const char* JOINT_NAMES[3] = {"hip", "thigh", "calf"};
 
-/* ===================== 常量定义 ===================== */
+double NowSec() {
+    using namespace std::chrono;
+    static const steady_clock::time_point start = steady_clock::now();
+    return duration<double>(steady_clock::now() - start).count();
+}
 
-static constexpr float BASE_GEAR_RATIO = 6.33f;
-static constexpr float CALF_EXTRA_GEAR = 2.0f;
-static constexpr float CALF_TOTAL_GEAR = BASE_GEAR_RATIO * CALF_EXTRA_GEAR;
+}  // namespace
 
-const std::vector<std::string> SERIAL_PORTS = {
-    "/dev/ttyS3", "/dev/ttyS4", "/dev/ttyS7", "/dev/ttyS8"
-};
-
-static const Vec3 pHip2B(0.1525f, -0.0565f, 0.0f);
-
-/* ===================== 手柄映射 ===================== */
-
-enum Xbox360JoyMap {
-    BTN_A = 0, BTN_B = 1, BTN_X = 2, BTN_Y = 3,
-    BTN_LB = 4, BTN_RB = 5, BTN_BACK = 6, BTN_START = 7,
-    AXIS_LX = 0, AXIS_LY = 1, AXIS_LT = 2,
-    AXIS_RX = 3, AXIS_RY = 4, AXIS_RT = 5
-};
-
-/* ===================== 构造 / 析构 ===================== */
-
-IOSDK::IOSDK() : _isCalibrated(false) {
+IOSDK::IOSDK(const qr_guide::DriveParameters& drive_parameters)
+    : _serialPorts(drive_parameters.serial_ports),
+      _baseGearRatio(static_cast<float>(drive_parameters.base_gear_ratio)),
+      _calfTotalGearRatio(static_cast<float>(drive_parameters.calf_total_gear_ratio)) {
     _calibOffset.fill(0.0f);
     _activeLegs = {0, 1, 2, 3};
-    _node = std::make_shared<rclcpp::Node>("qr_guide_io");
 
-    std::cout << "[IOSDK] 初始化完成\n";
-    std::cout << "[提示] 手动调整至趴下姿态，按 START 完成校准\n";
+    std::cout << "[IOSDK] 初始化完成" << std::endl;
+    std::cout << "[IOSDK] 电机串口配置"
+              << " FR=" << _serialPorts[0]
+              << " FL=" << _serialPorts[1]
+              << " RR=" << _serialPorts[2]
+              << " RL=" << _serialPorts[3]
+              << std::endl;
 
-    for (const auto& port : SERIAL_PORTS) {
-        _serials.push_back(new SerialPort(
-            port, 16, 4000000, 2000, BlockYN::YES,
-            bytesize_t::eightbits, parity_t::parity_none,
-            stopbits_t::stopbits_one, flowcontrol_t::flowcontrol_none
-        ));
+    openSerialPorts();
+    initializeMotorMetadata();
+
+    _lastCalibPromptTimeSec = NowSec();
+    std::cout << "[IOSDK] 手动调整至趴下姿态后，按 START 触发校准" << std::endl;
+}
+
+IOSDK::~IOSDK() {
+    for (SerialPort* serial : _serials) {
+        delete serial;
     }
+}
 
+void IOSDK::openSerialPorts() {
+    for (int leg = 0; leg < 4; ++leg) {
+        try {
+            _serials.push_back(new SerialPort(
+                _serialPorts[leg], 16, 4000000, 2000, BlockYN::YES,
+                bytesize_t::eightbits, parity_t::parity_none,
+                stopbits_t::stopbits_one, flowcontrol_t::flowcontrol_none));
+            std::cout << "[IOSDK] 电机串口已打开"
+                      << " leg=" << LEG_NAMES[leg]
+                      << " port=" << _serialPorts[leg]
+                      << " baud=4000000" << std::endl;
+        } catch (const std::exception& e) {
+            std::cerr << "[IOSDK][ERROR] 电机串口打开失败"
+                      << " leg=" << LEG_NAMES[leg]
+                      << " port=" << _serialPorts[leg]
+                      << " reason=" << e.what()
+                      << std::endl;
+            throw;
+        }
+    }
+}
+
+void IOSDK::initializeMotorMetadata() {
     for (int i = 0; i < 12; ++i) {
         _motorCmd[i].motorType = MotorType::GO_M8010_6;
         _motorCmd[i].mode = static_cast<unsigned short>(MotorMode::FOC);
@@ -72,161 +78,133 @@ IOSDK::IOSDK() : _isCalibrated(false) {
         _motorData[i].motorType = MotorType::GO_M8010_6;
         _motorData[i].hex_len = 31;
     }
-
-#ifdef COMPILE_WITH_MOVE_BASE
-    _jointPub = _node->create_publisher<sensor_msgs::msg::JointState>("/real_robot/joint_states", 10);
-    _jointState.name = {
-        "FR_hip","FR_thigh","FR_calf",
-        "FL_hip","FL_thigh","FL_calf",
-        "RR_hip","RR_thigh","RR_calf",
-        "RL_hip","RL_thigh","RL_calf"
-    };
-    _jointState.position.resize(12);
-#endif
-
-    _joySub = _node->create_subscription<sensor_msgs::msg::Joy>(
-        "/joy",
-        rclcpp::QoS(2000),
-        std::bind(&IOSDK::joyCallback, this, std::placeholders::_1)
-    );
-
-    _currentUserCmd = UserCommand::NONE;
-    _currentUserValue = {};
-    _lastCalibPromptTime =
-        std::chrono::duration_cast<std::chrono::seconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
 }
 
-IOSDK::~IOSDK() {
-    for (auto* s : _serials) delete s;
+float IOSDK::gearRatioForJoint(int joint) const {
+    return (joint == 2) ? _calfTotalGearRatio : _baseGearRatio;
 }
 
-/* ===================== Joy 回调 ===================== */
+float IOSDK::calibrationTargetUserAngle(int leg, int joint) const {
+    const bool left_leg = (leg == 1 || leg == 3);
+    const float sign = left_leg ? -1.0f : 1.0f;
 
-void IOSDK::joyCallback(const sensor_msgs::msg::Joy::SharedPtr msg) {
-    _currentUserCmd = UserCommand::NONE;
+    if (joint == 0) {
+        return _calibrationHipAngleRad;
+    }
+    if (joint == 1) {
+        return sign * _calibrationThighAngleRad;
+    }
+    if (joint == 2) {
+        return sign * _calibrationCalfAngleRad;
+    }
+    return 0.0f;
+}
 
-    const bool validBtn = msg->buttons.size() >= 8;
-    const bool validAx  = msg->axes.size() >= 6;
-
-    if (!_isCalibrated) {
-        if (validBtn && msg->buttons[BTN_START]) {
-            _currentUserCmd = UserCommand::L1_X;
-        } else {
-            static int cnt = 0;
-            if (++cnt % 200 == 0)
-                std::cout << "[IOSDK] 未校准，请按 START\n";
-        }
+void IOSDK::maybePrintCalibrationReminder() {
+    if (_isCalibrated) {
         return;
     }
 
-    if (validBtn && validAx) {
-        const bool L1 = msg->buttons[BTN_LB];
-        const bool A  = msg->buttons[BTN_A];
-        const bool B  = msg->buttons[BTN_B];
-        const bool X  = msg->buttons[BTN_X];
-        const bool Y  = msg->buttons[BTN_Y];
-        const bool ST = msg->buttons[BTN_START];
-        const bool L2 = msg->axes[AXIS_LT] > 0.0f;
-
-        if (L2 && B)      _currentUserCmd = UserCommand::L2_B;
-        else if (L2 && A) _currentUserCmd = UserCommand::L2_A;
-        else if (L2 && X) _currentUserCmd = UserCommand::L2_X;
-        else if (L2 && Y) _currentUserCmd = UserCommand::L2_Y;
-        else if (ST)      _currentUserCmd = UserCommand::L1_X;
-        else if (L1 && A) _currentUserCmd = UserCommand::L1_A;
-        else if (L1 && Y) _currentUserCmd = UserCommand::L1_Y;
-
-        _currentUserValue.L2 =
-            killZeroOffset((msg->axes[AXIS_LT] + 1.0f) * 0.5f, 0.08f);
-        _currentUserValue.lx = killZeroOffset(msg->axes[AXIS_LX], 0.08f);
-        _currentUserValue.ly = killZeroOffset(msg->axes[AXIS_LY], 0.08f);
-        _currentUserValue.rx = killZeroOffset(msg->axes[AXIS_RX], 0.08f);
-        _currentUserValue.ry = killZeroOffset(msg->axes[AXIS_RY], 0.08f);
+    const double now = NowSec();
+    if (now - _lastCalibPromptTimeSec >= _calibPromptIntervalSec) {
+        std::cout << "[IOSDK] 等待校准，按 START 完成 L 型零位采集" << std::endl;
+        _lastCalibPromptTimeSec = now;
     }
 }
 
-/* ===================== 核心通信 ===================== */
+void IOSDK::calibrateLeg(int leg) {
+    for (int joint = 0; joint < 3; ++joint) {
+        const int motor_id = leg * 3 + joint;
+        const float gear = gearRatioForJoint(joint);
+        const float q = _motorData[motor_id].q / gear;
+        _calibOffset[motor_id] = q - calibrationTargetUserAngle(leg, joint);
+    }
+}
 
-void IOSDK::sendRecv(const UserLowlevel::LowlevelCmd* cmd,
-                     LowlevelState* state) {
-    if (!cmd || !state || _serials.size() != 4) return;
-
-    state->userCmd   = _currentUserCmd;
-    state->userValue = _currentUserValue;
-    rclcpp::spin_some(_node);
-
-    /* -------- 校准 -------- */
-    if (state->userCmd == UserCommand::L1_X && !_isCalibrated) {
-        for (int leg = 0; leg < 4; ++leg) {
-            const bool left = (leg == 1 || leg == 3);
-            const float sign = left ? -1.0f : 1.0f;
-
-            for (int j = 0; j < 3; ++j) {
-                const int id = leg * 3 + j;
-                const float gear = (j == 2) ? CALF_TOTAL_GEAR : BASE_GEAR_RATIO;
-                const float q = _motorData[id].q / gear;
-
-                float target = 0.0f;
-                if (j == 1)      target = sign * (-160.0f * M_PI / 180.0f);
-                else if (j == 2) target = sign * (-70.0f * M_PI / 180.0f);
-                else {
-                    const float hip = 19.0f * M_PI / 180.0f;
-                    target = ((leg < 2) ? -sign : sign) * hip;
-                }
-
-                _calibOffset[id] = q - target;
-            }
-        }
-        _isCalibrated = true;
-        std::cout << "[IOSDK] 校准完成\n";
+void IOSDK::tryCalibrate(const LowlevelState& state) {
+    if (_isCalibrated || state.userCmd != _calibTriggerKey) {
+        return;
     }
 
-    /* -------- 电机通信 -------- */
-    for (int leg = 0; leg < 4; ++leg) {
-        SerialPort* serial = _serials[leg];
-        if (!serial) continue;
+    std::cout << "[IOSDK] 检测到 START，开始校准" << std::endl;
+    for (int leg : _activeLegs) {
+        calibrateLeg(leg);
+    }
+    _isCalibrated = true;
+    std::cout << "[IOSDK] 校准完成" << std::endl;
+}
 
-        for (int j = 0; j < 3; ++j) {
-            const int id = leg * 3 + j;
-            const float gear = (j == 2) ? CALF_TOTAL_GEAR : BASE_GEAR_RATIO;
+void IOSDK::populateMotorCommand(int leg, int joint, const UserLowlevel::MotorCmd& user_cmd) {
+    const int motor_id = leg * 3 + joint;
+    const float gear = gearRatioForJoint(joint);
+    const float q_cmd = _isCalibrated ? (user_cmd.q + _calibOffset[motor_id]) : user_cmd.q;
 
-            auto& mc = _motorCmd[id];
-            auto& md = _motorData[id];
-            auto& ms = state->motorState[id];
-            const auto& uc = cmd->motorCmd[id];
+    auto& motor_cmd = _motorCmd[motor_id];
+    motor_cmd.id = joint;
+    motor_cmd.q = q_cmd * gear;
+    motor_cmd.dq = user_cmd.dq * gear;
+    motor_cmd.kp = user_cmd.Kp;
+    motor_cmd.kd = user_cmd.Kd;
+    motor_cmd.tau = user_cmd.tau;
+    motor_cmd.mode = user_cmd.mode;
+}
 
-            const float qCmd =
-                _isCalibrated ? (uc.q + _calibOffset[id]) : uc.q;
+void IOSDK::updateMotorStateFromFeedback(int leg, int joint, LowlevelState* state) {
+    const int motor_id = leg * 3 + joint;
+    const float gear = gearRatioForJoint(joint);
+    const float q_feedback = _motorData[motor_id].q / gear;
 
-            mc.id   = j;
-            mc.q    = qCmd * gear;
-            mc.dq   = uc.dq * gear;
-            mc.kp   = uc.Kp;
-            mc.kd   = uc.Kd;
-            mc.tau  = uc.tau;
-            mc.mode = uc.mode;
+    auto& motor_state = state->motorState[motor_id];
+    motor_state.q = _isCalibrated ? (q_feedback - _calibOffset[motor_id]) : q_feedback;
+    motor_state.dq = _motorData[motor_id].dq / gear;
+    motor_state.tauEst = _motorData[motor_id].tau;
+    motor_state.temp = _motorData[motor_id].temp;
+    motor_state.fault = _motorData[motor_id].merror;
+}
 
-            if (serial->sendRecv(&mc, &md)) {
-                const float qFb = md.q / gear;
-                ms.q = _isCalibrated ? (qFb - _calibOffset[id]) : qFb;
-                ms.dq = md.dq / gear;
-                ms.tauEst = md.tau;
-                ms.temp   = md.temp;
-                ms.fault  = md.merror;
-            } else {
-                ms = {};
-                ms.fault = 0xFF;
-            }
-        }
+void IOSDK::markMotorOffline(int leg, int joint, LowlevelState* state) const {
+    const int motor_id = leg * 3 + joint;
+    auto& motor_state = state->motorState[motor_id];
+    motor_state = {};
+    motor_state.fault = 0xFF;
+
+    std::cerr << "[IOSDK][WARN] 电机无回包"
+              << " leg=" << LEG_NAMES[leg]
+              << " joint=" << JOINT_NAMES[joint]
+              << " port=" << _serialPorts[leg]
+              << " motor_id=" << joint
+              << " state_index=" << motor_id
+              << std::endl;
+}
+
+void IOSDK::sendReceiveLeg(int leg, const UserLowlevel::LowlevelCmd* cmd, LowlevelState* state) {
+    SerialPort* serial = _serials[leg];
+    if (serial == nullptr) {
+        return;
     }
 
-#ifdef COMPILE_WITH_MOVE_BASE
-    _jointState.header.stamp = _node->get_clock()->now();
-    for (int i = 0; i < 12; ++i)
-        _jointState.position[i] = state->motorState[i].q;
-    _jointPub.publish(_jointState);
-#endif
+    for (int joint = 0; joint < 3; ++joint) {
+        const int motor_id = leg * 3 + joint;
+        populateMotorCommand(leg, joint, cmd->motorCmd[motor_id]);
+        if (serial->sendRecv(&_motorCmd[motor_id], &_motorData[motor_id])) {
+            updateMotorStateFromFeedback(leg, joint, state);
+        } else {
+            markMotorOffline(leg, joint, state);
+        }
+    }
+}
+
+void IOSDK::sendRecv(const UserLowlevel::LowlevelCmd* cmd, LowlevelState* state) {
+    if (cmd == nullptr || state == nullptr || _serials.size() != 4) {
+        return;
+    }
+
+    maybePrintCalibrationReminder();
+    tryCalibrate(*state);
+
+    for (int leg : _activeLegs) {
+        sendReceiveLeg(leg, cmd, state);
+    }
 }
 
 #endif  // COMPILE_WITH_REAL_ROBOT

@@ -10,6 +10,8 @@
 #include "ros/ros.h"
 #include <geometry_msgs/Twist.h>
 
+// 遗留状态：ROS1 move_base 适配层。
+// 当前 ROS2 主线不再使用该状态。
 class State_move_base : public State_Trotting{
 public:
     State_move_base(CtrlComponents *ctrlComp);

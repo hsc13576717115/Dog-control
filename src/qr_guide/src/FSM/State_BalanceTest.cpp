@@ -3,6 +3,8 @@
 ***********************************************************************/
 #include "FSM/State_BalanceTest.h"
 
+// 遗留实现：当前主线不再走 BalanceTest。
+
 State_BalanceTest::State_BalanceTest(CtrlComponents *ctrlComp)
                   :FSMState(ctrlComp, FSMStateName::BALANCETEST, "balanceTest"),
                   _est(ctrlComp->estimator), _robModel(ctrlComp->robotModel), 

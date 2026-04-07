@@ -25,6 +25,8 @@
     #include <boost/array.hpp>
 #endif  // COMPILE_WITH_MOVE_BASE
 
+// 机体状态估计器。
+// 这里沿用原项目的线性卡尔曼滤波结构，用 IMU、关节状态和足端接触信息估计机身状态。
 class Estimator{
 public:
     Estimator(QuadrupedRobot *robotModel, LowlevelState* lowState, VecInt4 *contact, Vec4 *phase, double dt);
@@ -44,7 +46,7 @@ public:
 
 private:
     void _initSystem();
-    // Linear System
+    // 线性系统状态：位置(3) + 速度(3) + 四足位置(12)。
     Eigen::Matrix<double, 18, 1>  _xhat;            // The state of estimator, position(3)+velocity(3)+feet position(3x4)
     Vec3 _u;                                        // The input of estimator
     Eigen::Matrix<double, 28,  1> _y;               // The measurement value of output y
@@ -85,7 +87,7 @@ private:
     double _trust;
     double _largeVariance;
 
-    // Low pass filters
+    // 速度低通滤波器，用于抑制估计结果中的高频抖动。
     LPFilter *_vxFilter, *_vyFilter, *_vzFilter;
 
     // Tuning

@@ -12,6 +12,8 @@
     #include "common/PyPlot.h"
 #endif  // COMPILE_DEBUG
 
+// 遗留模块：历史上的 QP 平衡控制器。
+// 当前主线未编译该模块，但保留作为后续恢复或对照的基础。
 class BalanceCtrl{
 public:
     BalanceCtrl(double mass, Mat3 Ib, Mat6 S, double alpha, double beta);
