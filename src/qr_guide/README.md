@@ -38,6 +38,7 @@
 - `src/runtime/ControllerNode.cpp`
 - `src/runtime/RobotRunner.cpp`
 - `src/runtime/VisualizationPublisher.cpp`
+- `urdf/custom_quadruped.urdf.template`
 - `src/interface/IOSDK.cpp`
 - `src/control/Estimator.cpp`
 - `src/FSM/FSM.cpp`
@@ -116,7 +117,7 @@
 5. `IOSDK` 完成电机收发、减速比换算、校准偏差和回读
 6. `Estimator` 根据 IMU、关节状态和接触信息估计机体状态
 7. `FSM` 根据当前状态输出关节命令
-8. `VisualizationPublisher` 把估计结果和整狗模型发布到 RViz
+8. `VisualizationPublisher` 把估计结果、TF、关节状态和足端轨迹发布到 RViz
 
 说明：
 
@@ -242,21 +243,52 @@ install/qr_guide/lib/qr_guide/junior_ctrl
 
 ## 11. RViz 可视化
 
-当前已经内置一套 RViz 可视化链路，启动后可以直接看到：
+当前已经内置一套完整的 RViz 可视化链路，启动后可以直接看到：
 
+- `robot_state_publisher` 驱动的完整狗模型
+- `odom -> base_link_est` TF
 - 机身状态估计 `odom`
 - 机身历史轨迹 `path`
-- 整狗模型：机身、四条腿、四个足端
 - 四个实际足端轨迹
 - 四个命令足端轨迹
 - 机身速度箭头
 - 当前状态、接触相位和估计值文字面板
+
+这条链路的组成是：
+
+- `launch/dog.launch.py`
+  - 读取 `config/custom_quadruped.yaml`
+  - 用 `urdf/custom_quadruped.urdf.template` 生成当前机器人的 `robot_description`
+  - 启动 `robot_state_publisher`
+- `VisualizationPublisher`
+  - 发布 `/joint_states`
+  - 发布 `/tf` 中的 `odom -> base_link_est`
+  - 发布估计 `odom/path`
+  - 发布足端和状态 marker
+
+说明：
+
+- URDF 只用于 RViz 和 TF，不参与控制求解
+- 关节角来源是实时电机回读，不是命令角
+- URDF 关节轴、左右镜像和前后腿髋关节符号，已经和当前 `LegKinematics` / `IOSDK` 语义对齐
 
 主要 topic：
 
 - `/qr_guide/estimation/odom`
 - `/qr_guide/estimation/path`
 - `/qr_guide/visualization/marker_array`
+- `/joint_states`
+- `/tf`
+- `/robot_description`
+
+启动命令：
+
+```bash
+cd /home/orangepi/qr_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+ros2 launch qr_guide dog.launch.py
+```
 
 可视化口径：
 

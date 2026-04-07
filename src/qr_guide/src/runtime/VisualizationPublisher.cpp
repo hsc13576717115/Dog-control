@@ -6,6 +6,7 @@
 #include <sstream>
 
 #include <geometry_msgs/msg/pose_stamped.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
 #include <visualization_msgs/msg/marker.hpp>
 
 #include "common/enumClass.h"
@@ -15,9 +16,16 @@ namespace qr_guide {
 namespace {
 
 constexpr char kWorldFrameId[] = "odom";
+constexpr char kBaseLinkFrameId[] = "base_link_est";
 constexpr auto kVisualizationInterval = std::chrono::milliseconds(33);
 constexpr double kTrailDistanceThresholdM = 0.003;
 constexpr double kBodyPathDistanceThresholdM = 0.01;
+constexpr std::array<const char*, 12> kJointNames = {
+    "FR_hip", "FR_thigh", "FR_calf",
+    "FL_hip", "FL_thigh", "FL_calf",
+    "RR_hip", "RR_thigh", "RR_calf",
+    "RL_hip", "RL_thigh", "RL_calf",
+};
 
 struct Color {
     float r;
@@ -63,8 +71,11 @@ VisualizationPublisher::VisualizationPublisher(const std::shared_ptr<rclcpp::Nod
         "/qr_guide/estimation/odom", rclcpp::QoS(10));
     body_path_pub_ = node_->create_publisher<nav_msgs::msg::Path>(
         "/qr_guide/estimation/path", rclcpp::QoS(10));
+    joint_state_pub_ = node_->create_publisher<sensor_msgs::msg::JointState>(
+        "/joint_states", rclcpp::QoS(20));
     marker_pub_ = node_->create_publisher<visualization_msgs::msg::MarkerArray>(
         "/qr_guide/visualization/marker_array", rclcpp::QoS(10));
+    tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(node_);
     body_path_.header.frame_id = kWorldFrameId;
 }
 
@@ -88,6 +99,8 @@ void VisualizationPublisher::publish(const ControllerContext& context,
     const geometry_msgs::msg::Quaternion orientation = toQuaternion(context.lowState->imu);
 
     publishOdometry(stamp, context, position, body_to_world);
+    publishTf(stamp, position, orientation);
+    publishJointStates(stamp, context);
     publishBodyPath(stamp, position, orientation);
     publishMarkers(stamp, context, state_label, position, velocity, body_to_world, orientation);
 }
@@ -99,7 +112,7 @@ void VisualizationPublisher::publishOdometry(const rclcpp::Time& stamp,
     nav_msgs::msg::Odometry odom;
     odom.header.stamp = stamp;
     odom.header.frame_id = kWorldFrameId;
-    odom.child_frame_id = "base_link_est";
+    odom.child_frame_id = kBaseLinkFrameId;
     odom.pose.pose.position = toPoint(position);
     odom.pose.pose.orientation = toQuaternion(context.lowState->imu);
 
@@ -111,6 +124,47 @@ void VisualizationPublisher::publishOdometry(const rclcpp::Time& stamp,
     odom.twist.twist.angular.y = context.lowState->imu.gyroscope[1];
     odom.twist.twist.angular.z = context.lowState->imu.gyroscope[2];
     odom_pub_->publish(odom);
+}
+
+void VisualizationPublisher::publishTf(const rclcpp::Time& stamp,
+                                       const Vec3& position,
+                                       const geometry_msgs::msg::Quaternion& orientation) const {
+    if (!tf_broadcaster_) {
+        return;
+    }
+
+    geometry_msgs::msg::TransformStamped transform;
+    transform.header.stamp = stamp;
+    transform.header.frame_id = kWorldFrameId;
+    transform.child_frame_id = kBaseLinkFrameId;
+    transform.transform.translation.x = position.x();
+    transform.transform.translation.y = position.y();
+    transform.transform.translation.z = position.z();
+    transform.transform.rotation = orientation;
+    tf_broadcaster_->sendTransform(transform);
+}
+
+void VisualizationPublisher::publishJointStates(const rclcpp::Time& stamp,
+                                                const ControllerContext& context) const {
+    if (!joint_state_pub_ || !context.lowState) {
+        return;
+    }
+
+    sensor_msgs::msg::JointState joint_state;
+    joint_state.header.stamp = stamp;
+    joint_state.name.assign(kJointNames.begin(), kJointNames.end());
+    joint_state.position.resize(kJointNames.size());
+    joint_state.velocity.resize(kJointNames.size());
+    joint_state.effort.resize(kJointNames.size());
+
+    for (size_t index = 0; index < kJointNames.size(); ++index) {
+        const auto& motor_state = context.lowState->motorState[index];
+        joint_state.position[index] = motor_state.q;
+        joint_state.velocity[index] = motor_state.dq;
+        joint_state.effort[index] = motor_state.tauEst;
+    }
+
+    joint_state_pub_->publish(joint_state);
 }
 
 void VisualizationPublisher::publishBodyPath(

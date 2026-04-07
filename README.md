@@ -92,6 +92,9 @@ FDILink IMU
 - `/qr_guide/estimation/odom`
 - `/qr_guide/estimation/path`
 - `/qr_guide/visualization/marker_array`
+- `/joint_states`
+- `/tf`
+- `/robot_description`
 
 ## 4. `qr_guide` 当前架构
 
@@ -172,7 +175,16 @@ ros2 launch qr_guide dog.launch.py
 1. `fdilink_ahrs/ahrs_driver_node`
 2. `qr_guide/event2joy.py`
 3. `qr_guide/junior_ctrl`
-4. `rviz2`（默认开启）
+4. `robot_state_publisher`
+5. `rviz2`（默认开启）
+
+当前 RViz 里默认会显示：
+
+- 状态估计的 `odom/path`
+- `odom -> base_link_est` TF
+- 基于实时 `/joint_states` 的完整狗模型
+- 四个实际足端和命令足端轨迹
+- 速度箭头、状态文字和接触/相位信息
 
 如果只想运行控制，不开 RViz：
 
