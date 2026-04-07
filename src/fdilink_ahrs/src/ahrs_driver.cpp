@@ -86,12 +86,21 @@ ahrsBringup::ahrsBringup()
   }
   catch (serial::IOException &e)  // 抓取异常
   {
-    RCLCPP_ERROR(this->get_logger(),"Unable to open port ");
+    RCLCPP_ERROR(
+      this->get_logger(),
+      "IMU串口打开失败 port=%s baud=%ld error=%s",
+      serial_port_.c_str(),
+      static_cast<long>(serial_baud_),
+      e.what());
     exit(0);
   }
   if (serial_.isOpen())
   {
-    RCLCPP_INFO(this->get_logger(),"Serial Port initialized");
+    RCLCPP_INFO(
+      this->get_logger(),
+      "IMU串口已打开 port=%s baud=%ld",
+      serial_port_.c_str(),
+      static_cast<long>(serial_baud_));
   }
   else
   {
