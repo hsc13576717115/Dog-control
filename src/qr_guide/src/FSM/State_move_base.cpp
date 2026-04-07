@@ -5,6 +5,8 @@
 
 #include "FSM/State_move_base.h"
 
+// 遗留实现：ROS2 主线默认不启用 move_base 路径。
+
 State_move_base::State_move_base(CtrlComponents *ctrlComp)
     :State_Trotting(ctrlComp){
     _stateName = FSMStateName::MOVE_BASE;

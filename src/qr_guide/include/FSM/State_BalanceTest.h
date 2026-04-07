@@ -6,6 +6,8 @@
 
 #include "FSM/FSMState.h"
 
+// 遗留状态：历史上的平衡测试状态。
+// 当前主构建不再编译该状态，仅保留源码供后续参考。
 class State_BalanceTest : public FSMState{
 public:
     State_BalanceTest(CtrlComponents *ctrlComp);

@@ -1,70 +1,48 @@
-/**********************************************************************
- Copyright (c) 2020-2023, Unitree Robotics.Co.Ltd. All rights reserved.
-***********************************************************************/
 #ifndef FSM_H
 #define FSM_H
 
-// FSM States
 #include "FSM/FSMState.h"
 #include "FSM/State_FixedStand.h"
 #include "FSM/State_Passive.h"
-#include "FSM/State_FreeStand.h"
-#include "FSM/State_Trotting.h"
-#include "FSM/State_BalanceTest.h"
-#include "FSM/State_SwingTest.h"
 #include "FSM/State_StepTest.h"
-#include "common/enumClass.h"
-#include "control/CtrlComponents.h"
-#ifdef COMPILE_WITH_MOVE_BASE
-    #include "FSM/State_move_base.h"
-#endif  // COMPILE_WITH_MOVE_BASE
+#include "FSM/State_Trotting.h"
 
-struct FSMStateList{
-    FSMState *invalid;
-    State_Passive *passive;
-    State_FixedStand *fixedStand;
-    State_FreeStand *freeStand;
-    State_Trotting *trotting;
-    State_BalanceTest *balanceTest;
-    State_SwingTest *swingTest;
-    State_StepTest *stepTest;
-#ifdef COMPILE_WITH_MOVE_BASE
-    State_move_base *moveBase;
-#endif  // COMPILE_WITH_MOVE_BASE
+// 主线状态列表。
+// 当前只保留 Passive / FixedStand / Trotting / StepTest 四个状态参与编译。
+struct FSMStateList {
+    State_Passive* passive = nullptr;
+    State_FixedStand* fixedStand = nullptr;
+    State_Trotting* trotting = nullptr;
+    State_StepTest* stepTest = nullptr;
 
-    void deletePtr(){
-        delete invalid;
+    void deletePtr() {
         delete passive;
         delete fixedStand;
-        delete freeStand;
         delete trotting;
-        delete balanceTest;
-        delete swingTest;
         delete stepTest;
-#ifdef COMPILE_WITH_MOVE_BASE
-        delete moveBase;
-#endif  // COMPILE_WITH_MOVE_BASE
     }
 };
 
-class FSM{
+// 主状态机。
+// 只负责当前状态运行和状态切换，不再直接处理 IO、估计器和 ROS 回调。
+class FSM {
 public:
-    FSM(CtrlComponents *ctrlComp);
+    explicit FSM(CtrlComponents* ctrlComp);
     ~FSM();
+
     void initialize();
     void run();
+    FSMStateName currentStateName() const { return _currentState->_stateName; }
+
 private:
     FSMState* getNextState(FSMStateName stateName);
-    bool checkSafty();
-    CtrlComponents *_ctrlComp;
-    FSMState *_currentState;
-    FSMState *_nextState;
-    FSMStateName _nextStateName;
-    FSMStateList _stateList;
-    FSMMode _mode;
-    long long _startTime;
-    int count;
-};
 
+    CtrlComponents* _ctrlComp;
+    FSMState* _currentState = nullptr;
+    FSMState* _nextState = nullptr;
+    FSMStateName _nextStateName = FSMStateName::INVALID;
+    FSMStateList _stateList;
+    FSMMode _mode = FSMMode::NORMAL;
+};
 
 #endif  // FSM_H

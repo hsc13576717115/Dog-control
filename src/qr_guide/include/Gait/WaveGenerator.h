@@ -14,6 +14,8 @@
 #endif  // COMPILE_DEBUG
 
 /*generate linear wave, [0, 1]*/
+// 遗留模块：历史相位发生器。
+// 当前主线 contact / phase 由状态内部直接维护。
 class WaveGenerator{
 public:
     WaveGenerator(double period, double stancePhaseRatio, Vec4 bias);

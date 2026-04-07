@@ -7,6 +7,8 @@
 #include "control/CtrlComponents.h"
 #include "message/LowlevelState.h"
 
+// 遗留模块：历史步态链路中的落脚点估计。
+// 当前主线 trotting 不再依赖该模块。
 class FeetEndCal{
 public:
     FeetEndCal(CtrlComponents *ctrlComp);

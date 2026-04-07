@@ -1,103 +1,72 @@
-/**********************************************************************
- Copyright (c) 2020-2023, Unitree Robotics.Co.Ltd. All rights reserved.
-***********************************************************************/
 #ifndef CTRLCOMPONENTS_H
 #define CTRLCOMPONENTS_H
 
+#include <memory>
+
+#include "config/RobotConfig.h"
+#include "control/Estimator.h"
+#include "interface/IOInterface.h"
 #include "message/LowlevelCmd.h"
 #include "message/LowlevelState.h"
-#include "interface/IOInterface.h"
-#include "interface/CmdPanel.h"
-#include "common/unitreeRobot.h"
-#include "Gait/WaveGenerator.h"
-#include "control/Estimator.h"
-#include "control/BalanceCtrl.h"
-#include <string>
-#include <iostream>
 
-#ifdef COMPILE_DEBUG
-#include "common/PyPlot.h"
-#endif  // COMPILE_DEBUG
-
-struct CtrlComponents{
+class ControllerContext {
 public:
-    CtrlComponents(IOInterface *ioInter):ioInter(ioInter){
-        // 使用UserLowlevel命名空间
-        lowCmd = new UserLowlevel::LowlevelCmd();
-        lowState = new LowlevelState();
-        contact = new VecInt4;
-        phase = new Vec4;
-        *contact = VecInt4(0, 0, 0, 0);
-        *phase = Vec4(0.5, 0.5, 0.5, 0.5);
-    }
-    ~CtrlComponents(){
-        delete lowCmd;
-        delete lowState;
-        delete ioInter;
-        delete robotModel;
-        delete waveGen;
-        delete estimator;
-        delete balCtrl;
-#ifdef COMPILE_DEBUG
-        delete plot;
-#endif  // COMPILE_DEBUG
-    }
-    
-    // 添加UserLowlevel命名空间
-    UserLowlevel::LowlevelCmd *lowCmd;
-    LowlevelState *lowState;
-    IOInterface *ioInter;
-    QuadrupedRobot *robotModel;
-    WaveGenerator *waveGen;
-    Estimator *estimator;
-    BalanceCtrl *balCtrl;
-
-#ifdef COMPILE_DEBUG
-    PyPlot *plot;
-#endif  // COMPILE_DEBUG
-
-    VecInt4 *contact;
-    Vec4 *phase;
-
-    double dt;
-    bool *running;
-    CtrlPlatform ctrlPlatform;
-
-    void sendRecv(){
-        // 发送时使用带命名空间的lowCmd
-        ioInter->sendRecv(lowCmd, lowState);
+    // 上下文负责持有整条控制链共用的运行时对象。
+    ControllerContext(std::unique_ptr<IOInterface> io_inter,
+                      std::unique_ptr<QuadrupedRobot> robot_model,
+                      const qr_guide::RobotParameters& parameters)
+        : lowCmd(std::make_unique<UserLowlevel::LowlevelCmd>()),
+          lowState(std::make_unique<LowlevelState>()),
+          ioInter(std::move(io_inter)),
+          robotModel(std::move(robot_model)),
+          estimator(nullptr),
+          parameters(parameters) {
+        setAllSwing();
     }
 
-    void runWaveGen(){
-        waveGen->calcContactPhase(*phase, *contact, _waveStatus);
+    void initialize() {
+        // 估计器依赖 robotModel、lowState 和 contact/phase，因此集中在这里初始化。
+        estimator = std::make_unique<Estimator>(robotModel.get(), lowState.get(), &contact, &phase, dt);
     }
 
-    void setAllStance(){
-        _waveStatus = WaveStatus::STANCE_ALL;
+    void sendRecv() {
+        ioInter->sendRecv(lowCmd.get(), lowState.get());
     }
 
-    void setAllSwing(){
-        _waveStatus = WaveStatus::SWING_ALL;
+    void setAllStance() {
+        contact = VecInt4::Ones();
+        phase = Vec4::Constant(0.5);
     }
 
-    void setStartWave(){
-        _waveStatus = WaveStatus::WAVE_ALL;
+    void setAllSwing() {
+        contact = VecInt4::Zero();
+        phase = Vec4::Constant(0.5);
     }
 
-    void geneObj(){
-        estimator = new Estimator(robotModel, lowState, contact, phase, dt);
-        balCtrl = new BalanceCtrl(robotModel);
-
-#ifdef COMPILE_DEBUG
-        plot = new PyPlot();
-        balCtrl->setPyPlot(plot);
-        estimator->setPyPlot(plot);
-#endif  // COMPILE_DEBUG
+    void setStartWave() {
+        phase << 0.0, 0.5, 0.5, 0.0;
+        contact << 1, 0, 0, 1;
     }
 
-private:
-    WaveStatus _waveStatus = WaveStatus::SWING_ALL;
+    void setContactPhase(const VecInt4& new_contact, const Vec4& new_phase) {
+        contact = new_contact;
+        phase = new_phase;
+    }
 
+    bool isCalibrated() const { return ioInter && ioInter->isCalibrated(); }
+
+    std::unique_ptr<UserLowlevel::LowlevelCmd> lowCmd;
+    std::unique_ptr<LowlevelState> lowState;
+    std::unique_ptr<IOInterface> ioInter;
+    std::unique_ptr<QuadrupedRobot> robotModel;
+    std::unique_ptr<Estimator> estimator;
+    qr_guide::RobotParameters parameters;
+    VecInt4 contact = VecInt4::Zero();
+    Vec4 phase = Vec4::Constant(0.5);
+    double dt = 0.002;
+    CtrlPlatform ctrlPlatform = CtrlPlatform::REALROBOT;
 };
+
+using CtrlComponents = ControllerContext;
 
 #endif  // CTRLCOMPONENTS_H

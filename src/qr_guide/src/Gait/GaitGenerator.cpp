@@ -3,6 +3,8 @@
 ***********************************************************************/
 #include "Gait/GaitGenerator.h"
 
+// 遗留实现：当前 trotting 轨迹直接在状态机内部生成。
+
 GaitGenerator::GaitGenerator(CtrlComponents *ctrlComp)
               : _waveG(ctrlComp->waveGen), _est(ctrlComp->estimator), 
                 _phase(ctrlComp->phase), _contact(ctrlComp->contact), 

@@ -1,46 +1,40 @@
 #ifndef STATE_STEPTEST_H
 #define STATE_STEPTEST_H
 
-#include "FSMState.h"
-#include "control/CtrlComponents.h"
-#include <Eigen/Dense>
+#include <string>
 
+#include "FSM/FSMState.h"
+
+// StepTest 当前主要承载跳跃/大步动作验证。
+// 轨迹仍然采用基于时间片段的足端目标 + IK 输出。
 class State_StepTest : public FSMState {
 public:
-    State_StepTest(CtrlComponents* ctrlComp);
-    ~State_StepTest() = default;
+    explicit State_StepTest(CtrlComponents* ctrlComp);
+    ~State_StepTest() override = default;
 
     void enter() override;
     void run() override;
     void exit() override;
     FSMStateName checkChange() override;
-    void calcTau();
 
 private:
-    int _transitionCount;          // 状态过渡计数器
-    bool _isCalibrated;            // 校准状态标志
-    Eigen::Vector3d _calibOff;     // 校准偏移量
-    Eigen::VectorXd _initMotorQ;   // 初始电机角度(12维)
-    Eigen::Vector3d _initFootPos[4]; // 四腿初始足端位置
-    Eigen::Vector3d _lastLegQ[4];  // 四腿上一时刻关节角度
-    double _startTime;             // 状态开始时间
-    bool _isJumpCompleted;  // 标记是否完成一次跳跃
-    bool _isCycleEnded;
+    Vec3 clampJointAngles(const Vec3& q) const;
 
-    // 机械参数（类内引用）
-    static constexpr double L0 = 0.108;    // 髋关节到大腿长度
-    static constexpr double L1 = 0.225;    // 大腿长度
-    static constexpr double L2 = 0.255;    // 小腿长度
+    int _transitionCount = 0;
+    Vec12 _initMotorQ = Vec12::Zero();
+    Vec3 _initFootPos[4];
+    Vec3 _lastLegQ[4];
+    double _startTime = 0.0;
+    bool _isJumpCompleted = false;
+    bool _isCycleEnded = false;
 
-    // 关节限位（类内引用）
-    static constexpr double Q0_LIMIT_MIN = -2.60;
-    static constexpr double Q0_LIMIT_MAX =  2.60;
-    static constexpr double Q1_LIMIT_MIN = -6.50;
-    static constexpr double Q1_LIMIT_MAX =  6.50;
-    static constexpr double Q2_LIMIT_MIN = -2.30;
-    static constexpr double Q2_LIMIT_MAX =  2.30;
-
+    static constexpr double SQUAT_DEPTH = 0.15;
+    static constexpr double JUMP_HEIGHT = 0.14;
+    static constexpr double MAX_X_FORWARD = 0.30;
+    static constexpr double LANDING_OFFSET = 0.08;
+    static constexpr double JUMP_CYCLE_T = 3.5;
+    static constexpr int TRANSITION_DURATION = 50;
     static constexpr double HIP_JOINT_FIXED = 0.0;
 };
 
-#endif // STATE_STEPTEST_H
+#endif  // STATE_STEPTEST_H

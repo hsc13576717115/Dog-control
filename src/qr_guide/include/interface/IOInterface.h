@@ -29,32 +29,28 @@
 #ifndef IOINTERFACE_H
 #define IOINTERFACE_H
 
-#include "message/LowlevelCmd.h"  // 包含UserLowlevel命名空间
-#include "message/LowlevelState.h"
 #include "interface/CmdPanel.h"
-#include <string>
+#include "message/LowlevelCmd.h"
+#include "message/LowlevelState.h"
 
-class IOInterface{
+class IOInterface {
 public:
-    // 构造函数：初始化cmdPanel，避免空指针
     IOInterface() : cmdPanel(new CmdPanel()) {}
-    
-    // 析构函数：确保释放资源
-    virtual ~IOInterface(){
-        if(cmdPanel != nullptr){
-            delete cmdPanel;
-            cmdPanel = nullptr;
-        }
+    virtual ~IOInterface() {
+        delete cmdPanel;
+        cmdPanel = nullptr;
     }
-    
-    // 核心修改：使用UserLowlevel命名空间的LowlevelCmd
-    virtual void sendRecv(const UserLowlevel::LowlevelCmd *cmd, LowlevelState *state) = 0;
-    
-    void zeroCmdPanel(){cmdPanel->setZero();}
-    void setPassive(){cmdPanel->setPassive();}
+
+    // 硬件层统一接口：发命令并同步刷新 LowlevelState。
+    virtual void sendRecv(const UserLowlevel::LowlevelCmd* cmd, LowlevelState* state) = 0;
+    // 默认返回 false，真实硬件实现可覆写成自己的校准状态。
+    virtual bool isCalibrated() const { return false; }
+
+    void zeroCmdPanel() { cmdPanel->setZero(); }
+    void setPassive() { cmdPanel->setPassive(); }
 
 protected:
-    CmdPanel *cmdPanel;  // 由构造函数初始化，避免空指针
+    CmdPanel* cmdPanel;
 };
 
-#endif  //IOINTERFACE_H
+#endif  // IOINTERFACE_H
