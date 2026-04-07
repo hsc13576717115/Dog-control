@@ -47,7 +47,6 @@ def generate_launch_description():
         Node(
             package='qr_guide',
             executable='junior_ctrl',
-            name='qr_junior_ctrl',
             output='screen',
             emulate_tty=True,
         ),

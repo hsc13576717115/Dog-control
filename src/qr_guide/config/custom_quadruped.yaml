@@ -1,0 +1,71 @@
+robot:
+  # 机器人名称仅作为参数标识，不参与控制计算。
+  name: custom_quadruped
+  # 机身外形尺寸，单位 m，主要用于文档和惯量建模参考。
+  body_size_m: [0.250, 0.223, 0.110]
+
+  mass:
+    # 总质量和分部质量由实测数据给定。
+    total_mass_kg: 13.75
+    body_mass_kg: 6.55
+    leg_mass_each_kg: 1.80
+    thigh_mass_each_kg: 1.55
+    calf_mass_each_kg: 0.25
+    # 当前 body frame 原点按整机 COM 处理，因此偏移设为 0。
+    com_offset_m: [0.0, 0.0, 0.0]
+    # 机身盒体惯量，仅作为参考，不直接作为控制默认惯量。
+    body_inertia_kg_m2_diag: [0.033748, 0.040719, 0.061258]
+    # 控制器默认使用整机惯量。
+    whole_robot_inertia_kg_m2_diag: [0.284357, 0.486763, 0.358663]
+
+  # 髋安装点定义在 body frame 下，腿序固定为 FR / FL / RR / RL。
+  # 当前自定义机器人坐标约定：body / hip 坐标系均取 y>0 为机器人右侧。
+  hip_mounts_in_body:
+    FR: [0.185,  0.055, 0.0]
+    FL: [0.185, -0.055, 0.0]
+    RR: [-0.185,  0.055, 0.0]
+    RL: [-0.185, -0.055, 0.0]
+
+  leg_geometry:
+    # l0: 髋轴到腿平面的横向偏移
+    # l1: 大腿长度
+    # l2: 小腿长度
+    l0: 0.08415
+    l1: 0.213
+    l2: 0.213
+
+  drive:
+    # 串口顺序和腿序保持一致，避免驱动映射混乱。
+    serial_ports:
+      FR: /dev/ttyS3
+      FL: /dev/ttyS4
+      RR: /dev/ttyS7
+      RL: /dev/ttyS8
+    base_gear_ratio: 6.33
+    calf_total_gear_ratio: 12.66
+
+  joint_limits:
+    # 三个关节的机械限位，IK 结果会在状态机里再次做限幅保护。
+    q0: [-2.60, 2.60]
+    q1: [-6.50, 6.50]
+    q2: [-2.30, 2.30]
+
+  stand_targets:
+    # 站立和匍匐目标统一定义为 hip frame 下的足端目标位置。
+    # 同样采用 y>0 为机器人右侧，因此 FR / RR 的 y 为正。
+    normal_feet_in_hip:
+      FR: [-0.01,  0.08415, -0.22]
+      FL: [-0.01, -0.08415, -0.22]
+      RR: [-0.01,  0.08415, -0.22]
+      RL: [-0.01, -0.08415, -0.22]
+    crouch_feet_in_hip:
+      FR: [-0.01,  0.18, -0.15]
+      FL: [-0.01, -0.18, -0.15]
+      RR: [-0.01,  0.18, -0.15]
+      RL: [-0.01, -0.18, -0.15]
+
+  velocity_limits:
+    # 机体速度限制主要用于上层行为或步态参数裁剪。
+    x: [-0.4, 0.4]
+    y: [-0.3, 0.3]
+    yaw: [-0.5, 0.5]

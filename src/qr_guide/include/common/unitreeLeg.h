@@ -7,6 +7,8 @@
 #include "common/mathTypes.h"
 #include "common/enumClass.h"
 
+// 旧版单腿运动学实现。
+// 当前主线已经改为 model/LegKinematics，但这里仍保留，方便和旧公式逐行对照。
 class QuadrupedLeg{
 public:
     QuadrupedLeg(int legID, float abadLinkLength, float hipLinkLength, 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, QoSHistoryPolicy, QoSReliabilityPolicy, QoSDurabilityPolicy
 from sensor_msgs.msg import Joy
 from evdev import InputDevice, ecodes
 import select
@@ -12,16 +13,26 @@ class EventToJoy(Node):
         self.declare_parameter('event_path', '/dev/input/event6')
         self.declare_parameter('publish_hz', 1000.0)
 
-        self.joy_pub = self.create_publisher(Joy, '/joy', 2000)
+        joy_qos = QoSProfile(
+            history=QoSHistoryPolicy.KEEP_LAST,
+            depth=1,
+            reliability=QoSReliabilityPolicy.BEST_EFFORT,
+            durability=QoSDurabilityPolicy.VOLATILE,
+        )
+        self.joy_pub = self.create_publisher(Joy, '/joy', joy_qos)
         self.event_path = self.get_parameter('event_path').get_parameter_value().string_value
         self.publish_hz = self.get_parameter('publish_hz').get_parameter_value().double_value
 
         try:
             self.device = InputDevice(self.event_path)
             self.device.grab()
-            self.get_logger().info(f'独占设备: {self.device.name}')
+            self.get_logger().info(
+                f'手柄接口已打开 path={self.event_path} device="{self.device.name}"'
+            )
         except Exception as e:
-            self.get_logger().error(f'设备打开失败: {e}')
+            self.get_logger().error(
+                f'手柄接口打开失败 path={self.event_path} error={e}'
+            )
             raise
 
         self.joy_msg = Joy()
@@ -46,8 +57,10 @@ class EventToJoy(Node):
         while rclpy.ok():
             r, _, _ = select.select([self.device.fd], [], [], 0)
             if r:
-                event = self.device.read_one()
-                if event:
+                while True:
+                    event = self.device.read_one()
+                    if event is None:
+                        break
                     if event.type == ecodes.EV_KEY and event.code in self.key_map:
                         self.joy_msg.buttons[self.key_map[event.code]] = event.value
                     elif event.type == ecodes.EV_ABS and event.code in self.axis_map:

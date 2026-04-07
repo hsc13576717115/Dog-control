@@ -5,6 +5,8 @@
 #include "common/mathTools.h"
 #include "common/timeMarker.h"
 
+// 遗留实现：当前主线不再编译 BalanceCtrl。
+
 BalanceCtrl::BalanceCtrl(double mass, Mat3 Ib, Mat6 S, double alpha, double beta)
             : _mass(mass), _Ib(Ib), _S(S), _alpha(alpha), _beta(beta){
     _Fprev.setZero();

@@ -6,6 +6,8 @@
 
 #include "FSM/FSMState.h"
 
+// 遗留状态：自由站立姿态调节。
+// 当前主构建不再编译该状态，仅保留源码供对照和迁移参考。
 class State_FreeStand : public FSMState{
 public:
     State_FreeStand(CtrlComponents *ctrlComp);
