@@ -1,7 +1,5 @@
 #include "common/unitreeRobot.h"
 
-#include <iostream>
-
 QuadrupedRobot::QuadrupedRobot(const qr_guide::RobotParameters& parameters)
     : model_(std::make_shared<qr_guide::RobotModel>(parameters)) {}
 
@@ -66,9 +64,3 @@ Vec3 QuadrupedRobot::inverseKinematics(const Vec3& foot, int legID, FrameType fr
 const qr_guide::RobotParameters& QuadrupedRobot::getParameters() const {
     return model_->parameters();
 }
-
-A1Robot::A1Robot()
-    : QuadrupedRobot(qr_guide::MakeA1Parameters()) {}
-
-Go1Robot::Go1Robot()
-    : QuadrupedRobot(qr_guide::MakeGo1Parameters()) {}
