@@ -40,7 +40,7 @@ ahrsBringup::ahrsBringup()
   this->declare_parameter<std::string>("NED_odom_topic","/NED_odometry");
   this->get_parameter("NED_odom_topic", NED_odom_topic);
 
-  this->declare_parameter<std::string>("serial_port_","/dev/fdilink_ahrs");
+  this->declare_parameter<std::string>("serial_port_","/dev/ttyUSB0");
   this->get_parameter("serial_port_", serial_port_);
 
   this->declare_parameter<std::int64_t>("serial_baud_",921600);
