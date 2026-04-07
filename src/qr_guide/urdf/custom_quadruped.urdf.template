@@ -1,36 +1,30 @@
 <?xml version="1.0"?>
 <robot name="{robot_name}">
   <material name="body_navy">
-    <color rgba="0.15 0.19 0.28 1.0"/>
+    <color rgba="0.18 0.20 0.23 1.0"/>
   </material>
   <material name="metal_gray">
-    <color rgba="0.80 0.84 0.90 1.0"/>
+    <color rgba="0.74 0.77 0.81 1.0"/>
   </material>
   <material name="accent_orange">
-    <color rgba="0.96 0.52 0.24 1.0"/>
+    <color rgba="0.93 0.52 0.23 1.0"/>
   </material>
   <material name="accent_cyan">
-    <color rgba="0.17 0.76 0.93 1.0"/>
+    <color rgba="0.40 0.86 0.95 1.0"/>
   </material>
   <material name="accent_green">
-    <color rgba="0.55 0.86 0.33 1.0"/>
+    <color rgba="0.59 0.90 0.53 1.0"/>
   </material>
   <material name="accent_pink">
     <color rgba="0.96 0.35 0.66 1.0"/>
   </material>
   <material name="foot_gold">
-    <color rgba="0.99 0.84 0.33 1.0"/>
+    <color rgba="0.95 0.69 0.24 1.0"/>
   </material>
 
   <!-- base_link_est 与状态估计的 odom->base_link_est TF 对齐。 -->
   <link name="base_link_est">
-    <visual>
-      <origin xyz="0 0 0" rpy="0 0 0"/>
-      <geometry>
-        <box size="{body_x} {body_y} {body_z}"/>
-      </geometry>
-      <material name="body_navy"/>
-    </visual>
+{body_visuals}
   </link>
 
 {leg_blocks}
