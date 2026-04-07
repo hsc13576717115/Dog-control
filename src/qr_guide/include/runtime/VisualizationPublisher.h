@@ -33,9 +33,11 @@ private:
     static constexpr int kBodyPathMaxSize = 600;
 
     void publishOdometry(const rclcpp::Time& stamp,
-                         const ControllerContext& context,
                          const Vec3& position,
-                         const RotMat& body_to_world) const;
+                         const Vec3& velocity,
+                         const Vec3& angular_velocity_body,
+                         const RotMat& body_to_world,
+                         const geometry_msgs::msg::Quaternion& orientation) const;
     void publishTf(const rclcpp::Time& stamp,
                    const Vec3& position,
                    const geometry_msgs::msg::Quaternion& orientation) const;
@@ -54,12 +56,13 @@ private:
 
     Vec34 commandJointAngles(const UserLowlevel::LowlevelCmd& low_cmd) const;
     Vec3 kneeInHip(const Vec3& q_user, int leg_id) const;
+    Vec3 controllerToVizPoint(const Vec3& controller_point) const;
     Vec3 bodyPointToWorld(const Vec3& body_point,
                           const Vec3& body_position,
                           const RotMat& body_to_world) const;
 
     geometry_msgs::msg::Point toPoint(const Vec3& value) const;
-    geometry_msgs::msg::Quaternion toQuaternion(const IMU& imu) const;
+    geometry_msgs::msg::Quaternion toQuaternion(const RotMat& rotation) const;
     void appendTrail(std::deque<geometry_msgs::msg::Point>* trail,
                      const geometry_msgs::msg::Point& point) const;
     void appendBodyPose(const geometry_msgs::msg::PoseStamped& pose);

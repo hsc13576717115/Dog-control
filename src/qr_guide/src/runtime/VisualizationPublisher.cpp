@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <sstream>
 
+#include <Eigen/Geometry>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <visualization_msgs/msg/marker.hpp>
@@ -27,6 +28,12 @@ constexpr std::array<const char*, 12> kJointNames = {
     "RL_hip", "RL_thigh", "RL_calf",
 };
 
+const RotMat kControllerToVizReflection = [] {
+    RotMat reflection = RotMat::Identity();
+    reflection(1, 1) = -1.0;
+    return reflection;
+}();
+
 struct Color {
     float r;
     float g;
@@ -36,10 +43,10 @@ struct Color {
 
 Color LegColor(int leg_id, float alpha) {
     static constexpr Color kColors[NumLeg] = {
-        {0.96f, 0.52f, 0.24f, 1.0f},  // FR
-        {0.17f, 0.76f, 0.93f, 1.0f},  // FL
-        {0.55f, 0.86f, 0.33f, 1.0f},  // RR
-        {0.96f, 0.35f, 0.66f, 1.0f},  // RL
+        {0.96f, 0.69f, 0.24f, 1.0f},  // FR
+        {0.40f, 0.86f, 0.95f, 1.0f},  // FL
+        {0.59f, 0.90f, 0.53f, 1.0f},  // RR
+        {0.88f, 0.58f, 0.93f, 1.0f},  // RL
     };
     Color color = kColors[leg_id];
     color.a = alpha;
@@ -93,12 +100,13 @@ void VisualizationPublisher::publish(const ControllerContext& context,
     last_publish_time_ = now_steady;
 
     const rclcpp::Time stamp = node_->now();
-    const Vec3 position = context.estimator->getPosition();
-    const Vec3 velocity = context.estimator->getVelocity();
+    const Vec3 position = controllerToVizPoint(context.estimator->getPosition());
+    const Vec3 velocity = controllerToVizPoint(context.estimator->getVelocity());
     const RotMat body_to_world = context.lowState->getRotMat();
-    const geometry_msgs::msg::Quaternion orientation = toQuaternion(context.lowState->imu);
+    const geometry_msgs::msg::Quaternion orientation = toQuaternion(body_to_world);
+    const Vec3 angular_velocity_body = context.lowState->imu.getGyro();
 
-    publishOdometry(stamp, context, position, body_to_world);
+    publishOdometry(stamp, position, velocity, angular_velocity_body, body_to_world, orientation);
     publishTf(stamp, position, orientation);
     publishJointStates(stamp, context);
     publishBodyPath(stamp, position, orientation);
@@ -106,23 +114,25 @@ void VisualizationPublisher::publish(const ControllerContext& context,
 }
 
 void VisualizationPublisher::publishOdometry(const rclcpp::Time& stamp,
-                                             const ControllerContext& context,
                                              const Vec3& position,
-                                             const RotMat& body_to_world) const {
+                                             const Vec3& velocity,
+                                             const Vec3& angular_velocity_body,
+                                             const RotMat& body_to_world,
+                                             const geometry_msgs::msg::Quaternion& orientation) const {
     nav_msgs::msg::Odometry odom;
     odom.header.stamp = stamp;
     odom.header.frame_id = kWorldFrameId;
     odom.child_frame_id = kBaseLinkFrameId;
     odom.pose.pose.position = toPoint(position);
-    odom.pose.pose.orientation = toQuaternion(context.lowState->imu);
+    odom.pose.pose.orientation = orientation;
 
-    const Vec3 velocity_body = body_to_world.transpose() * context.estimator->getVelocity();
+    const Vec3 velocity_body = body_to_world.transpose() * velocity;
     odom.twist.twist.linear.x = velocity_body.x();
     odom.twist.twist.linear.y = velocity_body.y();
     odom.twist.twist.linear.z = velocity_body.z();
-    odom.twist.twist.angular.x = context.lowState->imu.gyroscope[0];
-    odom.twist.twist.angular.y = context.lowState->imu.gyroscope[1];
-    odom.twist.twist.angular.z = context.lowState->imu.gyroscope[2];
+    odom.twist.twist.angular.x = angular_velocity_body.x();
+    odom.twist.twist.angular.y = angular_velocity_body.y();
+    odom.twist.twist.angular.z = angular_velocity_body.z();
     odom_pub_->publish(odom);
 }
 
@@ -218,19 +228,19 @@ void VisualizationPublisher::publishMarkers(const rclcpp::Time& stamp,
         "robot_body", 0, visualization_msgs::msg::Marker::CUBE);
     body.pose.position = toPoint(position);
     body.pose.orientation = orientation;
-    body.scale.x = parameters_.body_size_m.x();
-    body.scale.y = parameters_.body_size_m.y();
-    body.scale.z = parameters_.body_size_m.z();
-    SetColor(&body, Color{0.11f, 0.17f, 0.26f, 0.78f});
+    body.scale.x = parameters_.body_size_m.x() * 0.92;
+    body.scale.y = parameters_.body_size_m.y() * 0.88;
+    body.scale.z = parameters_.body_size_m.z() * 0.70;
+    SetColor(&body, Color{0.14f, 0.17f, 0.20f, 0.16f});
     marker_array.markers.push_back(body);
 
     visualization_msgs::msg::Marker com = make_marker(
         "robot_body", 1, visualization_msgs::msg::Marker::SPHERE);
     com.pose.position = toPoint(position);
-    com.scale.x = 0.05;
-    com.scale.y = 0.05;
-    com.scale.z = 0.05;
-    SetColor(&com, Color{0.99f, 0.84f, 0.33f, 0.95f});
+    com.scale.x = 0.032;
+    com.scale.y = 0.032;
+    com.scale.z = 0.032;
+    SetColor(&com, Color{1.00f, 0.79f, 0.25f, 0.95f});
     marker_array.markers.push_back(com);
 
     visualization_msgs::msg::Marker velocity_arrow = make_marker(
@@ -240,10 +250,10 @@ void VisualizationPublisher::publishMarkers(const rclcpp::Time& stamp,
     const Vec3 arrow_end = arrow_start + velocity * 0.25;
     velocity_arrow.points.push_back(toPoint(arrow_start));
     velocity_arrow.points.push_back(toPoint(arrow_end));
-    velocity_arrow.scale.x = 0.018;
-    velocity_arrow.scale.y = 0.035;
+    velocity_arrow.scale.x = 0.012;
+    velocity_arrow.scale.y = 0.025;
     velocity_arrow.scale.z = 0.05;
-    SetColor(&velocity_arrow, Color{0.99f, 0.75f, 0.20f, 0.95f});
+    SetColor(&velocity_arrow, Color{0.98f, 0.75f, 0.20f, 0.88f});
     marker_array.markers.push_back(velocity_arrow);
 
     visualization_msgs::msg::Marker text = make_marker(
@@ -257,10 +267,10 @@ void VisualizationPublisher::publishMarkers(const rclcpp::Time& stamp,
 
     visualization_msgs::msg::Marker hip_list = make_marker(
         "robot_joints", 0, visualization_msgs::msg::Marker::SPHERE_LIST);
-    hip_list.scale.x = 0.032;
-    hip_list.scale.y = 0.032;
-    hip_list.scale.z = 0.032;
-    SetColor(&hip_list, Color{0.82f, 0.86f, 0.91f, 0.90f});
+    hip_list.scale.x = 0.018;
+    hip_list.scale.y = 0.018;
+    hip_list.scale.z = 0.018;
+    SetColor(&hip_list, Color{0.84f, 0.87f, 0.91f, 0.48f});
 
     if (!context.isCalibrated()) {
         for (int leg = 0; leg < NumLeg; ++leg) {
@@ -286,27 +296,27 @@ void VisualizationPublisher::publishMarkers(const rclcpp::Time& stamp,
 
         visualization_msgs::msg::Marker leg_marker = make_marker(
             "leg_actual", leg, visualization_msgs::msg::Marker::LINE_STRIP);
-        leg_marker.scale.x = 0.022;
+        leg_marker.scale.x = 0.006;
         add_line_points(&leg_marker, toPoint(hip_world), toPoint(knee_world), toPoint(foot_actual_world));
-        SetColor(&leg_marker, LegColor(leg, 0.95f));
+        SetColor(&leg_marker, LegColor(leg, 0.24f));
         marker_array.markers.push_back(leg_marker);
 
         visualization_msgs::msg::Marker foot_actual = make_marker(
             "foot_actual", leg, visualization_msgs::msg::Marker::SPHERE);
         foot_actual.pose.position = toPoint(foot_actual_world);
-        foot_actual.scale.x = context.contact(leg) ? 0.055 : 0.042;
+        foot_actual.scale.x = context.contact(leg) ? 0.032 : 0.024;
         foot_actual.scale.y = foot_actual.scale.x;
         foot_actual.scale.z = foot_actual.scale.x;
-        SetColor(&foot_actual, LegColor(leg, context.contact(leg) ? 0.98f : 0.55f));
+        SetColor(&foot_actual, LegColor(leg, context.contact(leg) ? 0.92f : 0.50f));
         marker_array.markers.push_back(foot_actual);
 
         visualization_msgs::msg::Marker foot_target = make_marker(
-            "foot_target", leg, visualization_msgs::msg::Marker::CUBE);
+            "foot_target", leg, visualization_msgs::msg::Marker::SPHERE);
         foot_target.pose.position = toPoint(foot_command_world);
-        foot_target.scale.x = 0.032;
-        foot_target.scale.y = 0.032;
-        foot_target.scale.z = 0.032;
-        SetColor(&foot_target, LegColor(leg, 0.35f));
+        foot_target.scale.x = 0.016;
+        foot_target.scale.y = 0.016;
+        foot_target.scale.z = 0.016;
+        SetColor(&foot_target, LegColor(leg, 0.22f));
         marker_array.markers.push_back(foot_target);
 
         appendTrail(&actual_foot_trails_[leg], toPoint(foot_actual_world));
@@ -314,16 +324,16 @@ void VisualizationPublisher::publishMarkers(const rclcpp::Time& stamp,
 
         visualization_msgs::msg::Marker actual_trail = make_marker(
             "foot_trail_actual", leg, visualization_msgs::msg::Marker::LINE_STRIP);
-        actual_trail.scale.x = 0.012;
+        actual_trail.scale.x = 0.006;
         actual_trail.points.assign(actual_foot_trails_[leg].begin(), actual_foot_trails_[leg].end());
-        SetColor(&actual_trail, LegColor(leg, 0.82f));
+        SetColor(&actual_trail, LegColor(leg, 0.78f));
         marker_array.markers.push_back(actual_trail);
 
         visualization_msgs::msg::Marker command_trail = make_marker(
             "foot_trail_command", leg, visualization_msgs::msg::Marker::LINE_STRIP);
-        command_trail.scale.x = 0.007;
+        command_trail.scale.x = 0.0035;
         command_trail.points.assign(command_foot_trails_[leg].begin(), command_foot_trails_[leg].end());
-        SetColor(&command_trail, LegColor(leg, 0.28f));
+        SetColor(&command_trail, LegColor(leg, 0.20f));
         marker_array.markers.push_back(command_trail);
     }
 
@@ -364,10 +374,14 @@ Vec3 VisualizationPublisher::kneeInHip(const Vec3& q_user, int leg_id) const {
     return knee;
 }
 
+Vec3 VisualizationPublisher::controllerToVizPoint(const Vec3& controller_point) const {
+    return kControllerToVizReflection * controller_point;
+}
+
 Vec3 VisualizationPublisher::bodyPointToWorld(const Vec3& body_point,
                                               const Vec3& body_position,
                                               const RotMat& body_to_world) const {
-    return body_position + body_to_world * body_point;
+    return body_position + body_to_world * controllerToVizPoint(body_point);
 }
 
 geometry_msgs::msg::Point VisualizationPublisher::toPoint(const Vec3& value) const {
@@ -378,26 +392,15 @@ geometry_msgs::msg::Point VisualizationPublisher::toPoint(const Vec3& value) con
     return point;
 }
 
-geometry_msgs::msg::Quaternion VisualizationPublisher::toQuaternion(const IMU& imu) const {
+geometry_msgs::msg::Quaternion VisualizationPublisher::toQuaternion(const RotMat& rotation) const {
+    Eigen::Quaterniond q(rotation);
+    q.normalize();
+
     geometry_msgs::msg::Quaternion quaternion;
-    quaternion.w = imu.quaternion[0];
-    quaternion.x = imu.quaternion[1];
-    quaternion.y = imu.quaternion[2];
-    quaternion.z = imu.quaternion[3];
-    const double norm = std::sqrt(
-        quaternion.w * quaternion.w + quaternion.x * quaternion.x +
-        quaternion.y * quaternion.y + quaternion.z * quaternion.z);
-    if (norm > 1e-9) {
-        quaternion.w /= norm;
-        quaternion.x /= norm;
-        quaternion.y /= norm;
-        quaternion.z /= norm;
-    } else {
-        quaternion.w = 1.0;
-        quaternion.x = 0.0;
-        quaternion.y = 0.0;
-        quaternion.z = 0.0;
-    }
+    quaternion.w = q.w();
+    quaternion.x = q.x();
+    quaternion.y = q.y();
+    quaternion.z = q.z();
     return quaternion;
 }
 

@@ -132,6 +132,13 @@ FDILink IMU
 - `FR / RR` 的 `y` 为正
 - `FL / RL` 的 `y` 为负
 
+说明：
+
+- 这套是控制器内部的工作坐标系
+- RViz 显示层会单独对整狗几何、轨迹和估计位置做一次左右反射，把显示转换成更符合 RViz 使用习惯的显示坐标
+- IMU 姿态本身保持原始 ROS 方向，不做偏航镜像
+- 所以控制器和运动学不需要改，RViz 里的左右腿也不会再对调
+
 机器人主参数统一放在：
 
 - [src/qr_guide/config/custom_quadruped.yaml](src/qr_guide/config/custom_quadruped.yaml)
@@ -185,6 +192,8 @@ ros2 launch qr_guide dog.launch.py
 - 基于实时 `/joint_states` 的完整狗模型
 - 四个实际足端和命令足端轨迹
 - 速度箭头、状态文字和接触/相位信息
+
+当前整狗模型已经往宇树 Go2 的工业设计语言做了一版美化：机身更圆润，顶部增加传感器造型，腿部视觉件改成细圆柱加球帽的胶囊风格，关节也换成更圆润的球形显示，和轨迹叠加时会比早期的方块连杆更清爽。
 
 如果只想运行控制，不开 RViz：
 
