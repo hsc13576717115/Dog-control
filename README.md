@@ -288,7 +288,7 @@ FSM::run()
 ```text
 Orange Pi 5 Plus
 ├── IMU
-│   └── /dev/wheeltec_FDI_IMU_GNSS
+│   └── /dev/ttyUSB0
 ├── 手柄
 │   └── /dev/input/event6
 ├── 4路电机串口
@@ -350,7 +350,7 @@ ros2 launch qr_guide dog.launch.py
 
 ```bash
 ros2 launch qr_guide dog.launch.py \
-  imu_serial_port:=/dev/wheeltec_FDI_IMU_GNSS \
+  imu_serial_port:=/dev/ttyUSB0 \
   imu_serial_baud:=921600 \
   joy_event_path:=/dev/input/event6
 ```
@@ -362,7 +362,7 @@ ros2 launch qr_guide dog.launch.py \
 启动前建议先看一下设备在不在：
 
 ```bash
-ls /dev/wheeltec_FDI_IMU_GNSS
+ls /dev/ttyUSB0
 ls /dev/input/event6
 ls /dev/ttyS3 /dev/ttyS4 /dev/ttyS7 /dev/ttyS8
 ```
