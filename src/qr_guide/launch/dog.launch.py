@@ -11,7 +11,7 @@ def generate_launch_description():
     joy_event_path = LaunchConfiguration('joy_event_path')
 
     return LaunchDescription([
-        DeclareLaunchArgument('imu_serial_port', default_value='/dev/wheeltec_FDI_IMU_GNSS'),
+        DeclareLaunchArgument('imu_serial_port', default_value='/dev/ttyUSB0'),
         DeclareLaunchArgument('imu_serial_baud', default_value='921600'),
         DeclareLaunchArgument('joy_event_path', default_value='/dev/input/event6'),
         Node(
