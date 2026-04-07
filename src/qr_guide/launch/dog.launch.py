@@ -13,59 +13,10 @@ from launch_ros.parameter_descriptions import ParameterValue
 
 
 LEG_ORDER = ('FR', 'FL', 'RR', 'RL')
-LEG_COLOR_MATERIAL = {
-    'FR': 'metal_gray',
-    'FL': 'metal_gray',
-    'RR': 'metal_gray',
-    'RL': 'metal_gray',
-}
-JOINT_MATERIAL = 'metal_gray'
 
 
 def _format_xyz(values):
     return f'{values[0]:.6f} {values[1]:.6f} {values[2]:.6f}'
-
-
-def _capsule_visual(center_xyz, length, radius, axis, material):
-    if axis == 'x':
-        cylinder_rpy = '0 1.57079632679 0'
-        end_a = (-length / 2.0, 0.0, 0.0)
-        end_b = (length / 2.0, 0.0, 0.0)
-    elif axis == 'y':
-        cylinder_rpy = '1.57079632679 0 0'
-        end_a = (0.0, -length / 2.0, 0.0)
-        end_b = (0.0, length / 2.0, 0.0)
-    else:
-        cylinder_rpy = '0 0 0'
-        end_a = (0.0, 0.0, -length / 2.0)
-        end_b = (0.0, 0.0, length / 2.0)
-
-    cx, cy, cz = center_xyz
-    ax, ay, az = end_a
-    bx, by, bz = end_b
-
-    return f'''
-    <visual>
-      <origin xyz="{cx:.6f} {cy:.6f} {cz:.6f}" rpy="{cylinder_rpy}"/>
-      <geometry>
-        <cylinder radius="{radius:.6f}" length="{length:.6f}"/>
-      </geometry>
-      <material name="{material}"/>
-    </visual>
-    <visual>
-      <origin xyz="{cx + ax:.6f} {cy + ay:.6f} {cz + az:.6f}" rpy="0 0 0"/>
-      <geometry>
-        <sphere radius="{radius:.6f}"/>
-      </geometry>
-      <material name="{material}"/>
-    </visual>
-    <visual>
-      <origin xyz="{cx + bx:.6f} {cy + by:.6f} {cz + bz:.6f}" rpy="0 0 0"/>
-      <geometry>
-        <sphere radius="{radius:.6f}"/>
-      </geometry>
-      <material name="{material}"/>
-    </visual>'''
 
 
 def _joint_visual(origin_xyz, radius, material):
@@ -80,17 +31,8 @@ def _joint_visual(origin_xyz, radius, material):
     </visual>'''
 
 
-def _box_visual(center_xyz, size_xyz, material):
-    cx, cy, cz = center_xyz
-    sx, sy, sz = size_xyz
-    return f'''
-    <visual>
-      <origin xyz="{cx:.6f} {cy:.6f} {cz:.6f}" rpy="0 0 0"/>
-      <geometry>
-        <box size="{sx:.6f} {sy:.6f} {sz:.6f}"/>
-      </geometry>
-      <material name="{material}"/>
-    </visual>'''
+def _disk_visual(center_xyz, radius, thickness, axis, material):
+    return _cylinder_visual(center_xyz, radius, thickness, axis, material)
 
 
 def _cylinder_visual(center_xyz, radius, length, axis, material):
@@ -111,49 +53,145 @@ def _cylinder_visual(center_xyz, radius, length, axis, material):
     </visual>'''
 
 
-def _build_body_visuals(robot_cfg):
-    body_x, body_y, body_z = robot_cfg['body_size_m']
-    upper_x = body_x * 0.72
-    upper_y = body_y * 0.70
-    upper_z = body_z * 0.44
-    lower_x = body_x * 0.62
-    lower_y = body_y * 0.44
-    lower_z = body_z * 0.24
-    side_radius = body_z * 0.18
-    shoulder_length = body_x * 0.70
-    front_bumper_x = body_x * 0.16
-    front_bumper_y = body_y * 0.50
-    front_bumper_z = body_z * 0.20
-    rear_pack_x = body_x * 0.18
-    rear_pack_y = body_y * 0.42
-    rear_pack_z = body_z * 0.18
-    lidar_radius = body_y * 0.10
-    lidar_height = body_z * 0.16
-    lidar_cap_radius = body_y * 0.13
-    lamp_radius = body_z * 0.065
-    camera_bar_x = body_x * 0.16
-    camera_bar_y = body_y * 0.26
-    camera_bar_z = body_z * 0.10
+def _box_visual(center_xyz, size_xyz, material):
+    cx, cy, cz = center_xyz
+    sx, sy, sz = size_xyz
+    return f'''
+    <visual>
+      <origin xyz="{cx:.6f} {cy:.6f} {cz:.6f}" rpy="0 0 0"/>
+      <geometry>
+        <box size="{sx:.6f} {sy:.6f} {sz:.6f}"/>
+      </geometry>
+      <material name="{material}"/>
+    </visual>'''
+
+
+def _rounded_box_visuals(center_xyz, size_xyz, corner_radius, shell_material, cap_material=None):
+    cx, cy, cz = center_xyz
+    sx, sy, sz = size_xyz
+    radius = min(corner_radius, sx * 0.49, sy * 0.49, sz * 0.49)
+    cap_material = cap_material or shell_material
+
+    x_core = max(sx - 2.0 * radius, 1e-6)
+    y_core = max(sy - 2.0 * radius, 1e-6)
+    z_core = max(sz - 2.0 * radius, 1e-6)
+    x_edge = sx * 0.5 - radius
+    y_edge = sy * 0.5 - radius
+    z_edge = sz * 0.5 - radius
+
+    parts = [
+        _box_visual((cx, cy, cz), (x_core, sy, z_core), shell_material),
+        _box_visual((cx, cy, cz), (sx, y_core, z_core), shell_material),
+        _box_visual((cx, cy, cz), (x_core, y_core, sz), shell_material),
+    ]
+
+    if x_core > 1e-6:
+        for y_sign in (-1.0, 1.0):
+            for z_sign in (-1.0, 1.0):
+                parts.append(
+                    _cylinder_visual(
+                        (cx, cy + y_sign * y_edge, cz + z_sign * z_edge),
+                        radius,
+                        x_core,
+                        'x',
+                        shell_material,
+                    )
+                )
+
+    if y_core > 1e-6:
+        for x_sign in (-1.0, 1.0):
+            for z_sign in (-1.0, 1.0):
+                parts.append(
+                    _cylinder_visual(
+                        (cx + x_sign * x_edge, cy, cz + z_sign * z_edge),
+                        radius,
+                        y_core,
+                        'y',
+                        shell_material,
+                    )
+                )
+
+    if z_core > 1e-6:
+        for x_sign in (-1.0, 1.0):
+            for y_sign in (-1.0, 1.0):
+                parts.append(
+                    _cylinder_visual(
+                        (cx + x_sign * x_edge, cy + y_sign * y_edge, cz),
+                        radius,
+                        z_core,
+                        'z',
+                        shell_material,
+                    )
+                )
+
+    for x_sign in (-1.0, 1.0):
+        for y_sign in (-1.0, 1.0):
+            for z_sign in (-1.0, 1.0):
+                parts.append(
+                    _joint_visual(
+                        (cx + x_sign * x_edge, cy + y_sign * y_edge, cz + z_sign * z_edge),
+                        radius,
+                        cap_material,
+                    )
+                )
+
+    return ''.join(parts)
+
+
+def _axis_point(axis, value):
+    if axis == 'x':
+        return (value, 0.0, 0.0)
+    if axis == 'y':
+        return (0.0, value, 0.0)
+    return (0.0, 0.0, value)
+
+
+def _capsule_visuals_along_axis(axis, start, end, radius, shell_material, cap_material=None):
+    cap_material = cap_material or shell_material
+    total_length = abs(end - start)
+    if total_length < 1e-9:
+        return _joint_visual(_axis_point(axis, start), radius, cap_material)
 
     parts = []
-    parts.append(_box_visual((0.0, 0.0, 0.0), (upper_x, upper_y, upper_z), 'body_navy'))
-    parts.append(_cylinder_visual((0.0, body_y * 0.24, 0.0), side_radius, shoulder_length, 'x', 'body_navy'))
-    parts.append(_cylinder_visual((0.0, -body_y * 0.24, 0.0), side_radius, shoulder_length, 'x', 'body_navy'))
-    parts.append(_box_visual((0.0, 0.0, -body_z * 0.20), (lower_x, lower_y, lower_z), 'metal_gray'))
-    parts.append(_box_visual((body_x * 0.34, 0.0, body_z * 0.01),
-                             (front_bumper_x, front_bumper_y, front_bumper_z),
-                             'body_navy'))
-    parts.append(_box_visual((-body_x * 0.33, 0.0, -body_z * 0.01),
-                             (rear_pack_x, rear_pack_y, rear_pack_z),
-                             'body_navy'))
-    parts.append(_box_visual((body_x * 0.37, 0.0, body_z * 0.085),
-                             (camera_bar_x, camera_bar_y, camera_bar_z),
-                             'metal_gray'))
-    parts.append(_joint_visual((body_x * 0.39, body_y * 0.085, body_z * 0.082), lamp_radius, 'accent_cyan'))
-    parts.append(_joint_visual((body_x * 0.39, -body_y * 0.085, body_z * 0.082), lamp_radius, 'accent_cyan'))
-    parts.append(_cylinder_visual((0.0, 0.0, body_z * 0.34), lidar_radius, lidar_height, 'z', 'metal_gray'))
-    parts.append(_joint_visual((0.0, 0.0, body_z * 0.43), lidar_cap_radius, 'accent_green'))
+    cylinder_length = max(total_length - 2.0 * radius, 0.0)
+    if cylinder_length > 1e-6:
+        center = 0.5 * (start + end)
+        parts.append(_cylinder_visual(_axis_point(axis, center), radius, cylinder_length, axis, shell_material))
+    parts.append(_joint_visual(_axis_point(axis, start), radius, cap_material))
+    parts.append(_joint_visual(_axis_point(axis, end), radius, cap_material))
     return ''.join(parts)
+
+
+def _rod_visual_along_axis(axis, start, end, radius, material):
+    total_length = abs(end - start)
+    if total_length < 1e-9:
+        return ''
+    center = 0.5 * (start + end)
+    return _cylinder_visual(_axis_point(axis, center), radius, total_length, axis, material)
+
+
+def _build_body_visuals(robot_cfg):
+    body_x, body_y, body_z = robot_cfg['body_size_m']
+    main_corner_radius = min(body_y, body_z) * 0.16
+    top_corner_radius = min(body_y, body_z) * 0.11
+    return ''.join([
+        _rounded_box_visuals((0.0, 0.0, 0.0), (body_x, body_y, body_z), main_corner_radius, 'pure_white'),
+        _rounded_box_visuals(
+            (body_x * 0.10, 0.0, body_z * 0.13),
+            (body_x * 0.68, body_y * 0.78, body_z * 0.34),
+            top_corner_radius,
+            'pure_white',
+            'pure_white',
+        ),
+        _rounded_box_visuals(
+            (body_x * 0.30, 0.0, body_z * 0.02),
+            (body_x * 0.16, body_y * 0.46, body_z * 0.20),
+            top_corner_radius * 0.65,
+            'pure_white',
+        ),
+        _joint_visual((body_x * 0.41, body_y * 0.11, body_z * 0.10), body_z * 0.055, 'accent_cyan'),
+        _joint_visual((body_x * 0.41, -body_y * 0.11, body_z * 0.10), body_z * 0.055, 'accent_cyan'),
+    ])
 
 
 def _build_leg_block(leg_name, robot_cfg):
@@ -172,18 +210,23 @@ def _build_leg_block(leg_name, robot_cfg):
     plane_offset_y = -l0 if is_right else l0
     thigh_axis_sign = -1.0 if is_right else 1.0
     calf_axis_sign = 1.0 if is_right else -1.0
-    hip_span = max(abs(plane_offset_y), 1e-3)
-    material = LEG_COLOR_MATERIAL[leg_name]
-    hip_radius = 0.0105
-    rod_radius = 0.0088
-    joint_radius = 0.0130
-    foot_visual_radius = max(foot_radius * 0.78, 0.014)
+    hip_motor_radius = min(max(abs(plane_offset_y) * 0.24, 0.016), 0.024)
+    thigh_motor_radius = min(max(l1 * 0.085, 0.016), 0.022)
+    knee_motor_radius = min(max(l2 * 0.075, 0.014), 0.020)
+    thigh_radius = min(max(l1 * 0.042, 0.008), 0.012)
+    calf_radius = min(max(l2 * 0.032, 0.006), 0.010)
+    foot_pad_radius = max(foot_radius * 0.82, 0.012)
+    foot_pad_height = max(foot_radius * 0.70, 0.014)
+    hip_disk_thickness = max(hip_motor_radius * 0.55, 0.010)
+    joint_disk_thickness = max(thigh_motor_radius * 0.52, 0.010)
+    knee_disk_thickness = max(knee_motor_radius * 0.52, 0.010)
+    foot_pad_thickness = max(foot_pad_height * 0.72, 0.010)
 
     return f'''
   <link name="{leg_name}_hip_link">
-{_capsule_visual((0.0, plane_offset_y / 2.0, 0.0), hip_span, hip_radius, 'y', 'body_navy')}
-{_joint_visual((0.0, 0.0, 0.0), joint_radius, 'body_navy')}
-{_joint_visual((0.0, plane_offset_y, 0.0), joint_radius, JOINT_MATERIAL)}
+{_disk_visual((0.0, 0.0, 0.0), hip_motor_radius, hip_disk_thickness, 'x', 'body_black')}
+{_rod_visual_along_axis('y', 0.0, plane_offset_y, thigh_radius, 'pure_white')}
+{_disk_visual((0.0, plane_offset_y, 0.0), thigh_motor_radius, joint_disk_thickness, 'y', 'body_black')}
   </link>
 
   <joint name="{leg_name}_hip" type="revolute">
@@ -195,9 +238,9 @@ def _build_leg_block(leg_name, robot_cfg):
   </joint>
 
   <link name="{leg_name}_thigh_link">
-{_capsule_visual((l1 / 2.0, 0.0, 0.0), l1, rod_radius, 'x', 'metal_gray')}
-{_joint_visual((0.0, 0.0, 0.0), joint_radius, 'body_navy')}
-{_joint_visual((l1, 0.0, 0.0), joint_radius, JOINT_MATERIAL)}
+{_disk_visual((0.0, 0.0, 0.0), thigh_motor_radius, joint_disk_thickness, 'y', 'body_black')}
+{_rod_visual_along_axis('x', 0.0, l1, thigh_radius, 'pure_white')}
+{_disk_visual((l1, 0.0, 0.0), knee_motor_radius, knee_disk_thickness, 'y', 'body_black')}
   </link>
 
   <joint name="{leg_name}_thigh" type="revolute">
@@ -209,9 +252,8 @@ def _build_leg_block(leg_name, robot_cfg):
   </joint>
 
   <link name="{leg_name}_calf_link">
-{_capsule_visual((l2 / 2.0, 0.0, 0.0), l2, rod_radius * 0.82, 'x', 'metal_gray')}
-{_joint_visual((0.0, 0.0, 0.0), joint_radius * 0.96, JOINT_MATERIAL)}
-{_joint_visual((l2, 0.0, 0.0), joint_radius * 0.90, 'foot_gold')}
+{_disk_visual((0.0, 0.0, 0.0), knee_motor_radius, knee_disk_thickness, 'y', 'body_black')}
+{_rod_visual_along_axis('x', 0.0, l2, calf_radius, 'pure_white')}
   </link>
 
   <joint name="{leg_name}_calf" type="revolute">
@@ -223,13 +265,7 @@ def _build_leg_block(leg_name, robot_cfg):
   </joint>
 
   <link name="{leg_name}_foot_link">
-    <visual>
-      <origin xyz="0 0 0" rpy="0 0 0"/>
-      <geometry>
-        <sphere radius="{foot_visual_radius:.6f}"/>
-      </geometry>
-      <material name="foot_gold"/>
-    </visual>
+{_joint_visual((0.0, 0.0, 0.0), foot_pad_radius, 'pure_white')}
   </link>
 
   <joint name="{leg_name}_foot" type="fixed">
