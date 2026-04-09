@@ -1,11 +1,16 @@
 /**********************************************************************
  Copyright (c) 2020-2023, Unitree Robotics.Co.Ltd. All rights reserved.
 ***********************************************************************/
+#include <algorithm>
 #include <csignal>
+#include <cstring>
 #include <iomanip>
 #include <iostream>
 #include <memory>
+#include <pthread.h>
 #include <sched.h>
+#include <sys/resource.h>
+#include <thread>
 #include <unistd.h>
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
@@ -29,10 +34,33 @@ void ShutDown(int) {
 
 void setProcessScheduler() {
     pid_t pid = getpid();
+    const int fifo_max_priority = sched_get_priority_max(SCHED_FIFO);
+    int requested_priority = fifo_max_priority;
+
+    rlimit rtprio_limit{};
+    if (getrlimit(RLIMIT_RTPRIO, &rtprio_limit) == 0 && rtprio_limit.rlim_cur != RLIM_INFINITY) {
+        requested_priority = std::min<int>(fifo_max_priority, static_cast<int>(rtprio_limit.rlim_cur));
+    }
+
+    if (requested_priority <= 0) {
+        std::cout << "[WARN] Realtime priority is unavailable for this session." << std::endl;
+        return;
+    }
+
     sched_param param{};
-    param.sched_priority = sched_get_priority_max(SCHED_FIFO);
+    param.sched_priority = requested_priority;
     if (sched_setscheduler(pid, SCHED_FIFO, &param) == -1) {
-        std::cout << "[ERROR] Function setProcessScheduler failed." << std::endl;
+        std::cerr << "[ERROR] Function setProcessScheduler failed. priority="
+                  << requested_priority << " reason=" << std::strerror(errno) << std::endl;
+    }
+}
+
+void demoteCurrentThreadToNormalScheduler(const char* thread_name) {
+    sched_param param{};
+    const int rc = pthread_setschedparam(pthread_self(), SCHED_OTHER, &param);
+    if (rc != 0) {
+        std::cerr << "[qr_guide][WARN] Failed to lower scheduler for "
+                  << thread_name << ": " << std::strerror(rc) << std::endl;
     }
 }
 
@@ -45,6 +73,9 @@ int main(int argc, char** argv) {
     rclcpp::init(argc, argv);
     signal(SIGINT, ShutDown);
 
+    std::shared_ptr<rclcpp::executors::SingleThreadedExecutor> executor;
+    std::thread ros_spin_thread;
+
     try {
         const std::string share_dir = ament_index_cpp::get_package_share_directory("qr_guide");
         const std::string config_path = share_dir + "/config/custom_quadruped.yaml";
@@ -53,6 +84,13 @@ int main(int argc, char** argv) {
 
         // 入口只负责装配对象，不再承载 IMU 全局变量、手柄映射和控制细节。
         auto controller_node = std::make_shared<qr_guide::ControllerNode>();
+        executor = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
+        executor->add_node(controller_node);
+        ros_spin_thread = std::thread([executor]() {
+            demoteCurrentThreadToNormalScheduler("ros_executor");
+            executor->spin();
+        });
+
         auto io_interface = std::make_unique<IOSDK>(parameters.drive);
         auto robot_model = std::make_unique<QuadrupedRobot>(parameters);
         auto context = std::make_unique<ControllerContext>(
@@ -64,11 +102,23 @@ int main(int argc, char** argv) {
 
         qr_guide::RobotRunner runner(controller_node, std::move(context));
         const int ret = runner.run(&g_running);
+        if (executor) {
+            executor->cancel();
+        }
         rclcpp::shutdown();
+        if (ros_spin_thread.joinable()) {
+            ros_spin_thread.join();
+        }
         return ret;
     } catch (const std::exception& e) {
+        if (executor) {
+            executor->cancel();
+        }
         std::cerr << "[qr_guide][ERROR] " << e.what() << std::endl;
         rclcpp::shutdown();
+        if (ros_spin_thread.joinable()) {
+            ros_spin_thread.join();
+        }
         return -1;
     }
 }

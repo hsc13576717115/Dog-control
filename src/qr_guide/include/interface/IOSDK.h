@@ -2,9 +2,12 @@
 #define IOSDK_H
 
 #include <array>
+#include <condition_variable>
 #include <cmath>
+#include <mutex>
 #include <set>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "config/RobotConfig.h"
@@ -28,6 +31,9 @@ public:
 private:
     void openSerialPorts();
     void initializeMotorMetadata();
+    void startWorkers();
+    void stopWorkers();
+    void workerLoop(int leg);
     void maybePrintCalibrationReminder();
     void tryCalibrate(const LowlevelState& state);
     void calibrateLeg(int leg);
@@ -45,6 +51,15 @@ private:
     MotorData _motorData[12];
     std::set<int> _activeLegs;
     std::array<float, 12> _calibOffset;
+    std::array<std::thread, 4> _workers;
+    std::mutex _workerMutex;
+    std::condition_variable _dispatchCv;
+    std::condition_variable _completedCv;
+    const UserLowlevel::LowlevelCmd* _activeCmd = nullptr;
+    LowlevelState* _activeState = nullptr;
+    std::size_t _dispatchEpoch = 0;
+    std::size_t _completedWorkers = 0;
+    bool _workersStopping = false;
     bool _isCalibrated = false;
     // 校准仍然沿用 START -> L1_X 这条触发链路。
     const UserCommand _calibTriggerKey = UserCommand::L1_X;

@@ -36,12 +36,14 @@ IOSDK::IOSDK(const qr_guide::DriveParameters& drive_parameters)
 
     openSerialPorts();
     initializeMotorMetadata();
+    startWorkers();
 
     _lastCalibPromptTimeSec = NowSec();
     std::cout << "[IOSDK] 手动调整至趴下姿态后，按 START 触发校准" << std::endl;
 }
 
 IOSDK::~IOSDK() {
+    stopWorkers();
     for (SerialPort* serial : _serials) {
         delete serial;
     }
@@ -77,6 +79,69 @@ void IOSDK::initializeMotorMetadata() {
 
         _motorData[i].motorType = MotorType::GO_M8010_6;
         _motorData[i].hex_len = 31;
+    }
+}
+
+void IOSDK::startWorkers() {
+    try {
+        for (int leg = 0; leg < 4; ++leg) {
+            _workers[leg] = std::thread(&IOSDK::workerLoop, this, leg);
+        }
+    } catch (...) {
+        stopWorkers();
+        throw;
+    }
+}
+
+void IOSDK::stopWorkers() {
+    {
+        std::lock_guard<std::mutex> lock(_workerMutex);
+        _workersStopping = true;
+    }
+    _dispatchCv.notify_all();
+    _completedCv.notify_all();
+
+    for (auto& worker : _workers) {
+        if (worker.joinable()) {
+            worker.join();
+        }
+    }
+}
+
+void IOSDK::workerLoop(int leg) {
+    std::size_t local_epoch = 0;
+
+    while (true) {
+        const UserLowlevel::LowlevelCmd* cmd = nullptr;
+        LowlevelState* state = nullptr;
+
+        {
+            std::unique_lock<std::mutex> lock(_workerMutex);
+            _dispatchCv.wait(lock, [this, &local_epoch] {
+                return _workersStopping || _dispatchEpoch != local_epoch;
+            });
+
+            if (_workersStopping) {
+                return;
+            }
+
+            local_epoch = _dispatchEpoch;
+            cmd = _activeCmd;
+            state = _activeState;
+        }
+
+        const bool leg_active = (_activeLegs.find(leg) != _activeLegs.end());
+        if (leg_active) {
+            sendReceiveLeg(leg, cmd, state);
+        }
+
+        if (leg_active) {
+            std::lock_guard<std::mutex> lock(_workerMutex);
+            ++_completedWorkers;
+            if (_completedWorkers >= _activeLegs.size()) {
+                _completedCv.notify_one();
+            }
+        }
     }
 }
 
@@ -202,9 +267,24 @@ void IOSDK::sendRecv(const UserLowlevel::LowlevelCmd* cmd, LowlevelState* state)
     maybePrintCalibrationReminder();
     tryCalibrate(*state);
 
-    for (int leg : _activeLegs) {
-        sendReceiveLeg(leg, cmd, state);
+    const std::size_t active_workers = _activeLegs.size();
+    if (active_workers == 0) {
+        return;
     }
+
+    {
+        std::lock_guard<std::mutex> lock(_workerMutex);
+        _activeCmd = cmd;
+        _activeState = state;
+        _completedWorkers = 0;
+        ++_dispatchEpoch;
+    }
+    _dispatchCv.notify_all();
+
+    std::unique_lock<std::mutex> lock(_workerMutex);
+    _completedCv.wait(lock, [this, active_workers] {
+        return _workersStopping || _completedWorkers >= active_workers;
+    });
 }
 
 #endif  // COMPILE_WITH_REAL_ROBOT
