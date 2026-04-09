@@ -32,8 +32,6 @@ RobotRunner::RobotRunner(std::shared_ptr<ControllerNode> controller_node,
 int RobotRunner::run(volatile sig_atomic_t* running_flag) {
     rclcpp::WallRate loop_rate(1.0 / context_->dt);
     while (*running_flag && rclcpp::ok()) {
-        // 所有 ROS 回调都通过同一个节点进入，避免多节点分散管理。
-        rclcpp::spin_some(controller_node_);
         if (!step()) {
             return -1;
         }
