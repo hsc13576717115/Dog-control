@@ -11,6 +11,8 @@ namespace qr_guide {
 namespace {
 
 constexpr std::array<const char*, NumLeg> kLegNames = {"FR", "FL", "RR", "RL"};
+constexpr bool kEnableCalibrationDebugPrint = false;
+constexpr bool kEnableEstimatorDebugPrint = false;
 constexpr auto kKinematicsPrintInterval = std::chrono::milliseconds(80);
 constexpr auto kEstimatorPrintInterval = std::chrono::milliseconds(120);
 constexpr double kJointPrintThresholdRad = 0.01;
@@ -51,10 +53,15 @@ bool RobotRunner::step() {
     context_->lowState->userValue = user_input.value;
 
     context_->sendRecv();
+    handleCalibrationCompletion(was_calibrated_before_step);
     maybePrintCalibrationKinematics(was_calibrated_before_step);
     if (context_->estimator) {
         context_->estimator->run();
         maybePrintEstimatorDebug(was_calibrated_before_step);
+    }
+
+    if (!was_calibrated_before_step && context_->isCalibrated() && visualization_publisher_ && context_->estimator) {
+        visualization_publisher_->resetAfterCalibration(context_->estimator->getPosition());
     }
 
     // FSM 在拿到最新输入、回读和估计结果之后再计算当前命令。
@@ -63,6 +70,16 @@ bool RobotRunner::step() {
         visualization_publisher_->publish(*context_, fsm_->currentStateLabel());
     }
     return true;
+}
+
+void RobotRunner::handleCalibrationCompletion(bool was_calibrated_before_step) {
+    if (was_calibrated_before_step || !context_->isCalibrated()) {
+        return;
+    }
+
+    if (context_->estimator) {
+        context_->estimator->resetAfterCalibration();
+    }
 }
 
 void RobotRunner::applyImu(const sensor_msgs::msg::Imu& imu_msg) const {
@@ -80,6 +97,9 @@ void RobotRunner::applyImu(const sensor_msgs::msg::Imu& imu_msg) const {
 }
 
 void RobotRunner::maybePrintCalibrationKinematics(bool was_calibrated_before_step) {
+    if (!kEnableCalibrationDebugPrint) {
+        return;
+    }
     if (!context_->isCalibrated()) {
         return;
     }
@@ -149,6 +169,9 @@ void RobotRunner::maybePrintCalibrationKinematics(bool was_calibrated_before_ste
 }
 
 void RobotRunner::maybePrintEstimatorDebug(bool was_calibrated_before_step) {
+    if (!kEnableEstimatorDebugPrint) {
+        return;
+    }
     if (!context_->isCalibrated() || !context_->estimator) {
         return;
     }

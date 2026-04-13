@@ -130,6 +130,43 @@ RobotParameters LoadRobotParameters(const std::string& path) {
     params.stand_targets.crouch_feet_in_hip =
         ReadLegVec3Map(config["robot"]["stand_targets"]["crouch_feet_in_hip"]);
 
+    if (const YAML::Node hybrid = config["robot"]["hybrid_stand"]) {
+        if (hybrid["enabled"]) {
+            params.hybrid_stand.enabled = hybrid["enabled"].as<bool>();
+        }
+        if (hybrid["kp_z"]) {
+            params.hybrid_stand.kp_z = hybrid["kp_z"].as<double>();
+        }
+        if (hybrid["kd_z"]) {
+            params.hybrid_stand.kd_z = hybrid["kd_z"].as<double>();
+        }
+        if (hybrid["kp_roll"]) {
+            params.hybrid_stand.kp_roll = hybrid["kp_roll"].as<double>();
+        }
+        if (hybrid["kd_roll"]) {
+            params.hybrid_stand.kd_roll = hybrid["kd_roll"].as<double>();
+        }
+        if (hybrid["kp_pitch"]) {
+            params.hybrid_stand.kp_pitch = hybrid["kp_pitch"].as<double>();
+        }
+        if (hybrid["kd_pitch"]) {
+            params.hybrid_stand.kd_pitch = hybrid["kd_pitch"].as<double>();
+        }
+        if (hybrid["fz_min_per_leg_n"]) {
+            params.hybrid_stand.fz_min_per_leg_n = hybrid["fz_min_per_leg_n"].as<double>();
+        }
+        if (hybrid["fz_max_per_leg_n"]) {
+            params.hybrid_stand.fz_max_per_leg_n = hybrid["fz_max_per_leg_n"].as<double>();
+        }
+        if (hybrid["tau_limit_nm"]) {
+            params.hybrid_stand.tau_limit_nm = hybrid["tau_limit_nm"].as<double>();
+        }
+        if (hybrid["tau_rate_limit_nm_per_s"]) {
+            params.hybrid_stand.tau_rate_limit_nm_per_s =
+                hybrid["tau_rate_limit_nm_per_s"].as<double>();
+        }
+    }
+
     if (config["robot"]["velocity_limits"]) {
         params.velocity_limit_x = ReadVec2(config["robot"]["velocity_limits"]["x"]);
         params.velocity_limit_y = ReadVec2(config["robot"]["velocity_limits"]["y"]);
