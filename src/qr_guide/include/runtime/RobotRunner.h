@@ -23,6 +23,7 @@ public:
 private:
     // 把 ROS IMU 消息写回控制器内部的 LowlevelState::imu。
     void applyImu(const sensor_msgs::msg::Imu& imu_msg) const;
+    void handleCalibrationCompletion(bool was_calibrated_before_step);
     void maybePrintCalibrationKinematics(bool was_calibrated_before_step);
     void maybePrintEstimatorDebug(bool was_calibrated_before_step);
 
