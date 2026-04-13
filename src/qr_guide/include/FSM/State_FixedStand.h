@@ -1,6 +1,10 @@
 #ifndef STATE_FIXEDSTAND_H
 #define STATE_FIXEDSTAND_H
 
+#include <array>
+#include <memory>
+
+#include "control/HybridStandController.h"
 #include "FSMState.h"
 
 enum StandMode {
@@ -25,8 +29,11 @@ private:
 
     int _duration = 500;
     float _percent = 0.0f;
+    int _debugPrintCounter = 0;
     Vec12 _targetPos = Vec12::Zero();
     Vec12 _startPos = Vec12::Zero();
+    std::array<Vec3, qr_guide::NumLeg> _targetFeetInBody{};
+    std::unique_ptr<qr_guide::HybridStandController> _hybridStandController;
     StandMode _currentMode = NORMAL_STAND;
 };
 

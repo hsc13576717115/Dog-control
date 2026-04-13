@@ -224,6 +224,72 @@ void Estimator::run(){
     #endif  // COMPILE_WITH_MOVE_BASE
 }
 
+void Estimator::resetAfterCalibration() {
+    _xhat.setZero();
+    _u.setZero();
+    _y.setZero();
+    _yhat.setZero();
+    _P.setIdentity();
+    _P = _largeVariance * _P;
+    _Ppriori.setZero();
+    _Q = _QInit;
+    _R = _RInit;
+    _S.setZero();
+    _Sy.setZero();
+    _Sc.setZero();
+    _SR.setZero();
+    _STC.setZero();
+    _IKC.setIdentity();
+
+    if (_vxFilter) {
+        _vxFilter->clear();
+    }
+    if (_vyFilter) {
+        _vyFilter->clear();
+    }
+    if (_vzFilter) {
+        _vzFilter->clear();
+    }
+
+    if (_lowState == nullptr || _robModel == nullptr) {
+        return;
+    }
+
+    _feetPosGlobalKine = _robModel->getFeet2BPositions(*_lowState, FrameType::GLOBAL);
+    _feetVelGlobalKine = _robModel->getFeet2BVelocities(*_lowState, FrameType::GLOBAL);
+    _rotMatB2G = _lowState->getRotMat();
+    _feetH = _nominalFeetHeight;
+
+    if (!_feetPosGlobalKine.allFinite() || !_feetVelGlobalKine.allFinite() || !_rotMatB2G.allFinite()) {
+        return;
+    }
+
+    double body_height = 0.0;
+    for (int leg = 0; leg < 4; ++leg) {
+        body_height += _nominalFeetHeight(leg) - _feetPosGlobalKine(2, leg);
+    }
+    body_height /= 4.0;
+    _xhat(2) = body_height;
+
+    Vec3 average_feet_velocity = Vec3::Zero();
+    for (int leg = 0; leg < 4; ++leg) {
+        average_feet_velocity += _feetVelGlobalKine.col(leg);
+        _xhat.segment(6 + 3 * leg, 3) = _xhat.segment(0, 3) + _feetPosGlobalKine.col(leg);
+    }
+    average_feet_velocity /= 4.0;
+    _xhat.segment(3, 3) = -average_feet_velocity;
+
+    if (_vxFilter) {
+        _vxFilter->addValue(_xhat(3));
+    }
+    if (_vyFilter) {
+        _vyFilter->addValue(_xhat(4));
+    }
+    if (_vzFilter) {
+        _vzFilter->addValue(_xhat(5));
+    }
+}
+
 Vec3 Estimator::getPosition(){
     return _xhat.segment(0, 3);
 }

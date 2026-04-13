@@ -23,14 +23,19 @@ namespace qr_guide {
 // 负责把估计位姿、机身轨迹、整狗骨架、四足轨迹和足端跟踪统一发成 ROS2 topic。
 class VisualizationPublisher {
 public:
+    struct TimedPoint {
+        geometry_msgs::msg::Point point;
+        rclcpp::Time stamp;
+    };
+
     VisualizationPublisher(const std::shared_ptr<rclcpp::Node>& node,
                            const RobotParameters& parameters);
 
     void publish(const ControllerContext& context, const std::string& state_label);
+    void resetAfterCalibration(const Vec3& controller_position);
 
 private:
-    static constexpr int kFootTrailMaxSize = 180;
-    static constexpr int kBodyPathMaxSize = 600;
+    static constexpr int kFootTrailMaxSize = 240;
 
     void publishOdometry(const rclcpp::Time& stamp,
                          const Vec3& position,
@@ -57,15 +62,16 @@ private:
     Vec34 commandJointAngles(const UserLowlevel::LowlevelCmd& low_cmd) const;
     Vec3 kneeInHip(const Vec3& q_user, int leg_id) const;
     Vec3 controllerToVizPoint(const Vec3& controller_point) const;
+    Vec3 controllerToVizPosition(const Vec3& controller_position) const;
     Vec3 bodyPointToWorld(const Vec3& body_point,
                           const Vec3& body_position,
                           const RotMat& body_to_world) const;
 
     geometry_msgs::msg::Point toPoint(const Vec3& value) const;
     geometry_msgs::msg::Quaternion toQuaternion(const RotMat& rotation) const;
-    void appendTrail(std::deque<geometry_msgs::msg::Point>* trail,
-                     const geometry_msgs::msg::Point& point) const;
-    void appendBodyPose(const geometry_msgs::msg::PoseStamped& pose);
+    void appendTrail(std::deque<TimedPoint>* trail,
+                     const geometry_msgs::msg::Point& point,
+                     const rclcpp::Time& stamp) const;
     std::string makeStatusText(const ControllerContext& context,
                                const std::string& state_label,
                                const Vec3& position,
@@ -79,8 +85,8 @@ private:
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
     std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
     nav_msgs::msg::Path body_path_;
-    std::array<std::deque<geometry_msgs::msg::Point>, NumLeg> actual_foot_trails_;
-    std::array<std::deque<geometry_msgs::msg::Point>, NumLeg> command_foot_trails_;
+    std::array<std::deque<TimedPoint>, NumLeg> actual_foot_trails_;
+    Vec3 controller_position_origin_ = Vec3::Zero();
     std::chrono::steady_clock::time_point last_publish_time_ =
         std::chrono::steady_clock::time_point::min();
 };
