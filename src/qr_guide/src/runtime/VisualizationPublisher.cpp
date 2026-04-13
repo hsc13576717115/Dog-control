@@ -19,8 +19,9 @@ namespace {
 constexpr char kWorldFrameId[] = "odom";
 constexpr char kBaseLinkFrameId[] = "base_link_est";
 constexpr auto kVisualizationInterval = std::chrono::milliseconds(33);
-constexpr double kTrailDistanceThresholdM = 0.003;
-constexpr double kBodyPathDistanceThresholdM = 0.01;
+constexpr auto kBodyTrailWindow = std::chrono::seconds(5);
+constexpr auto kFootTrailWindow = std::chrono::seconds(5);
+constexpr double kTrailDistanceThresholdM = 0.0005;
 constexpr std::array<const char*, 12> kJointNames = {
     "FR_hip", "FR_thigh", "FR_calf",
     "FL_hip", "FL_thigh", "FL_calf",
@@ -100,7 +101,7 @@ void VisualizationPublisher::publish(const ControllerContext& context,
     last_publish_time_ = now_steady;
 
     const rclcpp::Time stamp = node_->now();
-    const Vec3 position = controllerToVizPoint(context.estimator->getPosition());
+    const Vec3 position = controllerToVizPosition(context.estimator->getPosition());
     const Vec3 velocity = controllerToVizPoint(context.estimator->getVelocity());
     const RotMat body_to_world = context.lowState->getRotMat();
     const geometry_msgs::msg::Quaternion orientation = toQuaternion(body_to_world);
@@ -111,6 +112,16 @@ void VisualizationPublisher::publish(const ControllerContext& context,
     publishJointStates(stamp, context);
     publishBodyPath(stamp, position, orientation);
     publishMarkers(stamp, context, state_label, position, velocity, body_to_world, orientation);
+}
+
+void VisualizationPublisher::resetAfterCalibration(const Vec3& controller_position) {
+    controller_position_origin_ = controller_position;
+    body_path_.poses.clear();
+    body_path_.header.frame_id = kWorldFrameId;
+    for (int leg = 0; leg < NumLeg; ++leg) {
+        actual_foot_trails_[leg].clear();
+    }
+    last_publish_time_ = std::chrono::steady_clock::time_point::min();
 }
 
 void VisualizationPublisher::publishOdometry(const rclcpp::Time& stamp,
@@ -187,7 +198,11 @@ void VisualizationPublisher::publishBodyPath(
     pose.pose.position = toPoint(position);
     pose.pose.orientation = orientation;
 
-    appendBodyPose(pose);
+    body_path_.poses.push_back(pose);
+    while (!body_path_.poses.empty() &&
+           (stamp - body_path_.poses.front().header.stamp).to_chrono<std::chrono::nanoseconds>() > kBodyTrailWindow) {
+        body_path_.poses.erase(body_path_.poses.begin());
+    }
     body_path_.header.stamp = stamp;
     body_path_pub_->publish(body_path_);
 }
@@ -243,18 +258,35 @@ void VisualizationPublisher::publishMarkers(const rclcpp::Time& stamp,
     SetColor(&com, Color{1.00f, 0.79f, 0.25f, 0.95f});
     marker_array.markers.push_back(com);
 
-    visualization_msgs::msg::Marker velocity_arrow = make_marker(
-        "robot_body", 2, visualization_msgs::msg::Marker::ARROW);
-    const Vec3 arrow_start_body(0.0, 0.0, parameters_.body_size_m.z() * 0.65);
-    const Vec3 arrow_start = bodyPointToWorld(arrow_start_body, position, body_to_world);
-    const Vec3 arrow_end = arrow_start + velocity * 0.25;
-    velocity_arrow.points.push_back(toPoint(arrow_start));
-    velocity_arrow.points.push_back(toPoint(arrow_end));
-    velocity_arrow.scale.x = 0.012;
-    velocity_arrow.scale.y = 0.025;
-    velocity_arrow.scale.z = 0.05;
-    SetColor(&velocity_arrow, Color{0.98f, 0.75f, 0.20f, 0.88f});
-    marker_array.markers.push_back(velocity_arrow);
+    visualization_msgs::msg::Marker body_axes = make_marker(
+        "robot_body", 2, visualization_msgs::msg::Marker::LINE_LIST);
+    body_axes.scale.x = 0.004;
+    const Vec3 axis_origin = position;
+    const double axis_length = std::max(
+        0.10, 0.45 * std::max({parameters_.body_size_m.x(), parameters_.body_size_m.y(), parameters_.body_size_m.z()}));
+    const Vec3 x_axis_end = axis_origin + body_to_world * Vec3(axis_length, 0.0, 0.0);
+    const Vec3 y_axis_end = axis_origin + body_to_world * Vec3(0.0, axis_length, 0.0);
+    const Vec3 z_axis_end = axis_origin + body_to_world * Vec3(0.0, 0.0, axis_length);
+    body_axes.points.push_back(toPoint(axis_origin));
+    body_axes.points.push_back(toPoint(x_axis_end));
+    body_axes.points.push_back(toPoint(axis_origin));
+    body_axes.points.push_back(toPoint(y_axis_end));
+    body_axes.points.push_back(toPoint(axis_origin));
+    body_axes.points.push_back(toPoint(z_axis_end));
+    body_axes.colors.resize(6);
+    body_axes.colors[0].r = 1.0f;
+    body_axes.colors[0].a = 0.95f;
+    body_axes.colors[1].r = 1.0f;
+    body_axes.colors[1].a = 0.95f;
+    body_axes.colors[2].g = 1.0f;
+    body_axes.colors[2].a = 0.95f;
+    body_axes.colors[3].g = 1.0f;
+    body_axes.colors[3].a = 0.95f;
+    body_axes.colors[4].b = 1.0f;
+    body_axes.colors[4].a = 0.95f;
+    body_axes.colors[5].b = 1.0f;
+    body_axes.colors[5].a = 0.95f;
+    marker_array.markers.push_back(body_axes);
 
     visualization_msgs::msg::Marker text = make_marker(
         "robot_body", 3, visualization_msgs::msg::Marker::TEXT_VIEW_FACING);
@@ -275,7 +307,6 @@ void VisualizationPublisher::publishMarkers(const rclcpp::Time& stamp,
     if (!context.isCalibrated()) {
         for (int leg = 0; leg < NumLeg; ++leg) {
             actual_foot_trails_[leg].clear();
-            command_foot_trails_[leg].clear();
         }
     }
 
@@ -319,22 +350,16 @@ void VisualizationPublisher::publishMarkers(const rclcpp::Time& stamp,
         SetColor(&foot_target, LegColor(leg, 0.22f));
         marker_array.markers.push_back(foot_target);
 
-        appendTrail(&actual_foot_trails_[leg], toPoint(foot_actual_world));
-        appendTrail(&command_foot_trails_[leg], toPoint(foot_command_world));
+        appendTrail(&actual_foot_trails_[leg], toPoint(foot_actual_world), stamp);
 
         visualization_msgs::msg::Marker actual_trail = make_marker(
             "foot_trail_actual", leg, visualization_msgs::msg::Marker::LINE_STRIP);
-        actual_trail.scale.x = 0.006;
-        actual_trail.points.assign(actual_foot_trails_[leg].begin(), actual_foot_trails_[leg].end());
-        SetColor(&actual_trail, LegColor(leg, 0.78f));
+        actual_trail.scale.x = 0.0045;
+        for (const auto& timed_point : actual_foot_trails_[leg]) {
+            actual_trail.points.push_back(timed_point.point);
+        }
+        SetColor(&actual_trail, LegColor(leg, 0.92f));
         marker_array.markers.push_back(actual_trail);
-
-        visualization_msgs::msg::Marker command_trail = make_marker(
-            "foot_trail_command", leg, visualization_msgs::msg::Marker::LINE_STRIP);
-        command_trail.scale.x = 0.0035;
-        command_trail.points.assign(command_foot_trails_[leg].begin(), command_foot_trails_[leg].end());
-        SetColor(&command_trail, LegColor(leg, 0.20f));
-        marker_array.markers.push_back(command_trail);
     }
 
     marker_array.markers.push_back(hip_list);
@@ -378,6 +403,10 @@ Vec3 VisualizationPublisher::controllerToVizPoint(const Vec3& controller_point) 
     return kControllerToVizReflection * controller_point;
 }
 
+Vec3 VisualizationPublisher::controllerToVizPosition(const Vec3& controller_position) const {
+    return controllerToVizPoint(controller_position - controller_position_origin_);
+}
+
 Vec3 VisualizationPublisher::bodyPointToWorld(const Vec3& body_point,
                                               const Vec3& body_position,
                                               const RotMat& body_to_world) const {
@@ -404,38 +433,30 @@ geometry_msgs::msg::Quaternion VisualizationPublisher::toQuaternion(const RotMat
     return quaternion;
 }
 
-void VisualizationPublisher::appendTrail(std::deque<geometry_msgs::msg::Point>* trail,
-                                         const geometry_msgs::msg::Point& point) const {
+void VisualizationPublisher::appendTrail(std::deque<TimedPoint>* trail,
+                                         const geometry_msgs::msg::Point& point,
+                                         const rclcpp::Time& stamp) const {
     if (!trail->empty()) {
-        const geometry_msgs::msg::Point& last = trail->back();
+        const geometry_msgs::msg::Point& last = trail->back().point;
         const double dx = point.x - last.x;
         const double dy = point.y - last.y;
         const double dz = point.z - last.z;
         if (std::sqrt(dx * dx + dy * dy + dz * dz) < kTrailDistanceThresholdM) {
+            while (!trail->empty() &&
+                   (stamp - trail->front().stamp).to_chrono<std::chrono::nanoseconds>() > kFootTrailWindow) {
+                trail->pop_front();
+            }
             return;
         }
     }
 
-    trail->push_back(point);
-    while (static_cast<int>(trail->size()) > kFootTrailMaxSize) {
+    trail->push_back(TimedPoint{point, stamp});
+    while (!trail->empty() &&
+           (stamp - trail->front().stamp).to_chrono<std::chrono::nanoseconds>() > kFootTrailWindow) {
         trail->pop_front();
     }
-}
-
-void VisualizationPublisher::appendBodyPose(const geometry_msgs::msg::PoseStamped& pose) {
-    if (!body_path_.poses.empty()) {
-        const auto& last = body_path_.poses.back().pose.position;
-        const double dx = pose.pose.position.x - last.x;
-        const double dy = pose.pose.position.y - last.y;
-        const double dz = pose.pose.position.z - last.z;
-        if (std::sqrt(dx * dx + dy * dy + dz * dz) < kBodyPathDistanceThresholdM) {
-            return;
-        }
-    }
-
-    body_path_.poses.push_back(pose);
-    while (static_cast<int>(body_path_.poses.size()) > kBodyPathMaxSize) {
-        body_path_.poses.erase(body_path_.poses.begin());
+    while (static_cast<int>(trail->size()) > kFootTrailMaxSize) {
+        trail->pop_front();
     }
 }
 

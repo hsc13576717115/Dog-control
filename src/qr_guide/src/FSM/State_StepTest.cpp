@@ -1,4 +1,5 @@
 #include "FSM/State_StepTest.h"
+#include "FSM/StateMotorParams.h"
 
 #include <chrono>
 #include <cmath>
@@ -9,17 +10,6 @@
 
 namespace {
 
-struct GainSet {
-    float kp;
-    float kd;
-    float tau;
-};
-
-constexpr GainSet G_SQUAT{6.2f, 0.20f, 0.0f};
-constexpr GainSet G_THRUST{6.2f, 0.25f, 0.0f};
-constexpr GainSet G_AIR{3.0f, 0.35f, 0.05f};
-constexpr GainSet G_LAND{3.2f, 0.30f, 0.08f};
-constexpr GainSet G_RETURN{3.2f, 0.25f, 0.05f};
 constexpr double K_SQUAT_DEPTH = 0.15;
 constexpr double K_JUMP_HEIGHT = 0.14;
 constexpr double K_MAX_X_FORWARD = 0.30;
@@ -89,11 +79,10 @@ void State_StepTest::enter() {
     for (int leg = 0; leg < 4; ++leg) {
         for (int joint = 0; joint < 3; ++joint) {
             const int id = leg * 3 + joint;
-            _lowCmd->motorCmd[id].mode = static_cast<unsigned int>(ControlMode::COMPOUND);
+            _lowCmd->motorCmd[id].mode = fsm_motor_params::kCompoundMode;
             _lowCmd->motorCmd[id].dq = 0.0f;
-            _lowCmd->motorCmd[id].Kp = G_SQUAT.kp;
-            _lowCmd->motorCmd[id].Kd = G_SQUAT.kd;
-            _lowCmd->motorCmd[id].tau = G_SQUAT.tau;
+            fsm_motor_params::ApplyGainSet(
+                &_lowCmd->motorCmd[id], fsm_motor_params::kStepTestSquatGains);
             _lowCmd->motorCmd[id].q = _lastLegQ[leg](joint);
         }
     }
@@ -115,16 +104,16 @@ void State_StepTest::run() {
         _isJumpCompleted = true;
     }
 
-    GainSet gains = G_RETURN;
+    fsm_motor_params::GainSet gains = fsm_motor_params::kStepTestReturnGains;
     // 不同阶段使用不同的增益和力矩前馈，尽量兼顾稳定性和动作感。
     if (t_cycle < 3.00) {
-        gains = G_SQUAT;
+        gains = fsm_motor_params::kStepTestSquatGains;
     } else if (t_cycle < 3.20) {
-        gains = G_THRUST;
+        gains = fsm_motor_params::kStepTestThrustGains;
     } else if (t_cycle < 3.40) {
-        gains = G_AIR;
+        gains = fsm_motor_params::kStepTestAirGains;
     } else if (t_cycle < 3.55) {
-        gains = G_LAND;
+        gains = fsm_motor_params::kStepTestLandGains;
     }
 
     const double transition_scale =
@@ -153,10 +142,8 @@ void State_StepTest::run() {
         for (int joint = 0; joint < 3; ++joint) {
             const int id = leg * 3 + joint;
             _lowCmd->motorCmd[id].q = q_cmd(joint);
-            _lowCmd->motorCmd[id].Kp = gains.kp;
-            _lowCmd->motorCmd[id].Kd = gains.kd;
-            _lowCmd->motorCmd[id].tau = gains.tau;
-            _lowCmd->motorCmd[id].mode = static_cast<unsigned int>(ControlMode::COMPOUND);
+            fsm_motor_params::ApplyGainSet(&_lowCmd->motorCmd[id], gains);
+            _lowCmd->motorCmd[id].mode = fsm_motor_params::kCompoundMode;
         }
     }
 }
@@ -167,10 +154,9 @@ void State_StepTest::exit() {
         for (int joint = 0; joint < 3; ++joint) {
             const int id = base + joint;
             _lowCmd->motorCmd[id].q = _initMotorQ(id);
-            _lowCmd->motorCmd[id].Kp = 5.0f;
-            _lowCmd->motorCmd[id].Kd = 0.15f;
-            _lowCmd->motorCmd[id].tau = 0.0f;
-            _lowCmd->motorCmd[id].mode = static_cast<unsigned int>(ControlMode::COMPOUND);
+            fsm_motor_params::ApplyGainSet(
+                &_lowCmd->motorCmd[id], fsm_motor_params::kStepTestExitGains);
+            _lowCmd->motorCmd[id].mode = fsm_motor_params::kCompoundMode;
         }
         _lowCmd->motorCmd[base].q = HIP_JOINT_FIXED;
     }

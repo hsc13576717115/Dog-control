@@ -56,6 +56,22 @@ struct StandTargetParameters {
     std::array<Vec3, NumLeg> crouch_feet_in_hip;
 };
 
+// 站立态力位混合控制参数。
+// 第一版只用于 FixedStand 的 z / roll / pitch 三个任务。
+struct HybridStandParameters {
+    bool enabled = false;
+    double kp_z = 1200.0;
+    double kd_z = 120.0;
+    double kp_roll = 18.0;
+    double kd_roll = 1.2;
+    double kp_pitch = 18.0;
+    double kd_pitch = 1.2;
+    double fz_min_per_leg_n = 10.0;
+    double fz_max_per_leg_n = 60.0;
+    double tau_limit_nm = 6.0;
+    double tau_rate_limit_nm_per_s = 120.0;
+};
+
 // 机器人主参数结构，作为整机模型和控制器的统一配置入口。
 struct RobotParameters {
     std::string name;
@@ -70,6 +86,7 @@ struct RobotParameters {
     DriveParameters drive;
     JointLimitParameters joint_limits;
     StandTargetParameters stand_targets;
+    HybridStandParameters hybrid_stand;
     Vec2 velocity_limit_x = Vec2(-0.4, 0.4);
     Vec2 velocity_limit_y = Vec2(-0.3, 0.3);
     Vec2 velocity_limit_yaw = Vec2(-0.5, 0.5);
