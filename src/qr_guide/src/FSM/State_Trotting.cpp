@@ -1,4 +1,5 @@
 #include "FSM/State_Trotting.h"
+#include "FSM/StateMotorParams.h"
 
 #include <chrono>
 #include <cmath>
@@ -12,11 +13,44 @@ T clampValue(T value, T min_value, T max_value) {
     return std::min(std::max(value, min_value), max_value);
 }
 
+double applyDeadband(double value, double deadband) {
+    if (std::fabs(value) <= deadband) {
+        return 0.0;
+    }
+    const double normalized = (std::fabs(value) - deadband) / (1.0 - deadband);
+    return std::copysign(normalized, value);
+}
+
+double mapAxisToSignedLimit(double axis_value, const Vec2& limits, double deadband) {
+    const double normalized = applyDeadband(axis_value, deadband);
+    if (normalized >= 0.0) {
+        return normalized * limits(1);
+    }
+    return -std::fabs(normalized) * std::fabs(limits(0));
+}
+
+Vec3 rotateAroundBodyZ(const Vec3& point, double yaw) {
+    const double c = std::cos(yaw);
+    const double s = std::sin(yaw);
+    Vec3 rotated = point;
+    rotated.x() = c * point.x() - s * point.y();
+    rotated.y() = s * point.x() + c * point.y();
+    return rotated;
+}
+
+double cycloidProgress(double phase) {
+    const double theta = 2.0 * M_PI * clampValue(phase, 0.0, 1.0);
+    return (theta - std::sin(theta)) / (2.0 * M_PI);
+}
+
 }  // namespace
 
 State_Trotting::State_Trotting(CtrlComponents* ctrlComp)
     : FSMState(ctrlComp, FSMStateName::TROTTING, "trotting") {
-    for (auto& foot : _initFootPos) {
+    for (auto& foot : _enterFootPos) {
+        foot.setZero();
+    }
+    for (auto& foot : _nominalFootPos) {
         foot.setZero();
     }
     for (auto& q : _lastLegQ) {
@@ -30,43 +64,6 @@ double State_Trotting::getTimeSec() {
     return duration<double>(steady_clock::now() - start).count();
 }
 
-Vec3 State_Trotting::cycloidTraj3D(double phase) const {
-    const double theta = phase * 4.0 * M_PI;
-    const bool swing = (theta <= 2.0 * M_PI);
-    const double progress = swing
-        ? (theta - std::sin(theta)) / (2.0 * M_PI)
-        : (1.0 - (theta - 2.0 * M_PI) / (2.0 * M_PI));
-
-    Vec3 trajectory = Vec3::Zero();
-    trajectory.x() = _motionParams.stepLenX * (progress - 0.5);
-    trajectory.y() = _motionParams.stepLenY * (progress - 0.5);
-    if (swing && (std::fabs(_motionParams.stepLenX) > 1e-6 || std::fabs(_motionParams.stepLenY) > 1e-6)) {
-        trajectory.z() = LIFT_H * (1.0 - std::cos(theta)) / 2.0;
-    }
-    return trajectory;
-}
-
-Vec3 State_Trotting::yawCycloidTraj3D(int leg, double phase, bool swing) const {
-    if (!swing) {
-        return Vec3::Zero();
-    }
-
-    const double theta = phase * 4.0 * M_PI;
-    const double yaw_total = _motionParams.omega * CYCLE_T * 0.5;
-    const double progress = (theta - std::sin(theta)) / (2.0 * M_PI);
-    const double yaw_progress = yaw_total * progress;
-
-    const Vec3& initial = _initFootPos[leg];
-    const double c = std::cos(yaw_progress);
-    const double s = std::sin(yaw_progress);
-
-    Vec3 rotated;
-    rotated.x() = c * initial.x() - s * initial.y();
-    rotated.y() = s * initial.x() + c * initial.y();
-    rotated.z() = initial.z() + LIFT_H * (1.0 - std::cos(theta)) / 2.0;
-    return rotated - initial;
-}
-
 void State_Trotting::enter() {
     std::cout << "[Trot] entering trotting state" << std::endl;
 
@@ -76,16 +73,14 @@ void State_Trotting::enter() {
 
     for (int leg = 0; leg < 4; ++leg) {
         const Vec3 q = _initMotorQ.segment(leg * 3, 3);
-        // 进入状态时先记录当前足端位置，后续所有轨迹都相对这个锚点展开。
         _lastLegQ[leg] = q;
-        _initFootPos[leg] = _ctrlComp->robotModel->forwardKinematics(q, leg, FrameType::HIP);
+        _enterFootPos[leg] = _ctrlComp->robotModel->forwardKinematics(q, leg, FrameType::HIP);
+        _nominalFootPos[leg] = _ctrlComp->parameters.stand_targets.normal_feet_in_hip[leg];
+
         for (int j = 0; j < 3; ++j) {
             const int id = leg * 3 + j;
-            _lowCmd->motorCmd[id].mode = static_cast<unsigned int>(ControlMode::COMPOUND);
-            _lowCmd->motorCmd[id].dq = 0.0f;
-            _lowCmd->motorCmd[id].tau = 0.05f;
-            _lowCmd->motorCmd[id].Kp = 6.2f;
-            _lowCmd->motorCmd[id].Kd = 0.2f;
+            fsm_motor_params::ApplyJointProfile(
+                &_lowCmd->motorCmd[id], fsm_motor_params::kTrottingProfile[j]);
             _lowCmd->motorCmd[id].q = q(j);
         }
     }
@@ -94,6 +89,7 @@ void State_Trotting::enter() {
     _accelLimitParams = {};
     _transitionCount = 0;
     _startTime = getTimeSec();
+    _lastCommandUpdateTime = _startTime;
     _ctrlComp->setStartWave();
 }
 
@@ -102,39 +98,92 @@ void State_Trotting::processJoystickInput() {
     const double ly = static_cast<double>(_lowState->userValue.ly);
     const double rx = static_cast<double>(_lowState->userValue.rx);
 
-    static double lastTime = getTimeSec();
     const double current_time = getTimeSec();
-    const double dt = std::max(0.002, std::min(current_time - lastTime, 0.01));
-    lastTime = current_time;
+    const double dt = std::max(0.002, std::min(current_time - _lastCommandUpdateTime, 0.02));
+    _lastCommandUpdateTime = current_time;
 
-    const double rx_dead = 0.1;
-    _motionParams.omega = (std::fabs(rx) > rx_dead)
-        ? std::copysign(std::fabs(rx) - rx_dead, rx) / (1.0 - rx_dead) * MAX_OMEGA
-        : 0.0;
+    const Vec2 limit_x = _ctrlComp->robotModel->getRobVelLimitX();
+    const Vec2 limit_y = _ctrlComp->robotModel->getRobVelLimitY();
+    const Vec2 limit_yaw = _ctrlComp->robotModel->getRobVelLimitYaw();
 
-    // 摇杆死区和最大步长保持旧策略风格，只是输入来源换成统一的 lowState。
-    const double dead_x = 0.1;
-    const double dead_y = 0.2;
-    double raw_step_x = (std::fabs(ly) > dead_x)
-        ? std::copysign((std::fabs(ly) - dead_x) / (1.0 - dead_x), -ly) * MAX_SWING_X
-        : 0.0;
-    double raw_step_y = (std::fabs(lx) > dead_y)
-        ? std::copysign((std::fabs(lx) - dead_y) / (1.0 - dead_y), lx) * MAX_SWING_Y
-        : 0.0;
+    const double velocity_x = mapAxisToSignedLimit(-ly, limit_x, 0.08);
+    const double velocity_y = mapAxisToSignedLimit(lx, limit_y, 0.08);
+    const double yaw_rate = mapAxisToSignedLimit(rx, limit_yaw, 0.08);
 
     _motionParams.joy = Vec2(ly, lx);
-    applyAccelerationLimits(raw_step_x, raw_step_y, dt);
+    applyAccelerationLimits(velocity_x, velocity_y, yaw_rate, dt);
 }
 
-void State_Trotting::applyAccelerationLimits(double& stepLenX, double& stepLenY, double dt) {
+void State_Trotting::applyAccelerationLimits(double velocity_x, double velocity_y, double yaw_rate, double dt) {
     const double max_delta_x = _limitParams.maxAccelX * dt;
     const double max_delta_y = _limitParams.maxAccelY * dt;
-    const double delta_x = clampValue(stepLenX - _accelLimitParams.lastStepLenX, -max_delta_x, max_delta_x);
-    const double delta_y = clampValue(stepLenY - _accelLimitParams.lastStepLenY, -max_delta_y, max_delta_y);
-    _motionParams.stepLenX = _accelLimitParams.lastStepLenX + delta_x;
-    _motionParams.stepLenY = _accelLimitParams.lastStepLenY + delta_y;
-    _accelLimitParams.lastStepLenX = _motionParams.stepLenX;
-    _accelLimitParams.lastStepLenY = _motionParams.stepLenY;
+    const double max_delta_yaw = _limitParams.maxAccelYaw * dt;
+
+    const double delta_x =
+        clampValue(velocity_x - _accelLimitParams.lastVelocityX, -max_delta_x, max_delta_x);
+    const double delta_y =
+        clampValue(velocity_y - _accelLimitParams.lastVelocityY, -max_delta_y, max_delta_y);
+    const double delta_yaw =
+        clampValue(yaw_rate - _accelLimitParams.lastYawRate, -max_delta_yaw, max_delta_yaw);
+
+    _motionParams.velocityX = _accelLimitParams.lastVelocityX + delta_x;
+    _motionParams.velocityY = _accelLimitParams.lastVelocityY + delta_y;
+    _motionParams.yawRate = _accelLimitParams.lastYawRate + delta_yaw;
+
+    _accelLimitParams.lastVelocityX = _motionParams.velocityX;
+    _accelLimitParams.lastVelocityY = _motionParams.velocityY;
+    _accelLimitParams.lastYawRate = _motionParams.yawRate;
+}
+
+bool State_Trotting::hasActiveMotionCommand() const {
+    return std::fabs(_motionParams.velocityX) > MOTION_EPS ||
+           std::fabs(_motionParams.velocityY) > MOTION_EPS ||
+           std::fabs(_motionParams.yawRate) > MOTION_EPS;
+}
+
+Vec3 State_Trotting::computeFrontFoothold(int leg) const {
+    const double stance_time = CYCLE_T * 0.5;
+
+    Vec3 translation_step = Vec3::Zero();
+    translation_step.x() = _motionParams.velocityX * stance_time;
+    translation_step.y() = _motionParams.velocityY * stance_time;
+
+    const Vec3 nominal_body = _ctrlComp->parameters.hip_mounts_in_body[leg] + _nominalFootPos[leg];
+    const double half_yaw = _motionParams.yawRate * stance_time * 0.5;
+    const Vec3 yaw_offset = rotateAroundBodyZ(nominal_body, half_yaw) - nominal_body;
+
+    return _nominalFootPos[leg] + 0.5 * translation_step + yaw_offset;
+}
+
+Vec3 State_Trotting::computeRearFoothold(int leg) const {
+    const double stance_time = CYCLE_T * 0.5;
+
+    Vec3 translation_step = Vec3::Zero();
+    translation_step.x() = _motionParams.velocityX * stance_time;
+    translation_step.y() = _motionParams.velocityY * stance_time;
+
+    const Vec3 nominal_body = _ctrlComp->parameters.hip_mounts_in_body[leg] + _nominalFootPos[leg];
+    const double half_yaw = _motionParams.yawRate * stance_time * 0.5;
+    const Vec3 yaw_offset = rotateAroundBodyZ(nominal_body, -half_yaw) - nominal_body;
+
+    return _nominalFootPos[leg] - 0.5 * translation_step + yaw_offset;
+}
+
+Vec3 State_Trotting::computeSwingFootTarget(int leg, double phase) const {
+    const Vec3 rear = computeRearFoothold(leg);
+    const Vec3 front = computeFrontFoothold(leg);
+    const double alpha = cycloidProgress(phase);
+    const double theta = 2.0 * M_PI * clampValue(phase, 0.0, 1.0);
+
+    Vec3 target = rear + alpha * (front - rear);
+    target.z() += LIFT_H * (1.0 - std::cos(theta)) * 0.5;
+    return target;
+}
+
+Vec3 State_Trotting::computeStanceFootTarget(int leg, double phase) const {
+    const Vec3 front = computeFrontFoothold(leg);
+    const Vec3 rear = computeRearFoothold(leg);
+    return front + clampValue(phase, 0.0, 1.0) * (rear - front);
 }
 
 void State_Trotting::generateLegTrajectory(int leg,
@@ -152,17 +201,10 @@ void State_Trotting::generateLegTrajectory(int leg,
     contact(leg) = swing ? 0 : 1;
     phase(leg) = phase_in_segment;
 
-    Vec3 relative_target = Vec3::Zero();
-    const bool has_xy = std::fabs(_motionParams.stepLenX) > 1e-6 || std::fabs(_motionParams.stepLenY) > 1e-6;
-    const bool has_yaw = std::fabs(_motionParams.omega) > 1e-3;
-    if (has_xy) {
-        relative_target += cycloidTraj3D(normalized);
-    }
-    if (has_yaw && !has_xy) {
-        relative_target += yawCycloidTraj3D(leg, normalized, swing);
-    }
-
-    const Vec3 foot_target = _initFootPos[leg] + relative_target * trans;
+    const Vec3 gait_target = swing
+        ? computeSwingFootTarget(leg, phase_in_segment)
+        : computeStanceFootTarget(leg, phase_in_segment);
+    const Vec3 foot_target = (1.0 - trans) * _enterFootPos[leg] + trans * gait_target;
     calculateIKAndApply(leg, foot_target, cmd);
 }
 
@@ -200,11 +242,23 @@ void State_Trotting::run() {
 
     processJoystickInput();
 
-    const double masterT = std::fmod(getTimeSec() - _startTime, CYCLE_T);
     const double trans = std::min(1.0, static_cast<double>(_transitionCount) / 100.0);
-    Vec12 cmd = _initMotorQ;
-    VecInt4 contact = VecInt4::Zero();
+    Vec12 cmd = Vec12::Zero();
+    VecInt4 contact = VecInt4::Ones();
     Vec4 phase = Vec4::Constant(0.5);
+
+    if (!hasActiveMotionCommand()) {
+        for (int leg = 0; leg < 4; ++leg) {
+            const Vec3 foot_target = (1.0 - trans) * _enterFootPos[leg] + trans * _nominalFootPos[leg];
+            calculateIKAndApply(leg, foot_target, cmd);
+        }
+        _ctrlComp->setContactPhase(contact, phase);
+        _lowCmd->setQ(cmd);
+        return;
+    }
+
+    const double masterT = std::fmod(getTimeSec() - _startTime, CYCLE_T);
+    contact = VecInt4::Zero();
 
     // 当前 contact / phase 由状态内部维护，再写回上下文给估计器使用。
     for (int leg = 0; leg < 4; ++leg) {

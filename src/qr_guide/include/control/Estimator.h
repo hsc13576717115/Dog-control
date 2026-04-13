@@ -35,6 +35,7 @@ public:
     Vec34 getFeetVel();
     Vec34 getPosFeet2BGlobal();
     void run();
+    void resetAfterCalibration();
 
 private:
     void _initSystem();
