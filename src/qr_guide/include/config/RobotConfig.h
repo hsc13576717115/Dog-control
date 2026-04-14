@@ -37,6 +37,7 @@ struct DriveParameters {
     std::array<std::string, NumLeg> serial_ports;
     double base_gear_ratio = 0.0;
     double calf_total_gear_ratio = 0.0;
+    bool use_parallel_leg_io = false;
 };
 
 // 三个关节的机械限位。

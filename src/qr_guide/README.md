@@ -105,6 +105,8 @@
   - `FL = /dev/ttyS4`
   - `RR = /dev/ttyS7`
   - `RL = /dev/ttyS8`
+- 腿部串口并发：
+  - `use_parallel_leg_io = false`
 - 减速比：
   - `base_gear_ratio = 6.33`
   - `calf_total_gear_ratio = 12.66`
@@ -183,6 +185,7 @@
 - 电机状态回读
 - 减速比换算
 - 校准偏差 `_calibOffset`
+- 默认采用 `FR -> FL -> RR -> RL` 单线程顺序收发，避免 4 腿并发串口带来的时序抖动
 
 校准触发逻辑：
 
