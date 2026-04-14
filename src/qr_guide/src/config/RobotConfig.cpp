@@ -120,6 +120,10 @@ RobotParameters LoadRobotParameters(const std::string& path) {
     params.drive.base_gear_ratio = config["robot"]["drive"]["base_gear_ratio"].as<double>();
     params.drive.calf_total_gear_ratio =
         config["robot"]["drive"]["calf_total_gear_ratio"].as<double>();
+    if (config["robot"]["drive"]["use_parallel_leg_io"]) {
+        params.drive.use_parallel_leg_io =
+            config["robot"]["drive"]["use_parallel_leg_io"].as<bool>();
+    }
 
     params.joint_limits.q0 = ReadVec2(config["robot"]["joint_limits"]["q0"]);
     params.joint_limits.q1 = ReadVec2(config["robot"]["joint_limits"]["q1"]);
