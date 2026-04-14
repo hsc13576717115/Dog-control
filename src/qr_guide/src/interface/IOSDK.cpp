@@ -22,7 +22,8 @@ double NowSec() {
 IOSDK::IOSDK(const qr_guide::DriveParameters& drive_parameters)
     : _serialPorts(drive_parameters.serial_ports),
       _baseGearRatio(static_cast<float>(drive_parameters.base_gear_ratio)),
-      _calfTotalGearRatio(static_cast<float>(drive_parameters.calf_total_gear_ratio)) {
+      _calfTotalGearRatio(static_cast<float>(drive_parameters.calf_total_gear_ratio)),
+      _useParallelLegIo(drive_parameters.use_parallel_leg_io) {
     _calibOffset.fill(0.0f);
     _activeLegs = {0, 1, 2, 3};
 
@@ -32,6 +33,9 @@ IOSDK::IOSDK(const qr_guide::DriveParameters& drive_parameters)
               << " FL=" << _serialPorts[1]
               << " RR=" << _serialPorts[2]
               << " RL=" << _serialPorts[3]
+              << std::endl;
+    std::cout << "[IOSDK] 腿部通信模式="
+              << (_useParallelLegIo ? "parallel_4workers" : "single_thread")
               << std::endl;
 
     openSerialPorts();
@@ -59,7 +63,8 @@ void IOSDK::openSerialPorts() {
             std::cout << "[IOSDK] 电机串口已打开"
                       << " leg=" << LEG_NAMES[leg]
                       << " port=" << _serialPorts[leg]
-                      << " baud=4000000" << std::endl;
+                      << " baud=4000000"
+                      << " timeout_us=10000" << std::endl;
         } catch (const std::exception& e) {
             std::cerr << "[IOSDK][ERROR] 电机串口打开失败"
                       << " leg=" << LEG_NAMES[leg]
@@ -83,6 +88,10 @@ void IOSDK::initializeMotorMetadata() {
 }
 
 void IOSDK::startWorkers() {
+    if (!_useParallelLegIo) {
+        return;
+    }
+
     try {
         for (int leg = 0; leg < 4; ++leg) {
             _workers[leg] = std::thread(&IOSDK::workerLoop, this, leg);
@@ -94,6 +103,10 @@ void IOSDK::startWorkers() {
 }
 
 void IOSDK::stopWorkers() {
+    if (!_useParallelLegIo) {
+        return;
+    }
+
     {
         std::lock_guard<std::mutex> lock(_workerMutex);
         _workersStopping = true;
@@ -266,6 +279,13 @@ void IOSDK::sendRecv(const UserLowlevel::LowlevelCmd* cmd, LowlevelState* state)
 
     maybePrintCalibrationReminder();
     tryCalibrate(*state);
+
+    if (!_useParallelLegIo) {
+        for (int leg : _activeLegs) {
+            sendReceiveLeg(leg, cmd, state);
+        }
+        return;
+    }
 
     const std::size_t active_workers = _activeLegs.size();
     if (active_workers == 0) {

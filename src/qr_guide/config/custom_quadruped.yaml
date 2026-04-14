@@ -43,6 +43,8 @@ robot:
       FL: /dev/ttyS4
       RR: /dev/ttyS7
       RL: /dev/ttyS8
+    # 默认关闭 4 腿并发收发，先按 FR -> FL -> RR -> RL 顺序单线程通信以提升稳定性。
+    use_parallel_leg_io: false
     base_gear_ratio: 6.33
     calf_total_gear_ratio: 12.66
 
