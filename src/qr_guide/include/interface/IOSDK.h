@@ -61,6 +61,7 @@ private:
     std::size_t _completedWorkers = 0;
     bool _workersStopping = false;
     bool _isCalibrated = false;
+    bool _useParallelLegIo = false;
     // 校准仍然沿用 START -> L1_X 这条触发链路。
     const UserCommand _calibTriggerKey = UserCommand::L1_X;
     const double _calibPromptIntervalSec = 5.0;
