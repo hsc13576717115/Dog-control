@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# 这个脚本把 Linux /dev/input/event* 设备转换成 ROS 2 /joy 消息。
+# 这样主控侧可以继续复用标准 Joy 接口，而不需要直接依赖 evdev 事件细节。
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSHistoryPolicy, QoSReliabilityPolicy, QoSDurabilityPolicy
@@ -39,11 +41,13 @@ class EventToJoy(Node):
         self.joy_msg.axes = [0.0] * 6
         self.joy_msg.buttons = [0] * 10
 
+        # 这里的索引布局需要和 JoystickMapper.cpp 中的按键/轴约定保持一致。
         self.key_map = {304:0, 305:1, 307:2, 308:3, 310:4, 311:5, 314:6, 315:7, 316:8, 317:9}
         self.axis_map = {0:(0,-32768,32767), 1:(1,-32768,32767), 2:(2,0,256), 
                          3:(3,-32768,32767), 4:(4,-32768,32767), 5:(5,0,256)}
 
     def normalize_axis(self, value, min_val, max_val):
+        # 把不同原始量程统一归一化到 [-1, 1]，便于上层控制器统一处理。
         if value <= min_val:
             return -1.0
         elif value >= max_val:
@@ -55,6 +59,7 @@ class EventToJoy(Node):
         last_time = time.time()
 
         while rclpy.ok():
+            # 非阻塞轮询 event 设备，把当前时刻的全部输入合并成一帧 Joy 再发布。
             r, _, _ = select.select([self.device.fd], [], [], 0)
             if r:
                 while True:
@@ -70,6 +75,7 @@ class EventToJoy(Node):
             self.joy_msg.header.stamp = self.get_clock().now().to_msg()
             self.joy_pub.publish(self.joy_msg)
 
+            # 手工控速，避免因为 while 循环太快而占满 CPU。
             current_time = time.time()
             sleep_time = interval - (current_time - last_time)
             if sleep_time > 0:
@@ -77,6 +83,7 @@ class EventToJoy(Node):
             last_time = current_time
 
     def close_device(self):
+        # grab 过的设备退出前要释放，否则可能影响系统中其他手柄读取程序。
         try:
             self.device.ungrab()
         except Exception:

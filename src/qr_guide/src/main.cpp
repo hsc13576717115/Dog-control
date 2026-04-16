@@ -25,6 +25,7 @@
 
 namespace {
 
+// 进程级运行标志，由 SIGINT 更新，供主循环平滑退出。
 volatile sig_atomic_t g_running = 1;
 
 void ShutDown(int) {
@@ -32,6 +33,7 @@ void ShutDown(int) {
     g_running = 0;
 }
 
+// 尝试把主控制进程提升到实时调度，保证 500 Hz 左右循环更稳定。
 void setProcessScheduler() {
     pid_t pid = getpid();
     const int fifo_max_priority = sched_get_priority_max(SCHED_FIFO);
@@ -55,6 +57,7 @@ void setProcessScheduler() {
     }
 }
 
+// ROS executor 线程不参与硬实时控制，因此主动降回普通调度类。
 void demoteCurrentThreadToNormalScheduler(const char* thread_name) {
     sched_param param{};
     const int rc = pthread_setschedparam(pthread_self(), SCHED_OTHER, &param);
@@ -91,6 +94,10 @@ int main(int argc, char** argv) {
             executor->spin();
         });
 
+        // 真机链路的 3 个关键对象：
+        // 1. IOSDK：电机串口通信
+        // 2. QuadrupedRobot：运动学/整机模型
+        // 3. ControllerContext：把控制链共享对象集中到一个上下文
         auto io_interface = std::make_unique<IOSDK>(parameters.drive);
         auto robot_model = std::make_unique<QuadrupedRobot>(parameters);
         auto context = std::make_unique<ControllerContext>(
