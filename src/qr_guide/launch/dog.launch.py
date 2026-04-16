@@ -171,6 +171,7 @@ def _rod_visual_along_axis(axis, start, end, radius, material):
 
 
 def _build_body_visuals(robot_cfg):
+    # 机身直接按当前参数文件动态生成，保证 RViz 外形与真实参数一致。
     body_x, body_y, body_z = robot_cfg['body_size_m']
     main_corner_radius = min(body_y, body_z) * 0.16
     top_corner_radius = min(body_y, body_z) * 0.11
@@ -205,7 +206,8 @@ def _build_leg_block(leg_name, robot_cfg):
     is_front = leg_name in ('FR', 'FL')
     is_right = leg_name in ('FR', 'RR')
 
-    # 控制器内部仍然使用 y 向机器人右侧；这里单独反射到 RViz/URDF 的 y 向左可视化坐标。
+    # 控制器内部仍然使用 y 向机器人右侧；
+    # 这里单独反射到 RViz/URDF 的 y 向左可视化坐标，避免显示与 ROS 习惯冲突。
     hip_axis_sign = 1.0 if is_front else -1.0
     plane_offset_y = -l0 if is_right else l0
     thigh_axis_sign = -1.0 if is_right else 1.0
@@ -276,6 +278,7 @@ def _build_leg_block(leg_name, robot_cfg):
 
 
 def _build_robot_description(qr_guide_share):
+    # 每次 launch 时都根据 YAML 实时生成 URDF，减少“参数改了但模型没更新”的问题。
     config_path = Path(qr_guide_share) / 'config' / 'custom_quadruped.yaml'
     template_path = Path(qr_guide_share) / 'urdf' / 'custom_quadruped.urdf.template'
 
@@ -291,6 +294,7 @@ def _build_robot_description(qr_guide_share):
 
 
 def generate_launch_description():
+    # 统一启动 IMU、手柄输入、主控、robot_state_publisher 和 RViz。
     qr_guide_share = get_package_share_directory('qr_guide')
     rviz_config = os.path.join(qr_guide_share, 'rviz', 'qr_guide_visualization.rviz')
     robot_description = _build_robot_description(qr_guide_share)

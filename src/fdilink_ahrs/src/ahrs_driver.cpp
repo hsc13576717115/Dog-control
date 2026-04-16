@@ -5,6 +5,9 @@ rclcpp::Node::SharedPtr nh_=nullptr;
 
 namespace FDILink
 {
+// 构造函数完成两件核心工作：
+// 1. 读取 ROS 参数并创建全部发布器
+// 2. 打开串口后直接进入协议处理循环
 ahrsBringup::ahrsBringup()
 : rclcpp::Node ("ahrs_bringup")
 {
@@ -58,7 +61,7 @@ ahrsBringup::ahrsBringup()
   //pravite_nh.param("port", serial_port_, std::string("/dev/ttyTHS1")); 
   //pravite_nh.param("baud", serial_baud_, 115200);
   
-  //publisher
+  // 发布器统一在启动时创建，后续 processLoop 只负责填消息和发布。
   imu_pub_ = create_publisher<sensor_msgs::msg::Imu>(imu_topic.c_str(), 10);
   gps_pub_ = create_publisher<sensor_msgs::msg::NavSatFix>(gps_topic.c_str(), 10);
 
@@ -71,7 +74,7 @@ ahrsBringup::ahrsBringup()
   NED_odom_pub_ = create_publisher<nav_msgs::msg::Odometry>(NED_odom_topic.c_str(), 10);
 
 
-  //setp up serial  设置串口参数并打开串口
+  // 配置并打开串口；如果串口打不开，驱动无法提供有效 IMU 输入，直接退出。
   try
   {
     serial_.setPort(serial_port_);
@@ -125,7 +128,7 @@ void ahrsBringup::processLoop()  // 数据处理过程
     {
       RCLCPP_WARN(this->get_logger(),"serial unopen");
     }
-    //check head start   检查起始 数据帧头
+    // 1. 检查帧头，找到一个合法包的开始。
     uint8_t check_head[1] = {0xff};  
     size_t head_s = serial_.read(check_head, 1);
     if (if_debug_){
@@ -140,7 +143,7 @@ void ahrsBringup::processLoop()  // 数据处理过程
     {
       continue;
     }
-    //check head type   检查数据类型
+    // 2. 检查数据类型。
     uint8_t head_type[1] = {0xff};
     size_t type_s = serial_.read(head_type, 1);
     if (if_debug_){
@@ -151,7 +154,7 @@ void ahrsBringup::processLoop()  // 数据处理过程
       RCLCPP_WARN(this->get_logger(),"head_type error: %02X",head_type[0]);
       continue;
     }
-    //check head length    检查对应数据类型的长度是否符合
+    // 3. 检查长度，先把明显异常的包过滤掉。
     uint8_t check_len[1] = {0xff};
     size_t len_s = serial_.read(check_len, 1);
     if (if_debug_){
@@ -203,7 +206,7 @@ void ahrsBringup::processLoop()  // 数据处理过程
       size_t ground_ignore_s = serial_.read(ground_ignore, (check_len[0]+4));
       continue;
     }
-    //read head sn 
+    // 4. 读取序号与头部 CRC 字段。
     uint8_t check_sn[1] = {0xff};
     size_t sn_s = serial_.read(check_sn, 1);
     uint8_t head_crc8[1] = {0xff};
@@ -218,8 +221,7 @@ void ahrsBringup::processLoop()  // 数据处理过程
       std::cout << "head_crc16_H: " << std::hex << (int)head_crc16_H[0] << std::dec << std::endl;
       std::cout << "head_crc16_L: " << std::hex << (int)head_crc16_L[0] << std::dec << std::endl;
     }
-    // put header & check crc8 & count sn lost
-    // check crc8 进行crc8数据校验
+    // 5. 回填头部，检查 CRC8，并统计序号是否存在丢帧。
     if (head_type[0] == TYPE_IMU)
     {
       imu_frame_.frame.header.header_start   = check_head[0];
@@ -308,7 +310,7 @@ void ahrsBringup::processLoop()  // 数据处理过程
       
       ahrsBringup::checkSN(TYPE_GEODETIC_POS);
     }
-    // check crc16 进行crc16数据校验
+    // 6. 读取完整载荷并做 CRC16 校验；只有完整合法的包才进入 ROS 发布阶段。
     if (head_type[0] == TYPE_IMU)
     {
       uint16_t head_crc16_l = imu_frame_.frame.header.header_crc16_l;
@@ -447,12 +449,11 @@ void ahrsBringup::processLoop()  // 数据处理过程
         continue;
       }
     }
-    // publish magyaw topic
-    //读取IMU数据进行解析，并发布相关话题
+    // 7. 将合法数据帧转换成 ROS 2 消息。
 
     if (head_type[0] == TYPE_IMU)
     {
-      // publish imu topic
+      // IMU 消息是整个四足控制链最关键的输入。
       sensor_msgs::msg::Imu imu_data;
       imu_data.header.stamp = rclcpp::Node::now();
       imu_data.header.frame_id = imu_frame_id_.c_str();
@@ -485,9 +486,9 @@ void ahrsBringup::processLoop()  // 数据处理过程
         imu_data.linear_acceleration.y = imu_frame_.frame.data.data_pack.accelerometer_y;
         imu_data.linear_acceleration.z = imu_frame_.frame.data.data_pack.accelerometer_z;
       }
-      else if (device_type_ == 1)    //imu单品rclcpp标准下的坐标变换
+      else if (device_type_ == 1)    // imu 单品在当前 ROS 坐标约定下的坐标变换
       {
-        
+        // 这里把设备自身姿态转换到当前工程使用的 ROS 机体方向定义。
         Eigen::Quaterniond q_out =  q_r * q_ahrs * q_rr;
         imu_data.orientation.w = q_out.w();
         imu_data.orientation.x = q_out.x();
@@ -502,7 +503,7 @@ void ahrsBringup::processLoop()  // 数据处理过程
       }
       imu_pub_->publish(imu_data);
 }
-    //读取AHRS数据进行解析，并发布相关话题
+    // AHRS 数据主要用于调试姿态角和磁航向。
     else if (head_type[0] == TYPE_AHRS)
     {
       geometry_msgs::msg::Pose2D pose_2d;
@@ -522,7 +523,7 @@ void ahrsBringup::processLoop()  // 数据处理过程
 
     }
 
-    //读取gps_pos数据进行解析，并发布相关话题
+    // 地理坐标数据。
     else if (head_type[0] == TYPE_GEODETIC_POS)
     {
       sensor_msgs::msg::NavSatFix gps_data;
@@ -538,7 +539,7 @@ void ahrsBringup::processLoop()  // 数据处理过程
 
       gps_pub_->publish(gps_data);
     } 
-    //读取INSGPS数据进行解析，并发布相关话题
+    // 组合导航速度与位置数据。
     else if (head_type[0] == TYPE_INSGPS)
     {
       nav_msgs::msg::Odometry odom_msg;
@@ -570,6 +571,7 @@ void ahrsBringup::processLoop()  // 数据处理过程
 
 void ahrsBringup::magCalculateYaw(double roll, double pitch, double &magyaw, double magx, double magy, double magz)
 {
+  // 使用姿态补偿后的磁力计结果计算偏航角，当前主控制流程并未直接依赖该函数。
   double temp1 = magy * cos(roll) + magz * sin(roll);
   double temp2 = magx * cos(pitch) + magy * sin(pitch) * sin(roll) - magz * sin(pitch) * cos(roll);
   magyaw = atan2(-temp1, temp2);
@@ -582,6 +584,7 @@ void ahrsBringup::magCalculateYaw(double roll, double pitch, double &magyaw, dou
 
 void ahrsBringup::checkSN(int type)
 {
+  // 序号检查用于统计串口接收过程中是否出现跳帧。
   switch (type)
   {
   case TYPE_IMU:
