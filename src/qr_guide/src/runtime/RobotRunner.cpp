@@ -10,6 +10,7 @@ namespace qr_guide {
 
 namespace {
 
+// 固定腿序，便于调试打印和 RViz 语义保持一致。
 constexpr std::array<const char*, NumLeg> kLegNames = {"FR", "FL", "RR", "RL"};
 constexpr bool kEnableCalibrationDebugPrint = false;
 constexpr bool kEnableEstimatorDebugPrint = false;
@@ -43,6 +44,7 @@ int RobotRunner::run(volatile sig_atomic_t* running_flag) {
 }
 
 bool RobotRunner::step() {
+    // 1. 先抓取一拍输入快照，避免同一周期里 IMU/Joy 被回调改写。
     const ControllerInputSnapshot snapshot = controller_node_->snapshot();
     applyImu(snapshot.imu);
     const bool was_calibrated_before_step = context_->isCalibrated();
@@ -56,11 +58,13 @@ bool RobotRunner::step() {
     handleCalibrationCompletion(was_calibrated_before_step);
     maybePrintCalibrationKinematics(was_calibrated_before_step);
     if (context_->estimator) {
+        // 估计器始终在最新回读状态基础上运行。
         context_->estimator->run();
         maybePrintEstimatorDebug(was_calibrated_before_step);
     }
 
     if (!was_calibrated_before_step && context_->isCalibrated() && visualization_publisher_ && context_->estimator) {
+        // 校准后估计器位置会重置，可视化轨迹也同步清零，避免旧轨迹污染当前显示。
         visualization_publisher_->resetAfterCalibration(context_->estimator->getPosition());
     }
 
@@ -78,11 +82,13 @@ void RobotRunner::handleCalibrationCompletion(bool was_calibrated_before_step) {
     }
 
     if (context_->estimator) {
+        // 校准相当于重新定义了电机零位，因此估计器内部状态也一并回零。
         context_->estimator->resetAfterCalibration();
     }
 }
 
 void RobotRunner::applyImu(const sensor_msgs::msg::Imu& imu_msg) const {
+    // ROS 标准 IMU 消息统一写入 LowlevelState，后续估计器/FSM 都只读这一份内部状态。
     IMU& imu = context_->lowState->imu;
     imu.quaternion[0] = static_cast<float>(imu_msg.orientation.w);
     imu.quaternion[1] = static_cast<float>(imu_msg.orientation.x);

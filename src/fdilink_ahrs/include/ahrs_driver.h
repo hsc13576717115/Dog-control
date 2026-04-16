@@ -47,7 +47,8 @@ namespace FDILink
 #define PI 3.141592653589793
 #define DEG_TO_RAD 0.017453292519943295
 
-
+// FDILink 驱动节点。
+// 负责完成串口打开、协议解析、CRC 校验、丢帧检查和 ROS 2 话题发布。
 class ahrsBringup : public rclcpp::Node
 {
 public:
@@ -61,37 +62,36 @@ public:
 
 private:
   bool if_debug_;
-  //sum info
+  // 统计信息：用于监控串口帧丢失和 CRC 错误。
   int sn_lost_ = 0;
   int crc_error_ = 0;
   uint8_t read_sn_ = 0;
   bool frist_sn_;
   int device_type_ = 1;
 
-  //serial
+  // 串口参数。
   serial::Serial serial_; //声明串口对象
   std::string serial_port_;
   int serial_baud_;
   int serial_timeout_;
-  //data
+  // 最近一次解析到的数据帧缓存。
   FDILink::imu_frame_read  imu_frame_;
   FDILink::ahrs_frame_read ahrs_frame_;
   FDILink::insgps_frame_read insgps_frame_;
   //FDILink::lanlon_frame_read latlon_frame_;
   FDILink::Geodetic_Position_frame_read Geodetic_Position_frame_;
-  //frame name
+  // frame_id 配置。
   //std::string imu_frame_id="gyro_link";
   std::string imu_frame_id_;
   std::string insgps_frame_id_;
   std::string latlon_frame_id_;
-  //topic
+  // topic 名称配置。
   std::string imu_topic="/imu", mag_pose_2d_topic="/mag_pose_2d";
   std::string latlon_topic="latlon";
   std::string Euler_angles_topic="/Euler_angles", Magnetic_topic="/Magnetic";
   std::string gps_topic="/gps/fix",twist_topic="/system_speed",NED_odom_topic="/NED_odometry";
 
-
-  //Publisher
+  // 所有对外发布器在构造时一次性创建。
   rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr  imu_pub_;
   rclcpp::Publisher<geometry_msgs::msg::Pose2D>::SharedPtr mag_pose_pub_;
 

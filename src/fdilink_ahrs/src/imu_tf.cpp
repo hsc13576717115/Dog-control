@@ -12,9 +12,7 @@
 using std::placeholders::_1;
 using namespace std;
 
-/* 参考ROS wiki
- * http://wiki.ros.org/tf/Tutorials/Writing%20a%20tf%20broadcaster%20%28C%2B%2B%29
- * */
+// 这个辅助节点把 /imu 中的姿态转换成一个简单 TF，主要用于独立调试 IMU 朝向显示。
 
 int position_x ;
 int position_y ;
@@ -63,13 +61,7 @@ class imu_data_to_tf : public rclcpp::Node
 
 
         void ImuCallback(const sensor_msgs::msg::Imu::SharedPtr imu_data) {
-
-            //static tf2_ros::TransformBroadcaster br;//广播器
-
-            // tf2::Transform transform;
-            // transform.setOrigin(tf2::Vector3(position_x, position_y, position_z));//设置平移部分
-
-            // 从IMU消息包中获取四元数数据
+            // 直接沿用 /imu 的姿态四元数，只额外补一个固定平移。
             tf2::Quaternion q;
             q.setX(imu_data->orientation.x);
             q.setY(imu_data->orientation.y);
@@ -77,9 +69,6 @@ class imu_data_to_tf : public rclcpp::Node
             q.setW(imu_data->orientation.w);
             q.normalized();//归一化
 
-            // transform.setRotation(q);//设置旋转部分
-            //广播出去
-            //br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "world", "imu"));
             geometry_msgs::msg::TransformStamped tfs;
             tfs.header.stamp=rclcpp::Node::now();
             tfs.header.frame_id ="world";
@@ -92,7 +81,6 @@ class imu_data_to_tf : public rclcpp::Node
             tfs.transform.rotation.z=q.getZ();
             tfs.transform.rotation.w=q.getW();
             br->sendTransform(tfs);
-            //tf2::(transform, rclcpp::Node::now(), "world", "imu")
         }
 };
 
