@@ -6,6 +6,7 @@
 
 namespace qr_guide {
 
+// RobotModel 把 4 条腿的单腿模型整合成统一接口，供估计器和状态机复用。
 RobotModel::RobotModel(const RobotParameters& parameters)
     : parameters_(parameters) {
     for (int leg = 0; leg < NumLeg; ++leg) {
@@ -88,6 +89,7 @@ Vec3 RobotModel::footVelocity(const LowlevelState& state, int leg_id) const {
 Vec34 RobotModel::feetPositions(const LowlevelState& state, FrameType frame) const {
     Vec34 feet = Vec34::Zero();
     for (int leg = 0; leg < NumLeg; ++leg) {
+        // 全局系位置通过“先算 body，再乘机身旋转”得到，避免重复维护两套 FK。
         feet.col(leg) = footPosition(state, leg, frame == FrameType::GLOBAL ? FrameType::BODY : frame);
     }
     if (frame == FrameType::GLOBAL) {

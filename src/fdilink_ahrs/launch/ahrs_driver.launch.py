@@ -12,6 +12,8 @@ from launch_ros.actions import Node
 #         PythonLaunchDescriptionSource(os.path.join(launch_dir, 'imu_tf.launch.py')),
 # )
 def generate_launch_description():
+    # 当前 launch 只启动核心 AHRS 驱动节点。
+    # 如果后续需要 TF 调试，可再把 imu_tf.launch.py 一并包含进来。
     ahrs_driver=Node(
         package="fdilink_ahrs",
         executable="ahrs_driver_node",

@@ -16,6 +16,7 @@ namespace qr_guide {
 
 namespace {
 
+// RViz 可视化统一以 odom/base_link_est 为根坐标系。
 constexpr char kWorldFrameId[] = "odom";
 constexpr char kBaseLinkFrameId[] = "base_link_est";
 constexpr auto kVisualizationInterval = std::chrono::milliseconds(33);
@@ -75,6 +76,7 @@ VisualizationPublisher::VisualizationPublisher(const std::shared_ptr<rclcpp::Nod
                                                const RobotParameters& parameters)
     : node_(node),
       parameters_(parameters) {
+    // 所有可视化 topic 统一从这里集中创建，避免散落在状态机或估计器中。
     odom_pub_ = node_->create_publisher<nav_msgs::msg::Odometry>(
         "/qr_guide/estimation/odom", rclcpp::QoS(10));
     body_path_pub_ = node_->create_publisher<nav_msgs::msg::Path>(
@@ -93,6 +95,7 @@ void VisualizationPublisher::publish(const ControllerContext& context,
         return;
     }
 
+    // 限流到约 30 Hz，避免 Marker/Path 发布过快导致 RViz 压力过大。
     const auto now_steady = std::chrono::steady_clock::now();
     if (last_publish_time_ != std::chrono::steady_clock::time_point::min() &&
         now_steady - last_publish_time_ < kVisualizationInterval) {
@@ -115,6 +118,7 @@ void VisualizationPublisher::publish(const ControllerContext& context,
 }
 
 void VisualizationPublisher::resetAfterCalibration(const Vec3& controller_position) {
+    // 重新校准后，把新的机身位置视为可视化原点，旧轨迹全部丢弃。
     controller_position_origin_ = controller_position;
     body_path_.poses.clear();
     body_path_.header.frame_id = kWorldFrameId;
@@ -137,6 +141,7 @@ void VisualizationPublisher::publishOdometry(const rclcpp::Time& stamp,
     odom.pose.pose.position = toPoint(position);
     odom.pose.pose.orientation = orientation;
 
+    // RViz 中 twist 习惯放在 body frame 下，因此这里把全局速度转回机体系。
     const Vec3 velocity_body = body_to_world.transpose() * velocity;
     odom.twist.twist.linear.x = velocity_body.x();
     odom.twist.twist.linear.y = velocity_body.y();
@@ -239,6 +244,7 @@ void VisualizationPublisher::publishMarkers(const rclcpp::Time& stamp,
         marker->points.push_back(c);
     };
 
+    // 先画一个半透明机身包围盒，帮助快速识别估计位姿。
     visualization_msgs::msg::Marker body = make_marker(
         "robot_body", 0, visualization_msgs::msg::Marker::CUBE);
     body.pose.position = toPoint(position);

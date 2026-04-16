@@ -6,6 +6,7 @@ namespace qr_guide {
 
 namespace {
 
+// 这里约定当前手柄消息的轴和按键索引，和 event2joy.py 输出保持一致。
 enum Xbox360JoyMap {
     BTN_A = 0,
     BTN_B = 1,
@@ -31,6 +32,7 @@ UserInput JoystickMapper::Map(const sensor_msgs::msg::Joy& joy_msg, bool is_cali
     const bool valid_axes = joy_msg.axes.size() >= 6;
 
     if (!valid_buttons || !valid_axes) {
+        // 输入长度不对时直接忽略，避免访问越界。
         return input;
     }
 
@@ -68,6 +70,7 @@ UserInput JoystickMapper::Map(const sensor_msgs::msg::Joy& joy_msg, bool is_cali
     }
 
     // 连续摇杆值用于 trotting 等状态下的速度指令。
+    // 这里统一做死区裁剪，避免手柄回中抖动被当成慢速移动命令。
     input.value.L2 = killZeroOffset((joy_msg.axes[AXIS_LT] + 1.0f) * 0.5f, 0.08f);
     input.value.lx = killZeroOffset(joy_msg.axes[AXIS_LX], 0.08f);
     input.value.ly = killZeroOffset(joy_msg.axes[AXIS_LY], 0.08f);

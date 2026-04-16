@@ -4,6 +4,7 @@
 #include <iostream>
 namespace FDILink{
 #pragma pack(1)
+// 所有 FDILink 帧共享的固定头部。
 struct fdilink_header
 {
 	uint8_t  header_start;
@@ -17,6 +18,7 @@ struct fdilink_header
 #pragma pack()
 
 #pragma pack(1)
+// 原始 IMU 数据载荷。
 struct IMUData_Packet_t
 {
 	float gyroscope_x;          //unit: rad/s
@@ -35,6 +37,7 @@ struct IMUData_Packet_t
 };
 #pragma pack()
 
+// AHRS 姿态解算结果载荷。
 struct AHRSData_Packet_t
 {
 	float RollSpeed;   //unit: rad/s
@@ -50,6 +53,7 @@ struct AHRSData_Packet_t
 	int64_t Timestamp; //unit: us
 };
 #pragma pack(1)
+// INS / GPS 组合导航载荷。
 struct INSGPSData_Packet_t
 {
 	float BodyVelocity_X;       
@@ -73,6 +77,7 @@ struct INSGPSData_Packet_t
 #pragma pack()
 
 #pragma pack(1)
+// 地理坐标载荷。
 struct Geodetic_Position_Packet_t
 {
 	double Latitude;       
@@ -83,7 +88,7 @@ struct Geodetic_Position_Packet_t
 };
 #pragma pack()
 
-//for IMU=========================
+// IMU 完整帧定义 =========================
 #pragma pack(1)
 struct read_imu_struct{
   fdilink_header     header;    //7                
@@ -106,9 +111,9 @@ union imu_frame_read{
   uint8_t read_tmp[64];
 };
 #pragma pack()
-//for IMU------------------------
+// IMU 完整帧定义结束 ------------------------
 
-//for AHRS=========================
+// AHRS 完整帧定义 =========================
 #pragma pack(1)
 struct read_ahrs_struct{
   fdilink_header     header;    //7                
@@ -132,9 +137,9 @@ union ahrs_frame_read{
   uint8_t read_tmp[56];
 };
 #pragma pack()
-//for AHRS------------------------
+// AHRS 完整帧定义结束 ------------------------
 
-//for INSGPS=========================
+// INSGPS 完整帧定义 =========================
 #pragma pack(1)
 struct read_insgps_struct{
   fdilink_header     header;    //7                
@@ -158,9 +163,9 @@ union insgps_frame_read{
   uint8_t read_tmp[80];
 };
 #pragma pack()
-//for INSGPS------------------------
+// INSGPS 完整帧定义结束 ------------------------
 
-//for Geodetic_Position=========================
+// Geodetic_Position 完整帧定义 =========================
 #pragma pack(1)
 struct read_Geodetic_Position_struct{
   fdilink_header     header;    //7                
