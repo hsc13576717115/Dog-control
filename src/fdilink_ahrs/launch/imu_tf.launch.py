@@ -2,6 +2,7 @@ from launch import LaunchDescription
 from launch_ros.actions import Node
 
 def generate_launch_description():
+    # 简单启动 imu_tf_node，用于将 /imu 姿态广播成 TF 方便可视化检查。
     imu_tf=Node(
         package="fdilink_ahrs",
         executable="imu_tf_node",
