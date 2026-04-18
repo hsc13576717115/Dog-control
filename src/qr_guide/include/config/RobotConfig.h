@@ -73,6 +73,44 @@ struct HybridStandParameters {
     double tau_rate_limit_nm_per_s = 120.0;
 };
 
+// 手柄速度映射参数。
+// 第一阶段统一约定为：死区 -> 非线性整形 -> 加速度限幅 -> 机体系限幅。
+struct JoyMappingParameters {
+    double deadband = 0.08;
+    double expo = 3.0;
+    double max_vx = 0.4;
+    double max_vy = 0.3;
+    double max_yaw = 0.5;
+    double max_accel_x = 1.2;
+    double max_accel_y = 0.9;
+    double max_accel_yaw = 2.0;
+};
+
+// trot 轨迹参数。
+// 这里仅覆盖第一阶段的几何轨迹与落脚点预瞄，不涉及力控。
+struct TrotParameters {
+    double cycle_time = 0.35;
+    double stance_ratio = 0.5;
+    double lift_height = 0.10;
+    double landing_preview_gain = 0.5;
+    double vel_error_gain = 0.05;
+    double pure_yaw_threshold = 0.10;
+    double pure_rotation_translation_eps = 0.05;
+    double max_foothold_shift_x = 0.08;
+    double max_foothold_shift_y = 0.05;
+    double max_joint_delta = 0.03;
+};
+
+// 纯位置站立稳定化参数。
+// 第一阶段只允许足端空间补偿，不引入力矩前馈。
+struct StandControlParameters {
+    int entry_duration = 500;
+    double body_height = 0.24;
+    double roll_pitch_comp_gain = 0.08;
+    double height_comp_gain = 0.15;
+    double compensation_limit = 0.02;
+};
+
 // 机器人主参数结构，作为整机模型和控制器的统一配置入口。
 struct RobotParameters {
     std::string name;
@@ -88,6 +126,9 @@ struct RobotParameters {
     JointLimitParameters joint_limits;
     StandTargetParameters stand_targets;
     HybridStandParameters hybrid_stand;
+    JoyMappingParameters joy_mapping;
+    TrotParameters trot;
+    StandControlParameters stand;
     Vec2 velocity_limit_x = Vec2(-0.4, 0.4);
     Vec2 velocity_limit_y = Vec2(-0.3, 0.3);
     Vec2 velocity_limit_yaw = Vec2(-0.5, 0.5);

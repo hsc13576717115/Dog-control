@@ -80,7 +80,7 @@ private:
     float _calibrationCalfAngleRad = -71.8f * _degToRad;
     float _startupHipTauNm = 0.15f;
     float _startupThighTauNm = 0.10f;
-    float _startupCalfTauNm = 0.20f;
+    float _startupCalfTauNm = 0.10f;
     int _startupAlignmentPhase1Ms = 300;
     int _startupAlignmentPhase2Ms = 300;
     int _startupAlignmentReleaseMs = 300;

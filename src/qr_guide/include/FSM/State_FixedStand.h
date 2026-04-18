@@ -13,7 +13,8 @@ enum StandMode {
 };
 
 // 固定站立状态。
-// 通过 hip frame 下的目标足端位置做 IK，然后平滑插值到目标关节角。
+// 第一阶段采用纯位置控制：
+// 足端空间插值 -> 小幅姿态/高度补偿 -> IK -> 关节位置命令。
 class State_FixedStand : public FSMState {
 public:
     explicit State_FixedStand(CtrlComponents* ctrlComp);
@@ -26,12 +27,15 @@ public:
 
 private:
     Vec3 clampJointAngles(const Vec3& q) const;
+    float transitionBlend() const;
+    Vec3 computeBaseStandFootTargetInHip(int leg) const;
+    Vec3 computeCompensatedFootTargetInHip(int leg, const Vec3& base_target_in_hip) const;
 
     int _duration = 500;
     float _percent = 0.0f;
     int _debugPrintCounter = 0;
-    Vec12 _targetPos = Vec12::Zero();
-    Vec12 _startPos = Vec12::Zero();
+    std::array<Vec3, qr_guide::NumLeg> _startFeetInHip{};
+    std::array<Vec3, qr_guide::NumLeg> _targetFeetInHip{};
     std::array<Vec3, qr_guide::NumLeg> _targetFeetInBody{};
     std::unique_ptr<qr_guide::HybridStandController> _hybridStandController;
     StandMode _currentMode = NORMAL_STAND;
