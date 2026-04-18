@@ -307,7 +307,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('imu_serial_port', default_value='/dev/ttyUSB0'),
         DeclareLaunchArgument('imu_serial_baud', default_value='921600'),
-        DeclareLaunchArgument('joy_event_path', default_value='/dev/input/event6'),
+        DeclareLaunchArgument('joy_event_path', default_value='auto'),
         DeclareLaunchArgument('use_rviz', default_value='true'),
         Node(
             package='fdilink_ahrs',

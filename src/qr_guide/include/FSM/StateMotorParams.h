@@ -77,9 +77,9 @@ constexpr LegCommandProfile kFixedStandProfile = {{
 // - 小跑时跟踪慢、抬腿无力：可小幅增大 kp 或 tau
 // - 小跑时发硬、敲腿、抖动：优先减小 kp 或 tau，必要时略增 kd
 constexpr LegCommandProfile kTrottingProfile = {{
-    {kCompoundMode, 0.0f, 6.3f, 0.2f, 0.0f},
-    {kCompoundMode, 0.0f, 6.3f, 0.2f, 0.0f},
-    {kCompoundMode, 0.0f, 6.3f, 0.2f, 0.0f},
+    {kCompoundMode, 0.0f, 6.9f, 0.2f, 0.0f},
+    {kCompoundMode, 0.0f, 6.9f, 0.2f, 0.0f},
+    {kCompoundMode, 0.0f, 6.9f, 0.2f, 0.0f},
 }};
 
 // StepTest 分阶段参数。
