@@ -170,9 +170,11 @@ void Estimator::run(){
     _P =  _IKC * _Ppriori * _IKC.transpose()
         + _Ppriori * _C.transpose() * _SR * _STC * _Ppriori.transpose();
 
-    _vxFilter->addValue(_xhat(3));
-    _vyFilter->addValue(_xhat(4));
-    _vzFilter->addValue(_xhat(5));
+    // 对外主速度统一输出 body 系速度，因此滤波也直接在 body 系下完成。
+    const Vec3 vel_body = _rotMatB2G.transpose() * _xhat.segment(3, 3);
+    _vxFilter->addValue(vel_body(0));
+    _vyFilter->addValue(vel_body(1));
+    _vzFilter->addValue(vel_body(2));
 
     #ifdef COMPILE_WITH_MOVE_BASE
         if(_count % ((int)( 1.0/(_dt*_pubFreq))) == 0){
@@ -207,7 +209,7 @@ void Estimator::run(){
             _odomMsg.pose.covariance = _odom_pose_covariance;
 
             _odomMsg.child_frame_id = "base";
-            _velBody = _rotMatB2G.transpose() * _xhat.segment(3, 3);
+            _velBody = vel_body;
             _wBody   = _lowState->imu.getGyro();
             _odomMsg.twist.twist.linear.x = _velBody(0);
             _odomMsg.twist.twist.linear.y = _velBody(1);
@@ -279,14 +281,15 @@ void Estimator::resetAfterCalibration() {
     average_feet_velocity /= 4.0;
     _xhat.segment(3, 3) = -average_feet_velocity;
 
+    const Vec3 vel_body = _rotMatB2G.transpose() * _xhat.segment(3, 3);
     if (_vxFilter) {
-        _vxFilter->addValue(_xhat(3));
+        _vxFilter->addValue(vel_body(0));
     }
     if (_vyFilter) {
-        _vyFilter->addValue(_xhat(4));
+        _vyFilter->addValue(vel_body(1));
     }
     if (_vzFilter) {
-        _vzFilter->addValue(_xhat(5));
+        _vzFilter->addValue(vel_body(2));
     }
 }
 
@@ -295,7 +298,21 @@ Vec3 Estimator::getPosition(){
 }
 
 Vec3 Estimator::getVelocity(){
-    return _xhat.segment(3, 3);
+    Vec3 velocity_body = Vec3::Zero();
+    if (_vxFilter) {
+        velocity_body(0) = _vxFilter->getValue();
+    }
+    if (_vyFilter) {
+        velocity_body(1) = _vyFilter->getValue();
+    }
+    if (_vzFilter) {
+        velocity_body(2) = _vzFilter->getValue();
+    }
+    return velocity_body;
+}
+
+Vec3 Estimator::getVelocityGlobal(){
+    return _lowState->getRotMat() * getVelocity();
 }
 
 Vec4 Estimator::getFeetHeightReference() const {
@@ -317,7 +334,7 @@ Vec34 Estimator::getFeetPos(){
 Vec34 Estimator::getFeetVel(){
     Vec34 feetVel = _robModel->getFeet2BVelocities(*_lowState, FrameType::GLOBAL);
     for(int i(0); i < 4; ++i){
-        feetVel.col(i) += getVelocity();
+        feetVel.col(i) += getVelocityGlobal();
     }
     return feetVel;
 }

@@ -28,7 +28,10 @@ public:
     Estimator(QuadrupedRobot *robotModel, LowlevelState* lowState, VecInt4 *contact, Vec4 *phase, double dt, Vec18 Qdig, std::string testName);
     ~Estimator();
     Vec3  getPosition();
+    // 对外主速度接口统一返回“滤波后的 body 系速度”。
     Vec3  getVelocity();
+    // 需要世界系速度的模块显式调用这个接口，避免坐标系语义混淆。
+    Vec3  getVelocityGlobal();
     Vec4  getFeetHeightReference() const;
     Vec3  getFootPos(int i);
     Vec34 getFeetPos();
