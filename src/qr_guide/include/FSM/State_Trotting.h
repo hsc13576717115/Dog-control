@@ -6,7 +6,8 @@
 #include "FSM/FSMState.h"
 
 // 小跑状态。
-// 当前实现仍然是基于足端轨迹 + IK 的轻量 trotting，不重写原有策略核心。
+// 第一阶段沿 unitree_guide 的思路把逻辑整理成：
+// phase scheduler -> foothold calculator -> trajectory generator -> IK。
 class State_Trotting : public FSMState {
 public:
     explicit State_Trotting(CtrlComponents* ctrlComp);
@@ -20,8 +21,6 @@ public:
     static constexpr double ANCHOR_UPDATE_T = 0.002;
 
 private:
-    // 运行时步态参数，由手柄输入在线调整。
-    // 这里统一表达成“期望机体速度”，再映射到足端轨迹。
     struct MotionParams {
         double velocityX = 0.0;
         double velocityY = 0.0;
@@ -29,31 +28,30 @@ private:
         Vec2 joy = Vec2::Zero();
     } _motionParams;
 
-    struct LimitParams {
-        double maxAccelX = 3.0;
-        double maxAccelY = 3.0;
-        double maxAccelYaw = 5.0;
-    } _limitParams;
-
     struct AccelLimitParams {
         double lastVelocityX = 0.0;
         double lastVelocityY = 0.0;
         double lastYawRate = 0.0;
     } _accelLimitParams;
 
-    static constexpr double LIFT_H = 0.10;
-    static constexpr double CYCLE_T = 0.35;
+    struct LegPhaseState {
+        bool swing = false;
+        double cyclePhase = 0.0;
+        double segmentPhase = 0.0;
+        double swingTime = 0.0;
+        double stanceTime = 0.0;
+        double remainingSwingTime = 0.0;
+    };
+
     static constexpr double HIP_JOINT_FIXED = 0.0;
     static constexpr double MOTION_EPS = 1e-3;
-    static constexpr double RAIBERT_GAIN_X = 0.08;
-    static constexpr double RAIBERT_GAIN_Y = 0.08;
-    static constexpr double MAX_FOOTHOLD_SHIFT_X = 0.12;
-    static constexpr double MAX_FOOTHOLD_SHIFT_Y = 0.10;
     static constexpr double LEG_PHASE[4] = {0.0, 0.5, 0.5, 0.0};
 
     double _startTime = 0.0;
     double _lastCommandUpdateTime = 0.0;
     int _transitionCount = 0;
+    qr_guide::JoyMappingParameters _joyMapping;
+    qr_guide::TrotParameters _trotParams;
     Vec12 _initMotorQ = Vec12::Zero();
     std::array<Vec3, 4> _enterFootPos;
     std::array<Vec3, 4> _nominalFootPos;
@@ -64,18 +62,24 @@ private:
     std::array<Vec3, 4> _stanceStartFootPos;
 
     static double getTimeSec();
+    Vec3 footHipToBodyFrame(int leg, const Vec3& foot_in_hip) const;
+    Vec3 footBodyToHipFrame(int leg, const Vec3& foot_in_body) const;
+    Vec3 rotateBodyPointYaw(const Vec3& point_body, double yaw_delta) const;
+    LegPhaseState computeLegPhaseState(int leg, double masterT) const;
+    Vec3 nominalFootBodyPosition(int leg) const;
+    Vec3 projectBodyPointToRotationCircle(int leg, const Vec3& point_body) const;
+    Vec3 computeSymmetricHalfStepShift(double stance_time) const;
+    Vec3 computeTouchdownFootBodyTarget(int leg, double stance_time) const;
+    Vec3 computePureRotationSwingFootTarget(int leg, double phase) const;
     Vec3 computeSwingFootTarget(int leg, double phase) const;
-    Vec3 computeStanceFootTarget(int leg, double phase) const;
-    Vec3 computeEstimatedBodyVelocity() const;
-    Vec3 computeDesiredLegVelocity(int leg) const;
-    Vec3 computeEstimatedLegVelocity(int leg) const;
-    Vec3 computeRaibertLandingFoothold(int leg) const;
+    Vec3 computeStanceFootTarget(int leg, const LegPhaseState& phase_state) const;
     Vec3 clampFootholdToWorkspace(int leg, const Vec3& foothold_in_hip) const;
-    void updateLegPhaseAnchors(int leg, bool swing);
+    void updateLegPhaseAnchors(int leg, const LegPhaseState& phase_state);
     void syncAnchorsForStanding(const std::array<Vec3, 4>& foot_targets);
     void processJoystickInput();
     void applyAccelerationLimits(double velocity_x, double velocity_y, double yaw_rate, double dt);
     bool hasActiveMotionCommand() const;
+    bool isPureRotationCommand() const;
     void generateLegTrajectory(int leg, double masterT, double trans, Vec12& cmd, VecInt4& contact, Vec4& phase);
     void calculateIKAndApply(int leg, const Vec3& target_foot_in_hip, Vec12& cmd);
     Vec3 clampJointAngles(const Vec3& angles) const;

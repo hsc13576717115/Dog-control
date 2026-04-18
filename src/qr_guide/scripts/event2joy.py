@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
 # 这个脚本把 Linux /dev/input/event* 设备转换成 ROS 2 /joy 消息。
 # 这样主控侧可以继续复用标准 Joy 接口，而不需要直接依赖 evdev 事件细节。
+import os
+from typing import List, Optional, Tuple
+
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSHistoryPolicy, QoSReliabilityPolicy, QoSDurabilityPolicy
 from sensor_msgs.msg import Joy
-from evdev import InputDevice, ecodes
+from evdev import InputDevice, ecodes, list_devices
 import select
 import time
+
 
 class EventToJoy(Node):
     def __init__(self):
         super().__init__('event2joy_node')
-        self.declare_parameter('event_path', '/dev/input/event6')
+        self.declare_parameter('event_path', 'auto')
         self.declare_parameter('publish_hz', 1000.0)
 
         joy_qos = QoSProfile(
@@ -22,8 +26,9 @@ class EventToJoy(Node):
             durability=QoSDurabilityPolicy.VOLATILE,
         )
         self.joy_pub = self.create_publisher(Joy, '/joy', joy_qos)
-        self.event_path = self.get_parameter('event_path').get_parameter_value().string_value
+        requested_event_path = self.get_parameter('event_path').get_parameter_value().string_value
         self.publish_hz = self.get_parameter('publish_hz').get_parameter_value().double_value
+        self.event_path = self.resolve_event_path(requested_event_path)
 
         try:
             self.device = InputDevice(self.event_path)
@@ -45,6 +50,98 @@ class EventToJoy(Node):
         self.key_map = {304:0, 305:1, 307:2, 308:3, 310:4, 311:5, 314:6, 315:7, 316:8, 317:9}
         self.axis_map = {0:(0,-32768,32767), 1:(1,-32768,32767), 2:(2,0,256), 
                          3:(3,-32768,32767), 4:(4,-32768,32767), 5:(5,0,256)}
+
+    def resolve_event_path(self, requested_path: str) -> str:
+        requested_path = requested_path.strip()
+        if requested_path and requested_path.lower() != 'auto':
+            if os.path.exists(requested_path):
+                return requested_path
+            self.get_logger().warn(
+                f'指定的手柄接口不存在 path={requested_path}，改为自动搜索 Xbox 手柄'
+            )
+
+        auto_detected_path = self.find_preferred_event_path()
+        if auto_detected_path is None:
+            raise RuntimeError(
+                '未找到可用的 Xbox 手柄事件接口。'
+                ' 请检查 /dev/input/event* 权限，或通过参数 event_path 手动指定。'
+            )
+        return auto_detected_path
+
+    def find_preferred_event_path(self) -> Optional[str]:
+        xbox_candidates: List[Tuple[str, str]] = []
+        generic_candidates: List[Tuple[str, str]] = []
+
+        for path in sorted(list_devices()):
+            try:
+                device = InputDevice(path)
+                is_gamepad = self.device_looks_like_gamepad(device)
+                is_xbox = self.device_looks_like_xbox(device)
+                candidate = (path, device.name)
+                device.close()
+            except Exception as exc:
+                self.get_logger().warn(f'读取输入设备失败 path={path} error={exc}')
+                continue
+
+            if not is_gamepad:
+                continue
+            if is_xbox:
+                xbox_candidates.append(candidate)
+            else:
+                generic_candidates.append(candidate)
+
+        for path, name in xbox_candidates:
+            self.get_logger().info(f'自动选择 Xbox 手柄接口 path={path} device="{name}"')
+            return path
+
+        for path, name in generic_candidates:
+            self.get_logger().warn(
+                f'未找到名字匹配的 Xbox 手柄，退回到首个兼容 gamepad 接口 path={path} device="{name}"'
+            )
+            return path
+
+        return None
+
+    def device_looks_like_xbox(self, device: InputDevice) -> bool:
+        name = (device.name or '').lower()
+        xbox_keywords = (
+            'xbox',
+            'x-box',
+            '360 controller',
+            'x-input',
+            'microsoft controller',
+        )
+        return any(keyword in name for keyword in xbox_keywords)
+
+    def device_looks_like_gamepad(self, device: InputDevice) -> bool:
+        capabilities = device.capabilities(absinfo=True)
+        abs_entries = capabilities.get(ecodes.EV_ABS, [])
+        key_entries = capabilities.get(ecodes.EV_KEY, [])
+
+        # evdev 的 EV_ABS 能力默认会返回 (code, AbsInfo) 元组，这里统一抽出 code。
+        abs_codes = {
+            entry[0] if isinstance(entry, tuple) else entry
+            for entry in abs_entries
+        }
+        key_codes = {
+            entry[0] if isinstance(entry, tuple) else entry
+            for entry in key_entries
+        }
+
+        required_axes = {
+            ecodes.ABS_X,
+            ecodes.ABS_Y,
+            ecodes.ABS_RX,
+            ecodes.ABS_RY,
+        }
+        required_buttons = {
+            ecodes.BTN_A,
+            ecodes.BTN_B,
+            ecodes.BTN_X,
+            ecodes.BTN_Y,
+            ecodes.BTN_START,
+        }
+        return required_axes.issubset(abs_codes) and required_buttons.issubset(key_codes)
 
     def normalize_axis(self, value, min_val, max_val):
         # 把不同原始量程统一归一化到 [-1, 1]，便于上层控制器统一处理。
