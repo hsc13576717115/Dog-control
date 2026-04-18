@@ -31,12 +31,17 @@ public:
 private:
     void openSerialPorts();
     void initializeMotorMetadata();
+    void runStartupPoseAlignment();
     void startWorkers();
     void stopWorkers();
     void workerLoop(int leg);
     void maybePrintCalibrationReminder();
     void tryCalibrate(const LowlevelState& state);
     void calibrateLeg(int leg);
+    void refreshMotorFeedback();
+    void sendDirectLegCommand(int leg, const std::array<UserLowlevel::MotorCmd, 3>& user_cmds);
+    std::array<UserLowlevel::MotorCmd, 3> buildAlignmentCommand(int leg, bool enable_calf) const;
+    std::array<UserLowlevel::MotorCmd, 3> buildZeroTorqueCommand() const;
     void sendReceiveLeg(int leg, const UserLowlevel::LowlevelCmd* cmd, LowlevelState* state);
     void populateMotorCommand(int leg, int joint, const UserLowlevel::MotorCmd& user_cmd);
     void updateMotorStateFromFeedback(int leg, int joint, LowlevelState* state);
@@ -61,6 +66,7 @@ private:
     std::size_t _completedWorkers = 0;
     bool _workersStopping = false;
     bool _isCalibrated = false;
+    bool _startupAlignmentDone = false;
     bool _useParallelLegIo = false;
     // 校准仍然沿用 START -> L1_X 这条触发链路。
     const UserCommand _calibTriggerKey = UserCommand::L1_X;
@@ -72,6 +78,12 @@ private:
     float _calibrationHipAngleRad = 0.0f * _degToRad;
     float _calibrationThighAngleRad = -161.8f * _degToRad;
     float _calibrationCalfAngleRad = -71.8f * _degToRad;
+    float _startupHipTauNm = 0.15f;
+    float _startupThighTauNm = 0.10f;
+    float _startupCalfTauNm = 0.20f;
+    int _startupAlignmentPhase1Ms = 300;
+    int _startupAlignmentPhase2Ms = 300;
+    int _startupAlignmentReleaseMs = 300;
 };
 
 #endif  // IOSDK_H
