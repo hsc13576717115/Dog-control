@@ -92,3 +92,39 @@ robot:
     x: [-3.0, 3.0]
     y: [-1.5, 1.5]
     yaw: [-1.0, 1.0]
+
+  joy_mapping:
+    # 手柄速度映射统一走：死区 -> 非线性整形 -> 加速度限幅 -> 机体系限幅。
+    deadband: 0.08
+    expo: 3.0
+    max_vx: 3.0
+    max_vy: 1.5
+    max_yaw: 1.0
+    # 第一阶段按“先稳后快”调，先把中低速和回中行为跑顺。
+    max_accel_x: 1.2
+    max_accel_y: 0.9
+    max_accel_yaw: 2.0
+
+  trot:
+    # 对角 trot 基础节拍，保持和 unitree_guide 相近的开放步态语义。
+    cycle_time: 0.35
+    stance_ratio: 0.5
+    lift_height: 0.10
+    # 落脚点由“剩余 swing 预瞄 + 半个 stance 预瞄 + 速度误差修正”共同决定。
+    landing_preview_gain: 0.5
+    vel_error_gain: 0.05
+    # 平移足够小而偏航足够明显时，切到绕机体中心的几何化原地旋转。
+    pure_yaw_threshold: 0.10
+    pure_rotation_translation_eps: 0.05
+    # 足端和关节安全限幅，防止第一阶段几何轨迹把 IK 推得太激进。
+    max_foothold_shift_x: 0.08
+    max_foothold_shift_y: 0.05
+    max_joint_delta: 0.03
+
+  stand:
+    # 站立进入改成足端空间插值，再叠加低增益姿态补偿。
+    entry_duration: 500
+    body_height: 0.24
+    roll_pitch_comp_gain: 0.08
+    height_comp_gain: 0.15
+    compensation_limit: 0.02

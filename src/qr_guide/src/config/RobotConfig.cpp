@@ -177,6 +177,89 @@ RobotParameters LoadRobotParameters(const std::string& path) {
         params.velocity_limit_yaw = ReadVec2(config["robot"]["velocity_limits"]["yaw"]);
     }
 
+    if (const YAML::Node joy_mapping = config["robot"]["joy_mapping"]) {
+        if (joy_mapping["deadband"]) {
+            params.joy_mapping.deadband = joy_mapping["deadband"].as<double>();
+        }
+        if (joy_mapping["expo"]) {
+            params.joy_mapping.expo = joy_mapping["expo"].as<double>();
+        }
+        if (joy_mapping["max_vx"]) {
+            params.joy_mapping.max_vx = joy_mapping["max_vx"].as<double>();
+        }
+        if (joy_mapping["max_vy"]) {
+            params.joy_mapping.max_vy = joy_mapping["max_vy"].as<double>();
+        }
+        if (joy_mapping["max_yaw"]) {
+            params.joy_mapping.max_yaw = joy_mapping["max_yaw"].as<double>();
+        }
+        if (joy_mapping["max_accel_x"]) {
+            params.joy_mapping.max_accel_x = joy_mapping["max_accel_x"].as<double>();
+        }
+        if (joy_mapping["max_accel_y"]) {
+            params.joy_mapping.max_accel_y = joy_mapping["max_accel_y"].as<double>();
+        }
+        if (joy_mapping["max_accel_yaw"]) {
+            params.joy_mapping.max_accel_yaw = joy_mapping["max_accel_yaw"].as<double>();
+        }
+    } else {
+        params.joy_mapping.max_vx = params.velocity_limit_x(1);
+        params.joy_mapping.max_vy = params.velocity_limit_y(1);
+        params.joy_mapping.max_yaw = params.velocity_limit_yaw(1);
+    }
+
+    if (const YAML::Node trot = config["robot"]["trot"]) {
+        if (trot["cycle_time"]) {
+            params.trot.cycle_time = trot["cycle_time"].as<double>();
+        }
+        if (trot["stance_ratio"]) {
+            params.trot.stance_ratio = trot["stance_ratio"].as<double>();
+        }
+        if (trot["lift_height"]) {
+            params.trot.lift_height = trot["lift_height"].as<double>();
+        }
+        if (trot["landing_preview_gain"]) {
+            params.trot.landing_preview_gain = trot["landing_preview_gain"].as<double>();
+        }
+        if (trot["vel_error_gain"]) {
+            params.trot.vel_error_gain = trot["vel_error_gain"].as<double>();
+        }
+        if (trot["pure_yaw_threshold"]) {
+            params.trot.pure_yaw_threshold = trot["pure_yaw_threshold"].as<double>();
+        }
+        if (trot["pure_rotation_translation_eps"]) {
+            params.trot.pure_rotation_translation_eps =
+                trot["pure_rotation_translation_eps"].as<double>();
+        }
+        if (trot["max_foothold_shift_x"]) {
+            params.trot.max_foothold_shift_x = trot["max_foothold_shift_x"].as<double>();
+        }
+        if (trot["max_foothold_shift_y"]) {
+            params.trot.max_foothold_shift_y = trot["max_foothold_shift_y"].as<double>();
+        }
+        if (trot["max_joint_delta"]) {
+            params.trot.max_joint_delta = trot["max_joint_delta"].as<double>();
+        }
+    }
+
+    if (const YAML::Node stand = config["robot"]["stand"]) {
+        if (stand["entry_duration"]) {
+            params.stand.entry_duration = stand["entry_duration"].as<int>();
+        }
+        if (stand["body_height"]) {
+            params.stand.body_height = stand["body_height"].as<double>();
+        }
+        if (stand["roll_pitch_comp_gain"]) {
+            params.stand.roll_pitch_comp_gain = stand["roll_pitch_comp_gain"].as<double>();
+        }
+        if (stand["height_comp_gain"]) {
+            params.stand.height_comp_gain = stand["height_comp_gain"].as<double>();
+        }
+        if (stand["compensation_limit"]) {
+            params.stand.compensation_limit = stand["compensation_limit"].as<double>();
+        }
+    }
+
     ValidateRightPositiveYConvention(params);
     return params;
 }
