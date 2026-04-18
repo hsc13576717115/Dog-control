@@ -125,7 +125,7 @@ bool HybridStandController::computeBodyTaskWrench(
     const Vec3 rpy = rotMatToRPY(low_state.getRotMat());
     const Vec3 gyro = low_state.getGyro();
     const Vec3 position = estimator->getPosition();
-    const Vec3 velocity = estimator->getVelocity();
+    const Vec3 velocity = estimator->getVelocityGlobal();
     debug_snapshot->rpy = rpy;
     debug_snapshot->gyro = gyro;
     debug_snapshot->position = position;

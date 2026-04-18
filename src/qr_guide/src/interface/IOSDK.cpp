@@ -40,10 +40,11 @@ IOSDK::IOSDK(const qr_guide::DriveParameters& drive_parameters)
 
     openSerialPorts();
     initializeMotorMetadata();
+    runStartupPoseAlignment();
     startWorkers();
 
     _lastCalibPromptTimeSec = NowSec();
-    std::cout << "[IOSDK] 手动调整至趴下姿态后，按 START 触发校准" << std::endl;
+    std::cout << "[IOSDK] 预对位完成，请确认趴下姿态后按 START 触发校准" << std::endl;
 }
 
 IOSDK::~IOSDK() {
@@ -85,6 +86,97 @@ void IOSDK::initializeMotorMetadata() {
         _motorData[i].motorType = MotorType::GO_M8010_6;
         _motorData[i].hex_len = 31;
     }
+}
+
+std::array<UserLowlevel::MotorCmd, 3> IOSDK::buildAlignmentCommand(int leg, bool enable_calf) const {
+    std::array<UserLowlevel::MotorCmd, 3> cmds;
+    const bool left_leg = (leg == 1 || leg == 3);
+    const bool front_leg = (leg == 0 || leg == 1);
+    // 用户关节定义下：右腿向内展/下压/上抬取负，左腿取正。
+    const float side_sign = left_leg ? 1.0f : -1.0f;
+    const float hip_sign = front_leg ? -side_sign : side_sign;
+
+    for (auto& cmd : cmds) {
+        cmd.mode = static_cast<unsigned int>(ControlMode::COMPOUND);
+        cmd.q = 0.0f;
+        cmd.dq = 0.0f;
+        cmd.Kp = 0.0f;
+        cmd.Kd = 0.0f;
+        cmd.tau = 0.0f;
+    }
+
+    cmds[0].tau = hip_sign * _startupHipTauNm;
+    cmds[1].tau = -side_sign * _startupThighTauNm;
+    cmds[2].tau = enable_calf ? (side_sign * _startupCalfTauNm) : 0.0f;
+    return cmds;
+}
+
+std::array<UserLowlevel::MotorCmd, 3> IOSDK::buildZeroTorqueCommand() const {
+    std::array<UserLowlevel::MotorCmd, 3> cmds;
+    for (auto& cmd : cmds) {
+        cmd.mode = static_cast<unsigned int>(ControlMode::COMPOUND);
+        cmd.q = 0.0f;
+        cmd.dq = 0.0f;
+        cmd.Kp = 0.0f;
+        cmd.Kd = 0.0f;
+        cmd.tau = 0.0f;
+    }
+    return cmds;
+}
+
+void IOSDK::sendDirectLegCommand(int leg, const std::array<UserLowlevel::MotorCmd, 3>& user_cmds) {
+    SerialPort* serial = _serials[leg];
+    if (serial == nullptr) {
+        return;
+    }
+
+    for (int joint = 0; joint < 3; ++joint) {
+        const int motor_id = leg * 3 + joint;
+        populateMotorCommand(leg, joint, user_cmds[joint]);
+        if (!serial->sendRecv(&_motorCmd[motor_id], &_motorData[motor_id])) {
+            std::cerr << "[IOSDK][WARN] 预对位阶段电机无回包"
+                      << " leg=" << LEG_NAMES[leg]
+                      << " joint=" << JOINT_NAMES[joint]
+                      << " port=" << _serialPorts[leg]
+                      << std::endl;
+        }
+    }
+}
+
+void IOSDK::refreshMotorFeedback() {
+    const auto zero_cmd = buildZeroTorqueCommand();
+    for (int leg : _activeLegs) {
+        sendDirectLegCommand(leg, zero_cmd);
+    }
+}
+
+void IOSDK::runStartupPoseAlignment() {
+    if (_startupAlignmentDone) {
+        return;
+    }
+
+    std::cout << "[IOSDK] 启动预对位: 髋内展 / 大腿先下压 / 小腿后上抬" << std::endl;
+    refreshMotorFeedback();
+
+    for (int leg : _activeLegs) {
+        sendDirectLegCommand(leg, buildAlignmentCommand(leg, false));
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(_startupAlignmentPhase1Ms));
+
+    for (int leg : _activeLegs) {
+        sendDirectLegCommand(leg, buildAlignmentCommand(leg, true));
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(_startupAlignmentPhase2Ms));
+
+    const auto zero_cmd = buildZeroTorqueCommand();
+    for (int leg : _activeLegs) {
+        sendDirectLegCommand(leg, zero_cmd);
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(_startupAlignmentReleaseMs));
+
+    refreshMotorFeedback();
+    _startupAlignmentDone = true;
+    std::cout << "[IOSDK] 启动预对位完成" << std::endl;
 }
 
 void IOSDK::startWorkers() {

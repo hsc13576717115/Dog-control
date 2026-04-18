@@ -29,18 +29,17 @@ double mapAxisToSignedLimit(double axis_value, const Vec2& limits, double deadba
     return -std::fabs(normalized) * std::fabs(limits(0));
 }
 
-Vec3 rotateAroundBodyZ(const Vec3& point, double yaw) {
-    const double c = std::cos(yaw);
-    const double s = std::sin(yaw);
-    Vec3 rotated = point;
-    rotated.x() = c * point.x() - s * point.y();
-    rotated.y() = s * point.x() + c * point.y();
-    return rotated;
+double cubicBlend(double phase) {
+    const double s = clampValue(phase, 0.0, 1.0);
+    return s * s * (3.0 - 2.0 * s);
 }
 
-double cycloidProgress(double phase) {
-    const double theta = 2.0 * M_PI * clampValue(phase, 0.0, 1.0);
-    return (theta - std::sin(theta)) / (2.0 * M_PI);
+Vec3 clampPlanarShift(const Vec3& shift, double max_x, double max_y) {
+    Vec3 clamped = shift;
+    clamped.x() = clampValue(clamped.x(), -max_x, max_x);
+    clamped.y() = clampValue(clamped.y(), -max_y, max_y);
+    clamped.z() = 0.0;
+    return clamped;
 }
 
 }  // namespace
@@ -55,6 +54,18 @@ State_Trotting::State_Trotting(CtrlComponents* ctrlComp)
     }
     for (auto& q : _lastLegQ) {
         q.setZero();
+    }
+    for (auto& swing_state : _prevSwingState) {
+        swing_state = false;
+    }
+    for (auto& foot : _swingStartFootPos) {
+        foot.setZero();
+    }
+    for (auto& foot : _swingTargetFootPos) {
+        foot.setZero();
+    }
+    for (auto& foot : _stanceStartFootPos) {
+        foot.setZero();
     }
 }
 
@@ -76,6 +87,10 @@ void State_Trotting::enter() {
         _lastLegQ[leg] = q;
         _enterFootPos[leg] = _ctrlComp->robotModel->forwardKinematics(q, leg, FrameType::HIP);
         _nominalFootPos[leg] = _ctrlComp->parameters.stand_targets.normal_feet_in_hip[leg];
+        _swingStartFootPos[leg] = _enterFootPos[leg];
+        _swingTargetFootPos[leg] = _nominalFootPos[leg];
+        _stanceStartFootPos[leg] = _enterFootPos[leg];
+        _prevSwingState[leg] = false;
 
         for (int j = 0; j < 3; ++j) {
             const int id = leg * 3 + j;
@@ -141,49 +156,113 @@ bool State_Trotting::hasActiveMotionCommand() const {
            std::fabs(_motionParams.yawRate) > MOTION_EPS;
 }
 
-Vec3 State_Trotting::computeFrontFoothold(int leg) const {
-    const double stance_time = CYCLE_T * 0.5;
+Vec3 State_Trotting::computeEstimatedBodyVelocity() const {
+    if (_ctrlComp->estimator == nullptr || _lowState == nullptr) {
+        return Vec3::Zero();
+    }
 
-    Vec3 translation_step = Vec3::Zero();
-    translation_step.x() = _motionParams.velocityX * stance_time;
-    translation_step.y() = _motionParams.velocityY * stance_time;
-
-    const Vec3 nominal_body = _ctrlComp->parameters.hip_mounts_in_body[leg] + _nominalFootPos[leg];
-    const double half_yaw = _motionParams.yawRate * stance_time * 0.5;
-    const Vec3 yaw_offset = rotateAroundBodyZ(nominal_body, half_yaw) - nominal_body;
-
-    return _nominalFootPos[leg] + 0.5 * translation_step + yaw_offset;
+    return _ctrlComp->estimator->getVelocity();
 }
 
-Vec3 State_Trotting::computeRearFoothold(int leg) const {
+Vec3 State_Trotting::computeDesiredLegVelocity(int leg) const {
+    const Vec3 nominal_body =
+        _ctrlComp->parameters.hip_mounts_in_body[leg] + _nominalFootPos[leg];
+    const Vec3 twist(-nominal_body.y(), nominal_body.x(), 0.0);
+
+    Vec3 desired_velocity(_motionParams.velocityX, _motionParams.velocityY, 0.0);
+    desired_velocity += _motionParams.yawRate * twist;
+    desired_velocity.z() = 0.0;
+    return desired_velocity;
+}
+
+Vec3 State_Trotting::computeEstimatedLegVelocity(int leg) const {
+    const Vec3 nominal_body =
+        _ctrlComp->parameters.hip_mounts_in_body[leg] + _nominalFootPos[leg];
+    const Vec3 twist(-nominal_body.y(), nominal_body.x(), 0.0);
+
+    Vec3 estimated_velocity = computeEstimatedBodyVelocity();
+    estimated_velocity += _lowState->getGyro().z() * twist;
+    estimated_velocity.z() = 0.0;
+    return estimated_velocity;
+}
+
+Vec3 State_Trotting::clampFootholdToWorkspace(int leg, const Vec3& foothold_in_hip) const {
+    // 仅允许在名义站姿附近做有限平面偏移，防止 Raibert 闭环把 IK 目标推出工作空间。
+    const Vec3 shift = foothold_in_hip - _nominalFootPos[leg];
+    const Vec3 clamped_shift =
+        clampPlanarShift(shift, MAX_FOOTHOLD_SHIFT_X, MAX_FOOTHOLD_SHIFT_Y);
+
+    Vec3 clamped = _nominalFootPos[leg] + clamped_shift;
+    clamped.z() = _nominalFootPos[leg].z();
+    return clamped;
+}
+
+Vec3 State_Trotting::computeRaibertLandingFoothold(int leg) const {
     const double stance_time = CYCLE_T * 0.5;
+    const Vec3 desired_velocity = computeDesiredLegVelocity(leg);
+    const Vec3 estimated_velocity = computeEstimatedLegVelocity(leg);
+    const Vec3 velocity_error = estimated_velocity - desired_velocity;
 
-    Vec3 translation_step = Vec3::Zero();
-    translation_step.x() = _motionParams.velocityX * stance_time;
-    translation_step.y() = _motionParams.velocityY * stance_time;
-
-    const Vec3 nominal_body = _ctrlComp->parameters.hip_mounts_in_body[leg] + _nominalFootPos[leg];
-    const double half_yaw = _motionParams.yawRate * stance_time * 0.5;
-    const Vec3 yaw_offset = rotateAroundBodyZ(nominal_body, -half_yaw) - nominal_body;
-
-    return _nominalFootPos[leg] - 0.5 * translation_step + yaw_offset;
+    Vec3 foothold = _nominalFootPos[leg] + 0.5 * stance_time * desired_velocity;
+    foothold.x() += RAIBERT_GAIN_X * velocity_error.x();
+    foothold.y() += RAIBERT_GAIN_Y * velocity_error.y();
+    foothold.z() = _nominalFootPos[leg].z();
+    return clampFootholdToWorkspace(leg, foothold);
 }
 
 Vec3 State_Trotting::computeSwingFootTarget(int leg, double phase) const {
-    const Vec3 rear = computeRearFoothold(leg);
-    const Vec3 front = computeFrontFoothold(leg);
-    const double alpha = cycloidProgress(phase);
-    const double theta = 2.0 * M_PI * clampValue(phase, 0.0, 1.0);
+    const double xy_alpha = cubicBlend(phase);
+    Vec3 target = _swingStartFootPos[leg] +
+                  xy_alpha * (_swingTargetFootPos[leg] - _swingStartFootPos[leg]);
 
-    Vec3 target = rear + alpha * (front - rear);
-    target.z() += LIFT_H * (1.0 - std::cos(theta)) * 0.5;
+    const double z_start = _swingStartFootPos[leg].z();
+    const double z_end = _swingTargetFootPos[leg].z();
+    const double z_apex = std::max(z_start, z_end) + LIFT_H;
+
+    if (phase < 0.5) {
+        const double local_phase = phase / 0.5;
+        const double z_alpha = cubicBlend(local_phase);
+        target.z() = z_start + z_alpha * (z_apex - z_start);
+    } else {
+        const double local_phase = (phase - 0.5) / 0.5;
+        const double z_alpha = cubicBlend(local_phase);
+        target.z() = z_apex + z_alpha * (z_end - z_apex);
+    }
     return target;
 }
 
 Vec3 State_Trotting::computeStanceFootTarget(int leg, double phase) const {
-    const Vec3 front = computeFrontFoothold(leg);
-    const Vec3 rear = computeRearFoothold(leg);
-    return front + clampValue(phase, 0.0, 1.0) * (rear - front);
+    const double stance_time = CYCLE_T * 0.5;
+    const Vec3 desired_velocity = computeDesiredLegVelocity(leg);
+    Vec3 target = _stanceStartFootPos[leg] - clampValue(phase, 0.0, 1.0) * stance_time * desired_velocity;
+    target.z() = _stanceStartFootPos[leg].z();
+    return target;
+}
+
+void State_Trotting::updateLegPhaseAnchors(int leg, bool swing) {
+    if (swing == _prevSwingState[leg]) {
+        return;
+    }
+
+    if (swing) {
+        const Vec3 q = _lowState->getQ().col(leg);
+        _swingStartFootPos[leg] =
+            _ctrlComp->robotModel->forwardKinematics(q, leg, FrameType::HIP);
+        _swingTargetFootPos[leg] = computeRaibertLandingFoothold(leg);
+    } else {
+        _stanceStartFootPos[leg] = _swingTargetFootPos[leg];
+    }
+
+    _prevSwingState[leg] = swing;
+}
+
+void State_Trotting::syncAnchorsForStanding(const std::array<Vec3, 4>& foot_targets) {
+    for (int leg = 0; leg < 4; ++leg) {
+        _prevSwingState[leg] = false;
+        _swingStartFootPos[leg] = foot_targets[leg];
+        _swingTargetFootPos[leg] = foot_targets[leg];
+        _stanceStartFootPos[leg] = foot_targets[leg];
+    }
 }
 
 void State_Trotting::generateLegTrajectory(int leg,
@@ -198,6 +277,7 @@ void State_Trotting::generateLegTrajectory(int leg,
     const bool swing = (normalized < 0.5);
     const double phase_in_segment = swing ? normalized / 0.5 : (normalized - 0.5) / 0.5;
 
+    updateLegPhaseAnchors(leg, swing);
     contact(leg) = swing ? 0 : 1;
     phase(leg) = phase_in_segment;
 
@@ -248,10 +328,13 @@ void State_Trotting::run() {
     Vec4 phase = Vec4::Constant(0.5);
 
     if (!hasActiveMotionCommand()) {
+        std::array<Vec3, 4> standing_targets{};
         for (int leg = 0; leg < 4; ++leg) {
             const Vec3 foot_target = (1.0 - trans) * _enterFootPos[leg] + trans * _nominalFootPos[leg];
+            standing_targets[leg] = foot_target;
             calculateIKAndApply(leg, foot_target, cmd);
         }
+        syncAnchorsForStanding(standing_targets);
         _ctrlComp->setContactPhase(contact, phase);
         _lowCmd->setQ(cmd);
         return;

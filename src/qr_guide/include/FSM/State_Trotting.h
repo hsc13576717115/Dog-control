@@ -1,6 +1,8 @@
 #ifndef STATE_TROTTING_H
 #define STATE_TROTTING_H
 
+#include <array>
+
 #include "FSM/FSMState.h"
 
 // 小跑状态。
@@ -43,21 +45,34 @@ private:
     static constexpr double CYCLE_T = 0.35;
     static constexpr double HIP_JOINT_FIXED = 0.0;
     static constexpr double MOTION_EPS = 1e-3;
+    static constexpr double RAIBERT_GAIN_X = 0.08;
+    static constexpr double RAIBERT_GAIN_Y = 0.08;
+    static constexpr double MAX_FOOTHOLD_SHIFT_X = 0.12;
+    static constexpr double MAX_FOOTHOLD_SHIFT_Y = 0.10;
     static constexpr double LEG_PHASE[4] = {0.0, 0.5, 0.5, 0.0};
 
     double _startTime = 0.0;
     double _lastCommandUpdateTime = 0.0;
     int _transitionCount = 0;
     Vec12 _initMotorQ = Vec12::Zero();
-    Vec3 _enterFootPos[4];
-    Vec3 _nominalFootPos[4];
-    Vec3 _lastLegQ[4];
+    std::array<Vec3, 4> _enterFootPos;
+    std::array<Vec3, 4> _nominalFootPos;
+    std::array<Vec3, 4> _lastLegQ;
+    std::array<bool, 4> _prevSwingState;
+    std::array<Vec3, 4> _swingStartFootPos;
+    std::array<Vec3, 4> _swingTargetFootPos;
+    std::array<Vec3, 4> _stanceStartFootPos;
 
     static double getTimeSec();
     Vec3 computeSwingFootTarget(int leg, double phase) const;
     Vec3 computeStanceFootTarget(int leg, double phase) const;
-    Vec3 computeFrontFoothold(int leg) const;
-    Vec3 computeRearFoothold(int leg) const;
+    Vec3 computeEstimatedBodyVelocity() const;
+    Vec3 computeDesiredLegVelocity(int leg) const;
+    Vec3 computeEstimatedLegVelocity(int leg) const;
+    Vec3 computeRaibertLandingFoothold(int leg) const;
+    Vec3 clampFootholdToWorkspace(int leg, const Vec3& foothold_in_hip) const;
+    void updateLegPhaseAnchors(int leg, bool swing);
+    void syncAnchorsForStanding(const std::array<Vec3, 4>& foot_targets);
     void processJoystickInput();
     void applyAccelerationLimits(double velocity_x, double velocity_y, double yaw_rate, double dt);
     bool hasActiveMotionCommand() const;

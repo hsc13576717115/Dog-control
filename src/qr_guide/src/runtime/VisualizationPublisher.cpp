@@ -105,7 +105,7 @@ void VisualizationPublisher::publish(const ControllerContext& context,
 
     const rclcpp::Time stamp = node_->now();
     const Vec3 position = controllerToVizPosition(context.estimator->getPosition());
-    const Vec3 velocity = controllerToVizPoint(context.estimator->getVelocity());
+    const Vec3 velocity = controllerToVizPoint(context.estimator->getVelocityGlobal());
     const RotMat body_to_world = context.lowState->getRotMat();
     const geometry_msgs::msg::Quaternion orientation = toQuaternion(body_to_world);
     const Vec3 angular_velocity_body = context.lowState->imu.getGyro();
