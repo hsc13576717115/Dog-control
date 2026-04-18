@@ -184,7 +184,7 @@
 | --- | --- | --- |
 | `imu_serial_port` | `/dev/ttyUSB0` | IMU 串口 |
 | `imu_serial_baud` | `921600` | IMU 波特率 |
-| `joy_event_path` | `/dev/input/event6` | 手柄事件设备 |
+| `joy_event_path` | `auto` | 手柄事件设备；默认自动优先选择名字匹配 Xbox 的 `/dev/input/event*` |
 | `use_rviz` | `true` | 是否启动 RViz |
 
 ## 8. 参数文件详解
