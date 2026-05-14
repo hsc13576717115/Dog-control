@@ -84,6 +84,17 @@ private:
     int _startupAlignmentPhase1Ms = 300;
     int _startupAlignmentPhase2Ms = 300;
     int _startupAlignmentReleaseMs = 300;
+
+    // 电机方向修正：处理不同腿/关节电机物理安装极性与软件坐标系不一致的问题。
+    // 默认值全为 1.0（假设安装方向一致），如发现某关节实际运动方向与指令相反，
+    // 将对应值改为 -1.0 即可。
+    // 索引：[leg][joint]，leg: 0=FR, 1=FL, 2=RR, 3=RL；joint: 0=hip, 1=thigh, 2=calf
+    const float MOTOR_DIRECTION[4][3] = {
+        {1.0f, 1.0f, 1.0f},   // FR
+        {1.0f, 1.0f, 1.0f},   // FL
+        {1.0f, 1.0f, 1.0f},   // RR
+        {1.0f, 1.0f, 1.0f}    // RL
+    };
 };
 
 #endif  // IOSDK_H
