@@ -171,6 +171,69 @@ RobotParameters LoadRobotParameters(const std::string& path) {
         }
     }
 
+    if (const YAML::Node force = config["robot"]["force_control"]) {
+        if (force["kp_body_xyz"]) {
+            params.force.kp_body_xyz = ReadVec3(force["kp_body_xyz"]);
+        }
+        if (force["kd_body_xyz"]) {
+            params.force.kd_body_xyz = ReadVec3(force["kd_body_xyz"]);
+        }
+        if (force["kp_body_rpy"]) {
+            params.force.kp_body_rpy = ReadVec3(force["kp_body_rpy"]);
+        }
+        if (force["kd_body_rpy"]) {
+            params.force.kd_body_rpy = ReadVec3(force["kd_body_rpy"]);
+        }
+        if (force["kp_swing"]) {
+            params.force.kp_swing = ReadVec3(force["kp_swing"]);
+        }
+        if (force["kd_swing"]) {
+            params.force.kd_swing = ReadVec3(force["kd_swing"]);
+        }
+        if (force["s_xyz"]) {
+            params.force.s_xyz = ReadVec3(force["s_xyz"]);
+        }
+        if (force["s_rpy"]) {
+            params.force.s_rpy = ReadVec3(force["s_rpy"]);
+        }
+        if (force["w_per_foot"]) {
+            params.force.w_per_foot = ReadVec3(force["w_per_foot"]);
+        }
+        if (force["u_per_foot"]) {
+            params.force.u_per_foot = ReadVec3(force["u_per_foot"]);
+        }
+        if (force["alpha"]) {
+            params.force.alpha = force["alpha"].as<double>();
+        }
+        if (force["beta"]) {
+            params.force.beta = force["beta"].as<double>();
+        }
+        if (force["friction_ratio"]) {
+            params.force.friction_ratio = force["friction_ratio"].as<double>();
+        }
+        if (force["tau_limit"]) {
+            params.force.tau_limit = force["tau_limit"].as<double>();
+        }
+        if (force["tau_rate_limit"]) {
+            params.force.tau_rate_limit = force["tau_rate_limit"].as<double>();
+        }
+        if (force["transition_steps"]) {
+            params.force.transition_steps = force["transition_steps"].as<double>();
+        }
+        if (force["acc_xy_sat"]) {
+            params.force.acc_xy_sat = ReadVec2(force["acc_xy_sat"]);
+        }
+        if (force["acc_z_sat"]) {
+            params.force.acc_z_sat = ReadVec2(force["acc_z_sat"]);
+        }
+        if (force["w_roll_pitch_sat"]) {
+            params.force.w_roll_pitch_sat = ReadVec2(force["w_roll_pitch_sat"]);
+        }
+        if (force["w_yaw_sat"]) {
+            params.force.w_yaw_sat = ReadVec2(force["w_yaw_sat"]);
+        }
+    }
+
     if (config["robot"]["velocity_limits"]) {
         params.velocity_limit_x = ReadVec2(config["robot"]["velocity_limits"]["x"]);
         params.velocity_limit_y = ReadVec2(config["robot"]["velocity_limits"]["y"]);

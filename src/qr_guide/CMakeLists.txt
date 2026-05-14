@@ -61,6 +61,7 @@ set(QR_GUIDE_CORE_SOURCES
     src/common/unitreeRobot.cpp
     src/control/Estimator.cpp
     src/control/HybridStandController.cpp
+    src/control/BalanceCtrl.cpp
     src/FSM/FSM.cpp
     src/FSM/FSMState.cpp
     src/FSM/State_Passive.cpp
