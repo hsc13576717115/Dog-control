@@ -87,7 +87,6 @@ struct JoyMappingParameters {
 };
 
 // trot 轨迹参数。
-// 这里仅覆盖第一阶段的几何轨迹与落脚点预瞄，不涉及力控。
 struct TrotParameters {
     double cycle_time = 0.35;
     double stance_ratio = 0.5;
@@ -99,6 +98,40 @@ struct TrotParameters {
     double max_foothold_shift_x = 0.08;
     double max_foothold_shift_y = 0.05;
     double max_joint_delta = 0.03;
+};
+
+// 力控制参数（移植自 unitree_guide 的 BalanceCtrl + State_Trotting）。
+// 所有 12 维向量（4 条腿 x 3 维力）用 3 维标量重复表示，简化 YAML 配置。
+struct ForceControlParameters {
+    // 机身 PD 增益
+    Vec3 kp_body_xyz = Vec3(50, 50, 70);
+    Vec3 kd_body_xyz = Vec3(8, 8, 10);
+    Vec3 kp_body_rpy = Vec3(80, 80, 600);  // roll, pitch, yaw
+    Vec3 kd_body_rpy = Vec3(50, 50, 50);
+
+    // 摆动腿 PD 增益
+    Vec3 kp_swing = Vec3(300, 300, 300);
+    Vec3 kd_swing = Vec3(8, 8, 8);
+
+    // QP 代价权重（简化为每组一个 3 维标量，内部自动复制到 4 条腿）
+    Vec3 s_xyz = Vec3(20, 20, 50);      // 线加速度跟踪权重 (x, y, z)
+    Vec3 s_rpy = Vec3(450, 450, 450);   // 角加速度跟踪权重 (roll, pitch, yaw)
+    Vec3 w_per_foot = Vec3(10, 10, 4);  // 每条腿力正则化 (fx, fy, fz)
+    Vec3 u_per_foot = Vec3(3, 3, 3);    // 每条腿力平滑 (fx, fy, fz)
+    double alpha = 0.001;               // 力正则化系数
+    double beta = 0.1;                  // 时间平滑系数
+    double friction_ratio = 0.4;        // 摩擦系数
+
+    // 安全限幅
+    double tau_limit = 8.0;             // N·m
+    double tau_rate_limit = 200.0;      // N·m/s
+    double transition_steps = 100.0;    // 启动平滑步数
+
+    // 期望加速度饱和
+    Vec2 acc_xy_sat = Vec2(-3, 3);
+    Vec2 acc_z_sat = Vec2(-5, 5);
+    Vec2 w_roll_pitch_sat = Vec2(-40, 40);
+    Vec2 w_yaw_sat = Vec2(-10, 10);
 };
 
 // 纯位置站立稳定化参数。
@@ -129,6 +162,7 @@ struct RobotParameters {
     JoyMappingParameters joy_mapping;
     TrotParameters trot;
     StandControlParameters stand;
+    ForceControlParameters force;
     Vec2 velocity_limit_x = Vec2(-0.4, 0.4);
     Vec2 velocity_limit_y = Vec2(-0.3, 0.3);
     Vec2 velocity_limit_yaw = Vec2(-0.5, 0.5);
