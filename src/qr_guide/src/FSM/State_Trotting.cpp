@@ -1,3 +1,6 @@
+/**********************************************************************
+ Copyright (c) 2020-2023, Unitree Robotics.Co.Ltd. All rights reserved.
+***********************************************************************/
 #include "FSM/State_Trotting.h"
 #include "FSM/StateMotorParams.h"
 
@@ -5,6 +8,11 @@
 #include <cmath>
 #include <iostream>
 #include <thread>
+
+#include "control/BalanceCtrl.h"
+#include "control/Estimator.h"
+#include "common/mathTools.h"
+#include "common/unitreeRobot.h"
 
 namespace {
 
@@ -14,27 +22,19 @@ T clampValue(T value, T min_value, T max_value) {
 }
 
 double wrapAngle(double angle) {
-    while (angle > M_PI) {
-        angle -= 2.0 * M_PI;
-    }
-    while (angle < -M_PI) {
-        angle += 2.0 * M_PI;
-    }
+    while (angle > M_PI) { angle -= 2.0 * M_PI; }
+    while (angle < -M_PI) { angle += 2.0 * M_PI; }
     return angle;
 }
 
 double applyDeadband(double value, double deadband) {
-    if (std::fabs(value) <= deadband) {
-        return 0.0;
-    }
+    if (std::fabs(value) <= deadband) { return 0.0; }
     const double normalized = (std::fabs(value) - deadband) / (1.0 - deadband);
     return std::copysign(normalized, value);
 }
 
 double applySignedExpo(double normalized_value, double expo) {
-    if (std::fabs(normalized_value) < 1e-9) {
-        return 0.0;
-    }
+    if (std::fabs(normalized_value) < 1e-9) { return 0.0; }
     const double safe_expo = std::max(1.0, expo);
     return std::copysign(std::pow(std::fabs(normalized_value), safe_expo), normalized_value);
 }
@@ -71,28 +71,28 @@ Vec3 clampPlanarShift(const Vec3& shift, double max_x, double max_y) {
 State_Trotting::State_Trotting(CtrlComponents* ctrlComp)
     : FSMState(ctrlComp, FSMStateName::TROTTING, "trotting"),
       _joyMapping(ctrlComp->parameters.joy_mapping),
-      _trotParams(ctrlComp->parameters.trot) {
-    for (auto& foot : _enterFootPos) {
-        foot.setZero();
-    }
-    for (auto& foot : _nominalFootPos) {
-        foot.setZero();
-    }
-    for (auto& q : _lastLegQ) {
-        q.setZero();
-    }
-    for (auto& swing_state : _prevSwingState) {
-        swing_state = false;
-    }
-    for (auto& foot : _swingStartFootPos) {
-        foot.setZero();
-    }
-    for (auto& foot : _swingTargetFootPos) {
-        foot.setZero();
-    }
-    for (auto& foot : _stanceStartFootPos) {
-        foot.setZero();
-    }
+      _trotParams(ctrlComp->parameters.trot),
+      _est(ctrlComp->estimator.get()),
+      _balCtrl(ctrlComp->balCtrl.get()),
+      _robModel(ctrlComp->robotModel.get()) {
+    for (auto& foot : _enterFootPos) { foot.setZero(); }
+    for (auto& foot : _nominalFootPos) { foot.setZero(); }
+    for (auto& q : _lastLegQ) { q.setZero(); }
+    for (auto& swing_state : _prevSwingState) { swing_state = false; }
+    for (auto& foot : _swingStartFootPos) { foot.setZero(); }
+    for (auto& foot : _swingTargetFootPos) { foot.setZero(); }
+    for (auto& foot : _stanceStartFootPos) { foot.setZero(); }
+
+    const auto& f = ctrlComp->parameters.force;
+    // Body position tracking (x, y, z)
+    _Kpp = f.kp_body_xyz.asDiagonal();
+    _Kdp = f.kd_body_xyz.asDiagonal();
+    // Body orientation tracking (roll, pitch, yaw)
+    _Kpw = f.kp_body_rpy.asDiagonal();
+    _Kdw = f.kd_body_rpy.asDiagonal();
+    // Swing leg tracking
+    _KpSwing = f.kp_swing.asDiagonal();
+    _KdSwing = f.kd_swing.asDiagonal();
 }
 
 double State_Trotting::getTimeSec() {
@@ -112,7 +112,6 @@ Vec3 State_Trotting::footBodyToHipFrame(int leg, const Vec3& foot_in_body) const
 Vec3 State_Trotting::rotateBodyPointYaw(const Vec3& point_body, double yaw_delta) const {
     const double c = std::cos(yaw_delta);
     const double s = std::sin(yaw_delta);
-
     Vec3 rotated = point_body;
     rotated.x() = c * point_body.x() - s * point_body.y();
     rotated.y() = s * point_body.x() + c * point_body.y();
@@ -125,9 +124,7 @@ State_Trotting::LegPhaseState State_Trotting::computeLegPhaseState(int leg, doub
     const double swing_ratio = 1.0 - stance_ratio;
 
     double cycle_phase = std::fmod(masterT / cycle_time + LEG_PHASE[leg], 1.0);
-    if (cycle_phase < 0.0) {
-        cycle_phase += 1.0;
-    }
+    if (cycle_phase < 0.0) { cycle_phase += 1.0; }
 
     LegPhaseState state;
     state.cyclePhase = cycle_phase;
@@ -152,11 +149,9 @@ Vec3 State_Trotting::projectBodyPointToRotationCircle(int leg, const Vec3& point
     const Vec3 nominal_body = nominalFootBodyPosition(leg);
     const double radius = std::hypot(nominal_body.x(), nominal_body.y());
     double theta = std::atan2(point_body.y(), point_body.x());
-
     if (std::hypot(point_body.x(), point_body.y()) < 1e-6) {
         theta = std::atan2(nominal_body.y(), nominal_body.x());
     }
-
     Vec3 projected = point_body;
     projected.x() = radius * std::cos(theta);
     projected.y() = radius * std::sin(theta);
@@ -177,7 +172,7 @@ Vec3 State_Trotting::computeTouchdownFootBodyTarget(int leg, double stance_time)
 }
 
 void State_Trotting::enter() {
-    std::cout << "[Trot] entering trotting state" << std::endl;
+    std::cout << "[Trot] entering trotting state (force control)" << std::endl;
 
     for (int i = 0; i < 12; ++i) {
         _initMotorQ(i) = _lowState->motorState[i].q;
@@ -186,7 +181,7 @@ void State_Trotting::enter() {
     for (int leg = 0; leg < 4; ++leg) {
         const Vec3 q = _initMotorQ.segment(leg * 3, 3);
         _lastLegQ[leg] = q;
-        _enterFootPos[leg] = _ctrlComp->robotModel->forwardKinematics(q, leg, FrameType::HIP);
+        _enterFootPos[leg] = _robModel->forwardKinematics(q, leg, FrameType::HIP);
         _nominalFootPos[leg] = _ctrlComp->parameters.stand_targets.normal_feet_in_hip[leg];
         _swingStartFootPos[leg] = _enterFootPos[leg];
         _swingTargetFootPos[leg] = _nominalFootPos[leg];
@@ -206,6 +201,16 @@ void State_Trotting::enter() {
     _transitionCount = 0;
     _startTime = getTimeSec();
     _lastCommandUpdateTime = _startTime;
+
+    // Initialize force control state
+    _pcd = _est->getPosition();
+    _pcd(2) = -_robModel->getFeetPosIdeal()(2, 0);
+    _vCmdBody.setZero();
+    _yawCmd = _lowState->getYaw();
+    _Rd = rotz(_yawCmd);
+    _wCmdGlobal.setZero();
+    _tauPrev.setZero();
+
     _ctrlComp->setStartWave();
 }
 
@@ -218,9 +223,9 @@ void State_Trotting::processJoystickInput() {
     const double dt = std::max(0.002, std::min(current_time - _lastCommandUpdateTime, 0.02));
     _lastCommandUpdateTime = current_time;
 
-    const Vec2 robot_limit_x = _ctrlComp->robotModel->getRobVelLimitX();
-    const Vec2 robot_limit_y = _ctrlComp->robotModel->getRobVelLimitY();
-    const Vec2 robot_limit_yaw = _ctrlComp->robotModel->getRobVelLimitYaw();
+    const Vec2 robot_limit_x = _robModel->getRobVelLimitX();
+    const Vec2 robot_limit_y = _robModel->getRobVelLimitY();
+    const Vec2 robot_limit_yaw = _robModel->getRobVelLimitYaw();
 
     const Vec2 joy_limit_x(-std::fabs(_joyMapping.max_vx), std::fabs(_joyMapping.max_vx));
     const Vec2 joy_limit_y(-std::fabs(_joyMapping.max_vy), std::fabs(_joyMapping.max_vy));
@@ -256,12 +261,9 @@ void State_Trotting::applyAccelerationLimits(double velocity_x, double velocity_
     const double max_delta_y = _joyMapping.max_accel_y * dt;
     const double max_delta_yaw = _joyMapping.max_accel_yaw * dt;
 
-    const double delta_x =
-        clampValue(velocity_x - _accelLimitParams.lastVelocityX, -max_delta_x, max_delta_x);
-    const double delta_y =
-        clampValue(velocity_y - _accelLimitParams.lastVelocityY, -max_delta_y, max_delta_y);
-    const double delta_yaw =
-        clampValue(yaw_rate - _accelLimitParams.lastYawRate, -max_delta_yaw, max_delta_yaw);
+    const double delta_x = clampValue(velocity_x - _accelLimitParams.lastVelocityX, -max_delta_x, max_delta_x);
+    const double delta_y = clampValue(velocity_y - _accelLimitParams.lastVelocityY, -max_delta_y, max_delta_y);
+    const double delta_yaw = clampValue(yaw_rate - _accelLimitParams.lastYawRate, -max_delta_yaw, max_delta_yaw);
 
     _motionParams.velocityX = _accelLimitParams.lastVelocityX + delta_x;
     _motionParams.velocityY = _accelLimitParams.lastVelocityY + delta_y;
@@ -288,7 +290,6 @@ Vec3 State_Trotting::clampFootholdToWorkspace(int leg, const Vec3& foothold_in_h
     const Vec3 shift = foothold_in_hip - _nominalFootPos[leg];
     const Vec3 clamped_shift = clampPlanarShift(
         shift, _trotParams.max_foothold_shift_x, _trotParams.max_foothold_shift_y);
-
     Vec3 clamped = _nominalFootPos[leg] + clamped_shift;
     clamped.z() = _nominalFootPos[leg].z();
     return clamped;
@@ -349,20 +350,16 @@ Vec3 State_Trotting::computeStanceFootTarget(int leg, const LegPhaseState& phase
 }
 
 void State_Trotting::updateLegPhaseAnchors(int leg, const LegPhaseState& phase_state) {
-    if (phase_state.swing == _prevSwingState[leg]) {
-        return;
-    }
+    if (phase_state.swing == _prevSwingState[leg]) { return; }
 
     if (phase_state.swing) {
         const Vec3 q = _lowState->getQ().col(leg);
-        _swingStartFootPos[leg] =
-            _ctrlComp->robotModel->forwardKinematics(q, leg, FrameType::HIP);
+        _swingStartFootPos[leg] = _robModel->forwardKinematics(q, leg, FrameType::HIP);
         const Vec3 landing_body = computeTouchdownFootBodyTarget(leg, phase_state.stanceTime);
         _swingTargetFootPos[leg] = clampFootholdToWorkspace(leg, footBodyToHipFrame(leg, landing_body));
     } else {
         _stanceStartFootPos[leg] = _swingTargetFootPos[leg];
     }
-
     _prevSwingState[leg] = phase_state.swing;
 }
 
@@ -375,27 +372,8 @@ void State_Trotting::syncAnchorsForStanding(const std::array<Vec3, 4>& foot_targ
     }
 }
 
-void State_Trotting::generateLegTrajectory(int leg,
-                                           double masterT,
-                                           double trans,
-                                           Vec12& cmd,
-                                           VecInt4& contact,
-                                           Vec4& phase) {
-    const LegPhaseState phase_state = computeLegPhaseState(leg, masterT);
-    updateLegPhaseAnchors(leg, phase_state);
-
-    contact(leg) = phase_state.swing ? 0 : 1;
-    phase(leg) = phase_state.segmentPhase;
-
-    const Vec3 gait_target = phase_state.swing
-        ? computeSwingFootTarget(leg, phase_state.segmentPhase)
-        : computeStanceFootTarget(leg, phase_state);
-    const Vec3 foot_target = (1.0 - trans) * _enterFootPos[leg] + trans * gait_target;
-    calculateIKAndApply(leg, foot_target, cmd);
-}
-
 void State_Trotting::calculateIKAndApply(int leg, const Vec3& target_foot_in_hip, Vec12& cmd) {
-    Vec3 q_des = _ctrlComp->robotModel->inverseKinematics(target_foot_in_hip, leg, FrameType::HIP);
+    Vec3 q_des = _robModel->inverseKinematics(target_foot_in_hip, leg, FrameType::HIP);
     q_des = clampJointAngles(q_des);
 
     Vec3 delta = q_des - _lastLegQ[leg];
@@ -419,40 +397,206 @@ Vec3 State_Trotting::clampJointAngles(const Vec3& angles) const {
     return clamped;
 }
 
+// ===== Force control methods =====
+
+bool State_Trotting::checkStepOrNot() const {
+    return (std::fabs(_vCmdBody(0)) > 0.03) ||
+           (std::fabs(_vCmdBody(1)) > 0.03) ||
+           (std::fabs(_posError(0)) > 0.08) ||
+           (std::fabs(_posError(1)) > 0.08) ||
+           (std::fabs(_velError(0)) > 0.05) ||
+           (std::fabs(_velError(1)) > 0.05) ||
+           (std::fabs(_dYawCmd) > 0.20);
+}
+
+void State_Trotting::calcBodyWrench() {
+    _posBody = _est->getPosition();
+    _velBody = _est->getVelocity();
+    _posFeet2BGlobal = _est->getPosFeet2BGlobal();
+    _posFeetGlobal = _est->getFeetPos();
+    _velFeetGlobal = _est->getFeetVel();
+    _B2G_RotMat = _lowState->getRotMat();
+    _G2B_RotMat = _B2G_RotMat.transpose();
+    _yaw = _lowState->getYaw();
+    _dYaw = _lowState->getDYaw();
+
+    // User commands in body frame
+    _vCmdBody(0) = _motionParams.velocityX;
+    _vCmdBody(1) = _motionParams.velocityY;
+    _vCmdBody(2) = 0.0;
+    _dYawCmd = _motionParams.yawRate;
+    _dYawCmd = 0.9 * _dYawCmdPast + 0.1 * _dYawCmd;
+    _dYawCmdPast = _dYawCmd;
+
+    // Convert to global frame
+    _vCmdGlobal = _G2B_RotMat.transpose() * _vCmdBody;
+    _vCmdGlobal(0) = saturation(_vCmdGlobal(0), Vec2(_velBody(0) - 0.2, _velBody(0) + 0.2));
+    _vCmdGlobal(1) = saturation(_vCmdGlobal(1), Vec2(_velBody(1) - 0.2, _velBody(1) + 0.2));
+    _vCmdGlobal(2) = 0.0;
+
+    // Integrate desired position
+    _pcd(0) = saturation(_pcd(0) + _vCmdGlobal(0) * _ctrlComp->dt, Vec2(_posBody(0) - 0.05, _posBody(0) + 0.05));
+    _pcd(1) = saturation(_pcd(1) + _vCmdGlobal(1) * _ctrlComp->dt, Vec2(_posBody(1) - 0.05, _posBody(1) + 0.05));
+
+    // Integrate desired yaw
+    _yawCmd = _yawCmd + _dYawCmd * _ctrlComp->dt;
+    _Rd = rotz(_yawCmd);
+    _wCmdGlobal(2) = _dYawCmd;
+
+    // Body PD controller
+    _posError = _pcd - _posBody;
+    _velError = _vCmdGlobal - _velBody;
+
+    _ddPcd = _Kpp * _posError + _Kdp * _velError;
+    _dWbd = _Kpw * rotMatToExp(_Rd * _G2B_RotMat) + _Kdw * (_wCmdGlobal - _lowState->getGyroGlobal());
+
+    const auto& f = _ctrlComp->parameters.force;
+    // Saturate for safety
+    _ddPcd(0) = saturation(_ddPcd(0), f.acc_xy_sat);
+    _ddPcd(1) = saturation(_ddPcd(1), f.acc_xy_sat);
+    _ddPcd(2) = saturation(_ddPcd(2), f.acc_z_sat);
+    _dWbd(0) = saturation(_dWbd(0), f.w_roll_pitch_sat);
+    _dWbd(1) = saturation(_dWbd(1), f.w_roll_pitch_sat);
+    _dWbd(2) = saturation(_dWbd(2), f.w_yaw_sat);
+}
+
+void State_Trotting::calcFootForces() {
+    const double masterT = getTimeSec() - _startTime;
+
+    // Build contact flags from gait scheduler
+    VecInt4 contact = VecInt4::Zero();
+    Vec4 phase = Vec4::Constant(0.5);
+    std::array<Vec3, 4> footTargetHip;
+    footTargetHip.fill(Vec3::Zero());
+
+    for (int leg = 0; leg < 4; ++leg) {
+        const LegPhaseState phase_state = computeLegPhaseState(leg, masterT);
+        updateLegPhaseAnchors(leg, phase_state);
+        contact(leg) = phase_state.swing ? 0 : 1;
+        phase(leg) = phase_state.segmentPhase;
+
+        footTargetHip[leg] = phase_state.swing
+            ? computeSwingFootTarget(leg, phase_state.segmentPhase)
+            : computeStanceFootTarget(leg, phase_state);
+    }
+
+    // Convert hip-frame targets to global frame for swing leg PD
+    for (int leg = 0; leg < 4; ++leg) {
+        const Vec3 target_body = footHipToBodyFrame(leg, footTargetHip[leg]);
+        _posFeetGlobalGoal.col(leg) = _posBody + _B2G_RotMat * target_body;
+        // Simple velocity estimate for swing legs
+        _velFeetGlobalGoal.col(leg).setZero();
+    }
+
+    // Compute stance forces via QP
+    // calF returns ground-to-foot force (positive = upward). Pass directly to getTau.
+    _forceFeetGlobal = _balCtrl->calF(_ddPcd, _dWbd, _B2G_RotMat, _posFeet2BGlobal, contact);
+
+    // Override swing leg forces with trajectory tracking PD
+    for (int leg = 0; leg < 4; ++leg) {
+        if (contact(leg) == 0) {
+            _forceFeetGlobal.col(leg) =
+                _KpSwing * (_posFeetGlobalGoal.col(leg) - _posFeetGlobal.col(leg)) +
+                _KdSwing * (_velFeetGlobalGoal.col(leg) - _velFeetGlobal.col(leg));
+        }
+    }
+
+    // Rotate to body frame
+    _forceFeetBody = _G2B_RotMat * _forceFeetGlobal;
+
+    // Update contact/phase in context
+    _ctrlComp->setContactPhase(contact, phase);
+}
+
+void State_Trotting::calcJointTorques() {
+    Vec12 q = vec34ToVec12(_lowState->getQ());
+    _tau = -_robModel->getTau(q, _forceFeetBody);
+
+    // 摆动腿不用力矩前馈，只保留位置环
+    for (int leg = 0; leg < 4; ++leg) {
+        if (_ctrlComp->contact(leg) == 0) {
+            _tau.segment(leg * 3, 3).setZero();
+        }
+    }
+}
+
+void State_Trotting::calcSwingQQd() {
+    // 复用 calcFootForces() 已设置的 _ctrlComp->contact
+    const VecInt4& contact = _ctrlComp->contact;
+
+    // Compute body-frame foot positions/velocities for IK
+    Vec34 posFeet2B = _robModel->getFeet2BPositions(*_lowState, FrameType::BODY);
+
+    for (int leg = 0; leg < 4; ++leg) {
+        _posFeet2BGoal.col(leg) = _G2B_RotMat * (_posFeetGlobalGoal.col(leg) - _posBody);
+        _velFeet2BGoal.col(leg) = _G2B_RotMat * (_velFeetGlobalGoal.col(leg) - _velBody);
+    }
+
+    _qGoal = vec12ToVec34(_robModel->getQ(_posFeet2BGoal, FrameType::BODY));
+    _qdGoal = vec12ToVec34(_robModel->getQd(posFeet2B, _velFeet2BGoal, FrameType::BODY));
+}
+
+void State_Trotting::applyTorqueSafety() {
+    const auto& f = _ctrlComp->parameters.force;
+    const double max_delta = f.tau_rate_limit * _ctrlComp->dt;
+    for (int i = 0; i < 12; ++i) {
+        double clamped = clampValue(_tau(i), -f.tau_limit, f.tau_limit);
+        double delta = clampValue(clamped - _tauPrev(i), -max_delta, max_delta);
+        _tau(i) = clampValue(_tauPrev(i) + delta, -f.tau_limit, f.tau_limit);
+    }
+    _tauPrev = _tau;
+}
+
+// ===== Main run loop =====
+
 void State_Trotting::run() {
-    if (_transitionCount < 100) {
+    const double transition_steps = _ctrlComp->parameters.force.transition_steps;
+    if (_transitionCount < static_cast<int>(transition_steps)) {
         ++_transitionCount;
     }
+    const double trans = std::min(1.0, static_cast<double>(_transitionCount) / transition_steps);
 
     processJoystickInput();
 
-    const double trans = std::min(1.0, static_cast<double>(_transitionCount) / 100.0);
-    Vec12 cmd = Vec12::Zero();
-    VecInt4 contact = VecInt4::Ones();
-    Vec4 phase = Vec4::Constant(0.5);
+    // 1. Get body state and compute desired accelerations
+    calcBodyWrench();
 
-    if (!hasActiveMotionCommand()) {
-        std::array<Vec3, 4> standing_targets{};
-        for (int leg = 0; leg < 4; ++leg) {
-            const Vec3 foot_target = (1.0 - trans) * _enterFootPos[leg] + trans * _nominalFootPos[leg];
-            standing_targets[leg] = foot_target;
-            calculateIKAndApply(leg, foot_target, cmd);
+    // 2. Compute foot forces (QP for stance, PD for swing)
+    calcFootForces();
+
+    // 3. Map foot forces to joint torques
+    calcJointTorques();
+
+    // 4. Compute swing leg joint positions/velocities for impedance mode
+    calcSwingQQd();
+
+    // 5. Apply torque safety (rate limiting + saturation)
+    applyTorqueSafety();
+
+    // 6. Apply transition smoothing
+    _tau *= trans;
+
+    // 7. Output compound commands
+    _lowCmd->setTau(_tau);
+    _lowCmd->setQ(vec34ToVec12(_qGoal));
+    _lowCmd->setQd(vec34ToVec12(_qdGoal));
+
+    // Set per-leg gains based on contact state
+    for (int i = 0; i < 4; ++i) {
+        const VecInt4& contact = _ctrlComp->contact;
+        if (contact(i) == 0) {
+            _lowCmd->setSwingGain(i);
+        } else {
+            _lowCmd->setStableGain(i);
         }
-        syncAnchorsForStanding(standing_targets);
-        _ctrlComp->setContactPhase(contact, phase);
-        _lowCmd->setQ(cmd);
-        return;
     }
 
-    const double masterT = getTimeSec() - _startTime;
-    contact = VecInt4::Zero();
-
-    for (int leg = 0; leg < 4; ++leg) {
-        generateLegTrajectory(leg, masterT, trans, cmd, contact, phase);
+    // When standing still (no motion command), switch to all-stance
+    if (!hasActiveMotionCommand()) {
+        if (!checkStepOrNot()) {
+            _ctrlComp->setAllStance();
+        }
     }
-
-    _ctrlComp->setContactPhase(contact, phase);
-    _lowCmd->setQ(cmd);
 }
 
 void State_Trotting::exit() {
@@ -468,6 +612,7 @@ void State_Trotting::exit() {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     _lowCmd->setQ(_initMotorQ);
+    _tauPrev.setZero();
 }
 
 FSMStateName State_Trotting::checkChange() {

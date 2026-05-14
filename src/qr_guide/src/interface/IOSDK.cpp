@@ -11,6 +11,7 @@ namespace {
 constexpr const char* LEG_NAMES[4] = {"FR", "FL", "RR", "RL"};
 constexpr const char* JOINT_NAMES[3] = {"hip", "thigh", "calf"};
 
+
 double NowSec() {
     using namespace std::chrono;
     static const steady_clock::time_point start = steady_clock::now();
@@ -257,15 +258,16 @@ float IOSDK::gearRatioForJoint(int joint) const {
 float IOSDK::calibrationTargetUserAngle(int leg, int joint) const {
     const bool left_leg = (leg == 1 || leg == 3);
     const float sign = left_leg ? -1.0f : 1.0f;
+    const float dir = MOTOR_DIRECTION[leg][joint];
 
     if (joint == 0) {
-        return _calibrationHipAngleRad;
+        return _calibrationHipAngleRad * dir;
     }
     if (joint == 1) {
-        return sign * _calibrationThighAngleRad;
+        return sign * _calibrationThighAngleRad * dir;
     }
     if (joint == 2) {
-        return sign * _calibrationCalfAngleRad;
+        return sign * _calibrationCalfAngleRad * dir;
     }
     return 0.0f;
 }
@@ -307,27 +309,29 @@ void IOSDK::tryCalibrate(const LowlevelState& state) {
 void IOSDK::populateMotorCommand(int leg, int joint, const UserLowlevel::MotorCmd& user_cmd) {
     const int motor_id = leg * 3 + joint;
     const float gear = gearRatioForJoint(joint);
+    const float dir = MOTOR_DIRECTION[leg][joint];
     const float q_cmd = _isCalibrated ? (user_cmd.q + _calibOffset[motor_id]) : user_cmd.q;
 
     auto& motor_cmd = _motorCmd[motor_id];
     motor_cmd.id = joint;
-    motor_cmd.q = q_cmd * gear;
-    motor_cmd.dq = user_cmd.dq * gear;
+    motor_cmd.q = q_cmd * gear * dir;
+    motor_cmd.dq = user_cmd.dq * gear * dir;
     motor_cmd.kp = user_cmd.Kp;
     motor_cmd.kd = user_cmd.Kd;
-    motor_cmd.tau = user_cmd.tau;
+    motor_cmd.tau = user_cmd.tau * dir;
     motor_cmd.mode = user_cmd.mode;
 }
 
 void IOSDK::updateMotorStateFromFeedback(int leg, int joint, LowlevelState* state) {
     const int motor_id = leg * 3 + joint;
     const float gear = gearRatioForJoint(joint);
-    const float q_feedback = _motorData[motor_id].q / gear;
+    const float dir = MOTOR_DIRECTION[leg][joint];
+    const float q_feedback = (_motorData[motor_id].q / gear) * dir;
 
     auto& motor_state = state->motorState[motor_id];
     motor_state.q = _isCalibrated ? (q_feedback - _calibOffset[motor_id]) : q_feedback;
-    motor_state.dq = _motorData[motor_id].dq / gear;
-    motor_state.tauEst = _motorData[motor_id].tau;
+    motor_state.dq = (_motorData[motor_id].dq / gear) * dir;
+    motor_state.tauEst = _motorData[motor_id].tau * dir;
     motor_state.temp = _motorData[motor_id].temp;
     motor_state.fault = _motorData[motor_id].merror;
 }
