@@ -79,6 +79,7 @@ private:
     Mat3 _Kdw = Mat3::Zero();
 
     bool _forceControlActive = false;
+    bool _shouldEmergencyStop = false;
 };
 
 #endif  // STATE_FIXEDSTAND_H
