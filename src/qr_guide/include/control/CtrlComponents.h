@@ -4,6 +4,7 @@
 #include <memory>
 
 #include "config/RobotConfig.h"
+#include "control/BalanceCtrl.h"
 #include "control/Estimator.h"
 #include "interface/IOInterface.h"
 #include "message/LowlevelCmd.h"
@@ -20,6 +21,7 @@ public:
           ioInter(std::move(io_inter)),
           robotModel(std::move(robot_model)),
           estimator(nullptr),
+          balCtrl(nullptr),
           parameters(parameters) {
         setAllSwing();
     }
@@ -27,6 +29,8 @@ public:
     void initialize() {
         // 估计器依赖 robotModel、lowState 和 contact/phase，因此集中在这里初始化。
         estimator = std::make_unique<Estimator>(robotModel.get(), lowState.get(), &contact, &phase, dt);
+        // 力平衡控制器依赖 robotModel 的质量、惯性张量与 CoM 偏移。
+        balCtrl = std::make_unique<BalanceCtrl>(robotModel.get(), parameters.force);
     }
 
     void sendRecv() {
@@ -60,6 +64,7 @@ public:
     std::unique_ptr<IOInterface> ioInter;
     std::unique_ptr<QuadrupedRobot> robotModel;
     std::unique_ptr<Estimator> estimator;
+    std::unique_ptr<BalanceCtrl> balCtrl;
     qr_guide::RobotParameters parameters;
     VecInt4 contact = VecInt4::Zero();
     Vec4 phase = Vec4::Constant(0.5);
