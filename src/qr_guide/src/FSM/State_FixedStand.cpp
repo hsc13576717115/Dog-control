@@ -43,6 +43,7 @@ void State_FixedStand::enter() {
     _duration = std::max(1, _ctrlComp->parameters.stand.entry_duration);
     _percent = 0.0f;
     _forceControlActive = false;
+    _shouldEmergencyStop = false;
     _tauPrev.setZero();
 
     std::cout << "\n========== [FixedStand] ENTER ==========" << std::endl;
@@ -90,12 +91,15 @@ void State_FixedStand::run() {
 
     const float blend = transitionBlend();
 
-    // 第一阶段：位置控制过渡（把腿摆到目标位置）
-    if (blend < 1.0f) {
+    // 过渡阶段只做位置控制，完全不用力矩前馈，避免两者打架
+    if (blend < 0.99f) {
         runPositionTransition();
+        // 力控状态清零，避免残留
+        _tauPrev.setZero();
+        return;
     }
 
-    // 第二阶段：力控接管（blend 从 0→1 时力矩权重递增）
+    // blend 达到 1 后，力控全力接管
     runForceControl(blend);
 }
 
@@ -117,6 +121,7 @@ void State_FixedStand::runPositionTransition() {
             _lowCmd->motorCmd[id].q = q(joint);
             _lowCmd->motorCmd[id].tau = 0.0f;
         }
+        _lowCmd->setStableGain(leg);
     }
 }
 
@@ -136,10 +141,15 @@ void State_FixedStand::runForceControl(float blend) {
     const Vec3 posError = _pcd - posBody;
     const Vec3 velError = -velBody;
 
-    // 隔离测试：先只验证纯高度支撑，姿态控制暂时关闭
-    _ddPcd.setZero();
-    _ddPcd(2) = _Kpp(2, 2) * posError(2) + _Kdp(2, 2) * velError(2);
-    _dWbd.setZero();
+    _ddPcd = _Kpp * posError + _Kdp * velError;
+    // 姿态控制：只纠正 roll/pitch，不控制 yaw。
+    // rotMatToRPY 的 roll = atan2(R(2,1),R(2,2))。
+    // 对于 Rz*Ry*Rx 顺序，rpy(0) ≈ -roll_body。
+    // 所以 rpy(0) 本身就是负反馈所需的误差（右侧抬起时 rpy(0)<0，需要负加速度）。
+    const Vec3 rpy = rotMatToRPY(_B2G_RotMat);
+    Vec3 oriError;
+    oriError << rpy(0), rpy(1), 0.0;
+    _dWbd = _Kpw * oriError + _Kdw * (-_lowState->getGyroGlobal());
 
     const auto& f = _ctrlComp->parameters.force;
     _ddPcd(0) = saturation(_ddPcd(0), f.acc_xy_sat);
@@ -164,7 +174,14 @@ void State_FixedStand::runForceControl(float blend) {
     // 6. 过渡平滑：位置控制阶段 blend<1 时力矩权重递增
     _tau *= blend;
 
-    // 7. 输出复合命令
+    // 7. 姿态安全阈值：|roll| 或 |pitch| 超过 15° 触发保护
+    if (std::fabs(rpy(0)) > 0.26 || std::fabs(rpy(1)) > 0.26) {
+        std::cerr << "[FixedStand][WARN] 姿态超限 roll=" << rpy(0)
+                  << " pitch=" << rpy(1) << "，请求急停" << std::endl;
+        _shouldEmergencyStop = true;
+    }
+
+    // 8. 输出复合命令
     for (int leg = 0; leg < 4; ++leg) {
         for (int joint = 0; joint < 3; ++joint) {
             const int id = leg * 3 + joint;
@@ -176,10 +193,8 @@ void State_FixedStand::runForceControl(float blend) {
     // ===== 力控调试输出（每 50 帧 ≈ 0.1s 打印一次）=====
     static int dbg_cnt = 0;
     if (++dbg_cnt % 50 == 0) {
-        const Vec3 rpy = rotMatToRPY(_B2G_RotMat);
         const double total_fz = _forceFeetGlobal.row(2).sum();
         const double gravity = _robModel->getRobMass() * 9.81;
-        // 修复后 Fz_sum 应为正值（地面向上推），约等于 gravity + m*ddPcd.z
         std::cout << std::fixed << std::setprecision(3)
                   << "[FixedStand][dbg] blend=" << blend
                   << " posErr=" << posError.transpose()
@@ -219,7 +234,7 @@ float State_FixedStand::transitionBlend() const {
 }
 
 FSMStateName State_FixedStand::checkChange() {
-    if (_lowState->userCmd == UserCommand::L2_B) {
+    if (_shouldEmergencyStop || _lowState->userCmd == UserCommand::L2_B) {
         return FSMStateName::PASSIVE;
     }
     if (_lowState->userCmd == UserCommand::L2_X) {
