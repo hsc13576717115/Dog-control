@@ -129,8 +129,8 @@ robot:
     # Body PD 增益：kp ∝ mass，kd ∝ sqrt(mass)。
     kp_body_xyz: [55, 55, 77]
     kd_body_xyz: [8.5, 8.5, 10.5]
-    kp_body_rpy: [80, 80, 660]
-    kd_body_rpy: [52, 52, 52]
+    kp_body_rpy: [120, 120, 660]
+    kd_body_rpy: [20, 20, 20]
     # 摆动腿 PD 增益（轻微增大以补偿更大的机身惯性）
     kp_swing: [330, 330, 330]
     kd_swing: [9, 9, 9]
@@ -138,10 +138,10 @@ robot:
     #  heavier robot → 更大的 s_xyz 以保证跟踪精度
     s_xyz: [22, 22, 55]
     s_rpy: [495, 495, 495]
-    w_per_foot: [10, 10, 4]
+    w_per_foot: [10, 10, 40]
     u_per_foot: [3, 3, 3]
-    alpha: 0.001
-    beta: 0.1
+    alpha: 1.0
+    beta: 1.0
     friction_ratio: 0.4
     # 安全限幅（GO-M8010-6 额定扭矩 23.7 N·m，留 20% 余量）
     tau_limit: 18.0
@@ -150,7 +150,7 @@ robot:
     # 期望加速度饱和
     acc_xy_sat: [-3, 3]
     acc_z_sat: [-5, 5]
-    w_roll_pitch_sat: [-40, 40]
+    w_roll_pitch_sat: [-15, 15]
     w_yaw_sat: [-10, 10]
 
   stand:
