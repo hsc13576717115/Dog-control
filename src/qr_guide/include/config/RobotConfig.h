@@ -57,20 +57,46 @@ struct StandTargetParameters {
     std::array<Vec3, NumLeg> crouch_feet_in_hip;
 };
 
-// 站立态力位混合控制参数。
-// 第一版只用于 FixedStand 的 z / roll / pitch 三个任务。
+// 站立态力控试验参数。
+// FixedStand 用 VMC 足端虚拟弹簧/阻尼计算支撑力，再经 Jacobian 转关节力矩。
 struct HybridStandParameters {
     bool enabled = false;
+    std::string force_mode = "vmc";
     double kp_z = 1200.0;
     double kd_z = 120.0;
     double kp_roll = 18.0;
     double kd_roll = 1.2;
     double kp_pitch = 18.0;
     double kd_pitch = 1.2;
+    Vec3 vmc_kp_foot = Vec3(300.0, 300.0, 850.0);
+    Vec3 vmc_kd_foot = Vec3(6.0, 6.0, 60.0);
+    Vec3 vmc_error_limit_m = Vec3(0.03, 0.03, 0.04);
+    double vmc_gravity_scale = 1.0;
+    double vmc_pitch_load_shift_kp = 120.0;
+    double vmc_pitch_load_shift_kd = 8.0;
+    double vmc_pitch_load_shift_limit_n = 18.0;
+    double vmc_lift_sync_load_kp = 220.0;
+    double vmc_lift_sync_load_limit_n = 10.0;
+    double vmc_lift_sync_z_gain = 0.30;
+    double vmc_lift_sync_z_limit_m = 0.012;
+    double vmc_min_cmd_kp = 0.0;
+    double vmc_min_cmd_kd = 0.0;
+    double vmc_q0_tau_limit_nm = 3.0;
+    Vec3 vmc_joint_hold_kp = Vec3(7.3, 6.0, 6.0);
+    Vec3 vmc_joint_hold_kd = Vec3(0.20, 0.25, 0.25);
+    double vmc_handoff_min_height_m = 0.240;
+    double vmc_handoff_max_rp_rad = 0.10;
+    Vec3 vmc_handoff_max_foot_error_m = Vec3(0.025, 0.025, 0.035);
+    Vec3 vmc_prehandoff_joint_kp = Vec3(7.3, 7.3, 7.3);
+    Vec3 vmc_prehandoff_joint_kd = Vec3(0.20, 0.20, 0.20);
+    double vmc_prehandoff_lift_scale = 1.25;
+    double vmc_prehandoff_tau_limit_nm = 18.0;
     double fz_min_per_leg_n = 10.0;
     double fz_max_per_leg_n = 60.0;
     double tau_limit_nm = 6.0;
     double tau_rate_limit_nm_per_s = 120.0;
+    double force_ramp_duration_s = 1.5;
+    double max_force_scale = 1.0;
 };
 
 // 手柄速度映射参数。
