@@ -78,9 +78,11 @@ private:
     float _calibrationHipAngleRad = 0.0f * _degToRad;
     float _calibrationThighAngleRad = -161.8f * _degToRad;
     float _calibrationCalfAngleRad = -71.8f * _degToRad;
-    float _startupHipTauNm = 0.15f;
-    float _startupThighTauNm = 0.10f;
-    float _startupCalfTauNm = 0.10f;
+    // 这里是关节侧预对位力矩；IOSDK 发给电机前会除以减速比。
+    // 数值对应电机侧约 hip=0.15Nm, thigh=0.10Nm, calf=0.10Nm。
+    float _startupHipTauNm = 0.95f;
+    float _startupThighTauNm = 0.63f;
+    float _startupCalfTauNm = 1.27f;
     int _startupAlignmentPhase1Ms = 300;
     int _startupAlignmentPhase2Ms = 300;
     int _startupAlignmentReleaseMs = 300;

@@ -60,10 +60,10 @@ robot:
     # 站立和匍匐目标统一定义为 hip frame 下的足端目标位置。
     # 同样采用 y>0 为机器人右侧，因此 FR / RR 的 y 为正。
     normal_feet_in_hip:
-      FR: [-0.03,  0.08415, -0.24]
-      FL: [-0.03, -0.08415, -0.24]
-      RR: [-0.03,  0.08415, -0.24]
-      RL: [-0.03, -0.08415, -0.24]
+      FR: [-0.03,  0.08415, -0.255]
+      FL: [-0.03, -0.08415, -0.255]
+      RR: [-0.03,  0.08415, -0.255]
+      RL: [-0.03, -0.08415, -0.255]
     crouch_feet_in_hip:
       FR: [-0.03,  0.15, -0.15]
       FL: [-0.03, -0.15, -0.15]
@@ -71,23 +71,57 @@ robot:
       RL: [-0.03, -0.15, -0.15]
 
   hybrid_stand:
-    # 默认关闭。当前这版混合控制还没有完成 IMU 坐标和实机增益的联调，
-    # 先保留纯位控站立作为更稳妥的基线。
-    enabled: false
-    # FixedStand 的第一版力位混合参数。
-    # z 通道负责机身高度支撑，roll / pitch 负责姿态恢复。
+    # 开启后 FixedStand 使用 VMC 足端力矩站立。
+    enabled: true
+    force_mode: vmc
+    # kp_* 暂时保留给旧轻量竖直力分配器；当前 FixedStand 使用下面的 VMC 足端弹簧/阻尼。
     kp_z: 1200.0
     kd_z: 120.0
-    kp_roll: 18.0
-    kd_roll: 1.2
-    kp_pitch: 18.0
-    kd_pitch: 1.2
+    kp_roll: 8.0
+    kd_roll: 0.8
+    kp_pitch: 12.0
+    kd_pitch: 0.8
+    # VMC 足端虚拟弹簧/阻尼，单位约为 N/m 和 N/(m/s)。
+    # FixedStand 使用 x/z 虚拟弹簧帮助起身和膝盖离地；y 向给中等约束保持腿宽。
+    vmc_kp_foot: [300.0, 700.0, 900.0]
+    vmc_kd_foot: [6.0, 8.0, 60.0]
+    vmc_error_limit_m: [0.03, 0.03, 0.04]
+    vmc_gravity_scale: 1.0
+    # 根据 pitch 动态做前后腿载荷迁移：pitch<0 时后腿加力、前腿减力，反向则相反。
+    vmc_pitch_load_shift_kp: 80.0
+    vmc_pitch_load_shift_kd: 5.0
+    vmc_pitch_load_shift_limit_n: 12.0
+    # 起身同步：当前腿运动学高度高于后腿时，前腿目标放慢、后腿辅助力增加。
+    vmc_lift_sync_load_kp: 160.0
+    vmc_lift_sync_load_limit_n: 7.0
+    vmc_lift_sync_z_gain: 0.30
+    vmc_lift_sync_z_limit_m: 0.012
+    # 旧纯力矩实验参数保留兼容；当前 FixedStand 使用 vmc_joint_hold_* 保留低刚度位置约束。
+    vmc_min_cmd_kp: 0.0
+    vmc_min_cmd_kd: 0.0
+    vmc_q0_tau_limit_nm: 8.0
+    # VMC 阶段保留低刚度关节位置约束，防止 q1/q2 足端漂移带动机身前后跑。
+    vmc_joint_hold_kp: [16.0, 6.0, 6.0]
+    vmc_joint_hold_kd: [0.30, 0.20, 0.20]
+    # 只有位置环起身足够接近站立姿态后，才允许切入 VMC 力矩接管。
+    vmc_handoff_min_height_m: 0.240
+    vmc_handoff_max_rp_rad: 0.10
+    vmc_handoff_max_foot_error_m: [0.025, 0.025, 0.035]
+    # handoff 前只用位置环起身。
+    vmc_prehandoff_joint_kp: [80.3, 80.3, 80.3]
+    vmc_prehandoff_joint_kd: [0.45, 0.45, 0.45]
+    # 叠加竖直重力辅助，避免卡在趴地高度起不来。
+    vmc_prehandoff_lift_scale: 1.25
+    vmc_prehandoff_tau_limit_nm: 23.0
     # 四条腿竖直支撑力限幅，单位 N。
-    fz_min_per_leg_n: 10.0
+    fz_min_per_leg_n: 0.0
     fz_max_per_leg_n: 60.0
     # 关节前馈力矩限幅和变化率限幅，单位 N*m、N*m/s。
-    tau_limit_nm: 6.0
+    tau_limit_nm: 23.0
     tau_rate_limit_nm_per_s: 120.0
+    # FixedStand VMC：VMC tau 从 0 缓慢爬升到完整输出，关节位置环同步降到低刚度保持值。
+    force_ramp_duration_s: 1.5
+    max_force_scale: 1.00
 
   velocity_limits:
     # 机体速度限制主要用于上层行为或步态参数裁剪。
@@ -127,26 +161,27 @@ robot:
     # 移植自 unitree_guide 的力控制参数。
     # 针对 15.15 kg 机器人调参（原 13.75 kg，+10.2%）。
     # Body PD 增益：kp ∝ mass，kd ∝ sqrt(mass)。
-    kp_body_xyz: [55, 55, 77]
-    kd_body_xyz: [8.5, 8.5, 10.5]
-    kp_body_rpy: [120, 120, 660]
-    kd_body_rpy: [20, 20, 20]
+    # 【首次测试保守值】确认稳定后再逐步调大
+    kp_body_xyz: [20, 20, 8]
+    kd_body_xyz: [4.0, 4.0, 1.0]
+    kp_body_rpy: [200, 200, 10]
+    kd_body_rpy: [2, 2, 2]
     # 摆动腿 PD 增益（轻微增大以补偿更大的机身惯性）
     kp_swing: [330, 330, 330]
     kd_swing: [9, 9, 9]
     # QP 权重：s=质心动力学跟踪, w=力正则化, u=时间平滑
     #  heavier robot → 更大的 s_xyz 以保证跟踪精度
-    s_xyz: [22, 22, 55]
-    s_rpy: [495, 495, 495]
+    s_xyz: [22, 22, 22]
+    s_rpy: [50, 50, 50]
     w_per_foot: [10, 10, 40]
     u_per_foot: [3, 3, 3]
-    alpha: 1.0
-    beta: 1.0
+    alpha: 0.05
+    beta: 0.2
     friction_ratio: 0.4
     # 安全限幅（GO-M8010-6 额定扭矩 23.7 N·m，留 20% 余量）
-    tau_limit: 18.0
-    tau_rate_limit: 360.0
-    transition_steps: 100.0
+    tau_limit: 23.0
+    tau_rate_limit: 50.0
+    transition_steps: 500.0
     # 期望加速度饱和
     acc_xy_sat: [-3, 3]
     acc_z_sat: [-5, 5]
@@ -155,8 +190,8 @@ robot:
 
   stand:
     # 站立进入改成足端空间插值，再叠加低增益姿态补偿。
-    entry_duration: 500
-    body_height: 0.24
+    entry_duration: 200
+    body_height: 0.28
     roll_pitch_comp_gain: 0.08
     height_comp_gain: 0.15
     compensation_limit: 0.02

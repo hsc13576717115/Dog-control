@@ -163,9 +163,9 @@ namespace UserLowlevel {
         unsigned int mode;  // 控制模式（参考ControlMode枚举）
         float q;            // 目标位置（弧度，输出侧）
         float dq;           // 目标速度（弧度/秒，输出侧）
-        float tau;          // 目标力矩（N·m）
-        float Kp;           // 位置比例增益
-        float Kd;           // 速度比例增益
+        float tau;          // 目标关节侧力矩（N·m），IOSDK 内部换算到电机侧
+        float Kp;           // 关节侧位置比例增益，IOSDK 内部按减速比平方换算
+        float Kd;           // 关节侧速度比例增益，IOSDK 内部按减速比平方换算
 
         // 构造函数：使用初始化列表（比赋值更高效）
         MotorCmd() 
@@ -360,14 +360,14 @@ namespace UserLowlevel {
                 return;
             }
             motorCmd[legID*3 + 0].mode = static_cast<unsigned int>(ControlMode::COMPOUND);
-            motorCmd[legID*3 + 0].Kp = 0.8f;
-            motorCmd[legID*3 + 0].Kd = 0.8f;
+            motorCmd[legID*3 + 0].Kp = 0.05f;  // 大幅降低，减少位置环和力矩环打架
+            motorCmd[legID*3 + 0].Kd = 0.05f;
             motorCmd[legID*3 + 1].mode = static_cast<unsigned int>(ControlMode::COMPOUND);
-            motorCmd[legID*3 + 1].Kp = 0.8f;
-            motorCmd[legID*3 + 1].Kd = 0.8f;
+            motorCmd[legID*3 + 1].Kp = 0.05f;
+            motorCmd[legID*3 + 1].Kd = 0.05f;
             motorCmd[legID*3 + 2].mode = static_cast<unsigned int>(ControlMode::COMPOUND);
-            motorCmd[legID*3 + 2].Kp = 0.8f;
-            motorCmd[legID*3 + 2].Kd = 0.8f;
+            motorCmd[legID*3 + 2].Kp = 0.05f;
+            motorCmd[legID*3 + 2].Kd = 0.05f;
         }
 
         /**
