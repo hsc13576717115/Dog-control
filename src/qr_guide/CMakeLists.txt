@@ -118,6 +118,12 @@ target_link_libraries(junior_ctrl
     yaml-cpp
 )
 
+# 设置 RPATH，让可执行文件运行时自动找到第三方共享库，无需手动 export LD_LIBRARY_PATH
+set_target_properties(junior_ctrl PROPERTIES
+    INSTALL_RPATH "${UNITREE_ACTUATOR_SDK_ROOT}/lib"
+    BUILD_WITH_INSTALL_RPATH TRUE
+)
+
 install(TARGETS qr_guide_core junior_ctrl
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib

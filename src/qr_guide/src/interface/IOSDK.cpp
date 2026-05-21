@@ -156,7 +156,11 @@ void IOSDK::runStartupPoseAlignment() {
         return;
     }
 
-    std::cout << "[IOSDK] 启动预对位: 髋内展 / 大腿先下压 / 小腿后上抬" << std::endl;
+    std::cout << "[IOSDK] 启动预对位: 髋内展 / 大腿先下压 / 小腿后上抬"
+              << " joint_tau=[" << _startupHipTauNm
+              << ", " << _startupThighTauNm
+              << ", " << _startupCalfTauNm << "]Nm"
+              << std::endl;
     refreshMotorFeedback();
 
     for (int leg : _activeLegs) {
@@ -309,6 +313,7 @@ void IOSDK::tryCalibrate(const LowlevelState& state) {
 void IOSDK::populateMotorCommand(int leg, int joint, const UserLowlevel::MotorCmd& user_cmd) {
     const int motor_id = leg * 3 + joint;
     const float gear = gearRatioForJoint(joint);
+    const float gear_sq = gear * gear;
     const float dir = MOTOR_DIRECTION[leg][joint];
     const float q_cmd = _isCalibrated ? (user_cmd.q + _calibOffset[motor_id]) : user_cmd.q;
 
@@ -316,9 +321,9 @@ void IOSDK::populateMotorCommand(int leg, int joint, const UserLowlevel::MotorCm
     motor_cmd.id = joint;
     motor_cmd.q = q_cmd * gear * dir;
     motor_cmd.dq = user_cmd.dq * gear * dir;
-    motor_cmd.kp = user_cmd.Kp;
-    motor_cmd.kd = user_cmd.Kd;
-    motor_cmd.tau = user_cmd.tau * dir;
+    motor_cmd.kp = user_cmd.Kp / gear_sq;
+    motor_cmd.kd = user_cmd.Kd / gear_sq;
+    motor_cmd.tau = (user_cmd.tau / gear) * dir;
     motor_cmd.mode = user_cmd.mode;
 }
 
@@ -331,7 +336,7 @@ void IOSDK::updateMotorStateFromFeedback(int leg, int joint, LowlevelState* stat
     auto& motor_state = state->motorState[motor_id];
     motor_state.q = _isCalibrated ? (q_feedback - _calibOffset[motor_id]) : q_feedback;
     motor_state.dq = (_motorData[motor_id].dq / gear) * dir;
-    motor_state.tauEst = _motorData[motor_id].tau * dir;
+    motor_state.tauEst = (_motorData[motor_id].tau * gear) * dir;
     motor_state.temp = _motorData[motor_id].temp;
     motor_state.fault = _motorData[motor_id].merror;
 }
