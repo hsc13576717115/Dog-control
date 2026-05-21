@@ -138,6 +138,9 @@ RobotParameters LoadRobotParameters(const std::string& path) {
         if (hybrid["enabled"]) {
             params.hybrid_stand.enabled = hybrid["enabled"].as<bool>();
         }
+        if (hybrid["force_mode"]) {
+            params.hybrid_stand.force_mode = hybrid["force_mode"].as<std::string>();
+        }
         if (hybrid["kp_z"]) {
             params.hybrid_stand.kp_z = hybrid["kp_z"].as<double>();
         }
@@ -156,6 +159,90 @@ RobotParameters LoadRobotParameters(const std::string& path) {
         if (hybrid["kd_pitch"]) {
             params.hybrid_stand.kd_pitch = hybrid["kd_pitch"].as<double>();
         }
+        if (hybrid["vmc_kp_foot"]) {
+            params.hybrid_stand.vmc_kp_foot = ReadVec3(hybrid["vmc_kp_foot"]);
+        }
+        if (hybrid["vmc_kd_foot"]) {
+            params.hybrid_stand.vmc_kd_foot = ReadVec3(hybrid["vmc_kd_foot"]);
+        }
+        if (hybrid["vmc_error_limit_m"]) {
+            params.hybrid_stand.vmc_error_limit_m = ReadVec3(hybrid["vmc_error_limit_m"]);
+        }
+        if (hybrid["vmc_gravity_scale"]) {
+            params.hybrid_stand.vmc_gravity_scale = hybrid["vmc_gravity_scale"].as<double>();
+        }
+        if (hybrid["vmc_pitch_load_shift_kp"]) {
+            params.hybrid_stand.vmc_pitch_load_shift_kp =
+                hybrid["vmc_pitch_load_shift_kp"].as<double>();
+        }
+        if (hybrid["vmc_pitch_load_shift_kd"]) {
+            params.hybrid_stand.vmc_pitch_load_shift_kd =
+                hybrid["vmc_pitch_load_shift_kd"].as<double>();
+        }
+        if (hybrid["vmc_pitch_load_shift_limit_n"]) {
+            params.hybrid_stand.vmc_pitch_load_shift_limit_n =
+                hybrid["vmc_pitch_load_shift_limit_n"].as<double>();
+        }
+        if (hybrid["vmc_lift_sync_load_kp"]) {
+            params.hybrid_stand.vmc_lift_sync_load_kp =
+                hybrid["vmc_lift_sync_load_kp"].as<double>();
+        }
+        if (hybrid["vmc_lift_sync_load_limit_n"]) {
+            params.hybrid_stand.vmc_lift_sync_load_limit_n =
+                hybrid["vmc_lift_sync_load_limit_n"].as<double>();
+        }
+        if (hybrid["vmc_lift_sync_z_gain"]) {
+            params.hybrid_stand.vmc_lift_sync_z_gain =
+                hybrid["vmc_lift_sync_z_gain"].as<double>();
+        }
+        if (hybrid["vmc_lift_sync_z_limit_m"]) {
+            params.hybrid_stand.vmc_lift_sync_z_limit_m =
+                hybrid["vmc_lift_sync_z_limit_m"].as<double>();
+        }
+        if (hybrid["vmc_min_cmd_kp"]) {
+            params.hybrid_stand.vmc_min_cmd_kp = hybrid["vmc_min_cmd_kp"].as<double>();
+        }
+        if (hybrid["vmc_min_cmd_kd"]) {
+            params.hybrid_stand.vmc_min_cmd_kd = hybrid["vmc_min_cmd_kd"].as<double>();
+        }
+        if (hybrid["vmc_q0_tau_limit_nm"]) {
+            params.hybrid_stand.vmc_q0_tau_limit_nm =
+                hybrid["vmc_q0_tau_limit_nm"].as<double>();
+        }
+        if (hybrid["vmc_joint_hold_kp"]) {
+            params.hybrid_stand.vmc_joint_hold_kp = ReadVec3(hybrid["vmc_joint_hold_kp"]);
+        }
+        if (hybrid["vmc_joint_hold_kd"]) {
+            params.hybrid_stand.vmc_joint_hold_kd = ReadVec3(hybrid["vmc_joint_hold_kd"]);
+        }
+        if (hybrid["vmc_handoff_min_height_m"]) {
+            params.hybrid_stand.vmc_handoff_min_height_m =
+                hybrid["vmc_handoff_min_height_m"].as<double>();
+        }
+        if (hybrid["vmc_handoff_max_rp_rad"]) {
+            params.hybrid_stand.vmc_handoff_max_rp_rad =
+                hybrid["vmc_handoff_max_rp_rad"].as<double>();
+        }
+        if (hybrid["vmc_handoff_max_foot_error_m"]) {
+            params.hybrid_stand.vmc_handoff_max_foot_error_m =
+                ReadVec3(hybrid["vmc_handoff_max_foot_error_m"]);
+        }
+        if (hybrid["vmc_prehandoff_joint_kp"]) {
+            params.hybrid_stand.vmc_prehandoff_joint_kp =
+                ReadVec3(hybrid["vmc_prehandoff_joint_kp"]);
+        }
+        if (hybrid["vmc_prehandoff_joint_kd"]) {
+            params.hybrid_stand.vmc_prehandoff_joint_kd =
+                ReadVec3(hybrid["vmc_prehandoff_joint_kd"]);
+        }
+        if (hybrid["vmc_prehandoff_lift_scale"]) {
+            params.hybrid_stand.vmc_prehandoff_lift_scale =
+                hybrid["vmc_prehandoff_lift_scale"].as<double>();
+        }
+        if (hybrid["vmc_prehandoff_tau_limit_nm"]) {
+            params.hybrid_stand.vmc_prehandoff_tau_limit_nm =
+                hybrid["vmc_prehandoff_tau_limit_nm"].as<double>();
+        }
         if (hybrid["fz_min_per_leg_n"]) {
             params.hybrid_stand.fz_min_per_leg_n = hybrid["fz_min_per_leg_n"].as<double>();
         }
@@ -168,6 +255,13 @@ RobotParameters LoadRobotParameters(const std::string& path) {
         if (hybrid["tau_rate_limit_nm_per_s"]) {
             params.hybrid_stand.tau_rate_limit_nm_per_s =
                 hybrid["tau_rate_limit_nm_per_s"].as<double>();
+        }
+        if (hybrid["force_ramp_duration_s"]) {
+            params.hybrid_stand.force_ramp_duration_s =
+                hybrid["force_ramp_duration_s"].as<double>();
+        }
+        if (hybrid["max_force_scale"]) {
+            params.hybrid_stand.max_force_scale = hybrid["max_force_scale"].as<double>();
         }
     }
 
