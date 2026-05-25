@@ -366,6 +366,21 @@ RobotParameters LoadRobotParameters(const std::string& path) {
     }
 
     if (const YAML::Node trot = config["robot"]["trot"]) {
+        if (trot["force_mode"]) {
+            params.trot.force_mode = trot["force_mode"].as<std::string>();
+        }
+        if (trot["gait_start_command_eps"]) {
+            params.trot.gait_start_command_eps = trot["gait_start_command_eps"].as<double>();
+        }
+        if (trot["gait_stop_command_eps"]) {
+            params.trot.gait_stop_command_eps = trot["gait_stop_command_eps"].as<double>();
+        }
+        if (trot["gait_start_debounce_s"]) {
+            params.trot.gait_start_debounce_s = trot["gait_start_debounce_s"].as<double>();
+        }
+        if (trot["gait_ramp_cycles"]) {
+            params.trot.gait_ramp_cycles = trot["gait_ramp_cycles"].as<double>();
+        }
         if (trot["cycle_time"]) {
             params.trot.cycle_time = trot["cycle_time"].as<double>();
         }
@@ -375,11 +390,138 @@ RobotParameters LoadRobotParameters(const std::string& path) {
         if (trot["lift_height"]) {
             params.trot.lift_height = trot["lift_height"].as<double>();
         }
+        if (trot["swing_lift_peak_phase"]) {
+            params.trot.swing_lift_peak_phase = trot["swing_lift_peak_phase"].as<double>();
+        }
         if (trot["landing_preview_gain"]) {
             params.trot.landing_preview_gain = trot["landing_preview_gain"].as<double>();
         }
         if (trot["vel_error_gain"]) {
             params.trot.vel_error_gain = trot["vel_error_gain"].as<double>();
+        }
+        if (trot["vmc_kp_foot"]) {
+            params.trot.vmc_kp_foot = ReadVec3(trot["vmc_kp_foot"]);
+        }
+        if (trot["vmc_kd_foot"]) {
+            params.trot.vmc_kd_foot = ReadVec3(trot["vmc_kd_foot"]);
+        }
+        if (trot["vmc_error_limit_m"]) {
+            params.trot.vmc_error_limit_m = ReadVec3(trot["vmc_error_limit_m"]);
+        }
+        if (trot["vmc_q0_tau_limit_nm"]) {
+            params.trot.vmc_q0_tau_limit_nm = trot["vmc_q0_tau_limit_nm"].as<double>();
+        }
+        if (trot["active_vmc_kp_foot"]) {
+            params.trot.active_vmc_kp_foot = ReadVec3(trot["active_vmc_kp_foot"]);
+        }
+        if (trot["active_vmc_kd_foot"]) {
+            params.trot.active_vmc_kd_foot = ReadVec3(trot["active_vmc_kd_foot"]);
+        }
+        if (trot["active_vmc_error_limit_m"]) {
+            params.trot.active_vmc_error_limit_m = ReadVec3(trot["active_vmc_error_limit_m"]);
+        }
+        if (trot["active_vmc_q0_tau_limit_nm"]) {
+            params.trot.active_vmc_q0_tau_limit_nm =
+                trot["active_vmc_q0_tau_limit_nm"].as<double>();
+        }
+        if (trot["stance_trajectory_gain"]) {
+            params.trot.stance_trajectory_gain = trot["stance_trajectory_gain"].as<double>();
+        }
+        if (trot["vmc_attitude_fz_gain"]) {
+            params.trot.vmc_attitude_fz_gain = trot["vmc_attitude_fz_gain"].as<double>();
+        }
+        if (trot["vmc_attitude_fz_limit_n"]) {
+            params.trot.vmc_attitude_fz_limit_n = trot["vmc_attitude_fz_limit_n"].as<double>();
+        }
+        if (trot["vmc_force_rate_limit_n_per_s"]) {
+            params.trot.vmc_force_rate_limit_n_per_s =
+                trot["vmc_force_rate_limit_n_per_s"].as<double>();
+        }
+        if (trot["active_tau_rate_limit_nm_per_s"]) {
+            params.trot.active_tau_rate_limit_nm_per_s =
+                trot["active_tau_rate_limit_nm_per_s"].as<double>();
+        }
+        if (trot["active_rear_fz_boost_n"]) {
+            params.trot.active_rear_fz_boost_n =
+                trot["active_rear_fz_boost_n"].as<double>();
+        }
+        if (trot["active_diagonal_fz_balance_gain"]) {
+            params.trot.active_diagonal_fz_balance_gain =
+                trot["active_diagonal_fz_balance_gain"].as<double>();
+        }
+        if (trot["idle_fz_min_per_leg_n"]) {
+            params.trot.idle_fz_min_per_leg_n =
+                trot["idle_fz_min_per_leg_n"].as<double>();
+        }
+        if (trot["active_fz_min_per_leg_n"]) {
+            params.trot.active_fz_min_per_leg_n =
+                trot["active_fz_min_per_leg_n"].as<double>();
+        }
+        if (trot["idle_fz_max_per_leg_n"]) {
+            params.trot.idle_fz_max_per_leg_n =
+                trot["idle_fz_max_per_leg_n"].as<double>();
+        }
+        if (trot["active_fz_max_per_leg_n"]) {
+            params.trot.active_fz_max_per_leg_n =
+                trot["active_fz_max_per_leg_n"].as<double>();
+        }
+        if (trot["idle_settle_duration_s"]) {
+            params.trot.idle_settle_duration_s =
+                trot["idle_settle_duration_s"].as<double>();
+        }
+        if (trot["planar_vmc_kp_x"]) {
+            params.trot.planar_vmc_kp_x = trot["planar_vmc_kp_x"].as<double>();
+        }
+        if (trot["planar_vmc_kd_x"]) {
+            params.trot.planar_vmc_kd_x = trot["planar_vmc_kd_x"].as<double>();
+        }
+        if (trot["planar_vmc_kp_z"]) {
+            params.trot.planar_vmc_kp_z = trot["planar_vmc_kp_z"].as<double>();
+        }
+        if (trot["planar_vmc_kd_z"]) {
+            params.trot.planar_vmc_kd_z = trot["planar_vmc_kd_z"].as<double>();
+        }
+        if (trot["planar_vmc_error_limit_x_m"]) {
+            params.trot.planar_vmc_error_limit_x_m =
+                trot["planar_vmc_error_limit_x_m"].as<double>();
+        }
+        if (trot["planar_vmc_error_limit_z_m"]) {
+            params.trot.planar_vmc_error_limit_z_m =
+                trot["planar_vmc_error_limit_z_m"].as<double>();
+        }
+        if (trot["planar_vmc_tau_limit_nm"]) {
+            params.trot.planar_vmc_tau_limit_nm =
+                trot["planar_vmc_tau_limit_nm"].as<double>();
+        }
+        if (trot["planar_q0_kp"]) {
+            params.trot.planar_q0_kp = trot["planar_q0_kp"].as<double>();
+        }
+        if (trot["planar_q0_kd"]) {
+            params.trot.planar_q0_kd = trot["planar_q0_kd"].as<double>();
+        }
+        if (trot["stance_joint_kp"]) {
+            params.trot.stance_joint_kp = ReadVec3(trot["stance_joint_kp"]);
+        }
+        if (trot["stance_joint_kd"]) {
+            params.trot.stance_joint_kd = ReadVec3(trot["stance_joint_kd"]);
+        }
+        if (trot["active_stance_joint_kp"]) {
+            params.trot.active_stance_joint_kp = ReadVec3(trot["active_stance_joint_kp"]);
+        }
+        if (trot["active_stance_joint_kd"]) {
+            params.trot.active_stance_joint_kd = ReadVec3(trot["active_stance_joint_kd"]);
+        }
+        if (trot["swing_joint_kp"]) {
+            params.trot.swing_joint_kp = ReadVec3(trot["swing_joint_kp"]);
+        }
+        if (trot["swing_joint_kd"]) {
+            params.trot.swing_joint_kd = ReadVec3(trot["swing_joint_kd"]);
+        }
+        if (trot["landing_vel_error_gain"]) {
+            params.trot.landing_vel_error_gain = trot["landing_vel_error_gain"].as<double>();
+        }
+        if (trot["landing_yaw_error_gain"]) {
+            params.trot.landing_yaw_error_gain = trot["landing_yaw_error_gain"].as<double>();
         }
         if (trot["pure_yaw_threshold"]) {
             params.trot.pure_yaw_threshold = trot["pure_yaw_threshold"].as<double>();
@@ -396,6 +538,9 @@ RobotParameters LoadRobotParameters(const std::string& path) {
         }
         if (trot["max_joint_delta"]) {
             params.trot.max_joint_delta = trot["max_joint_delta"].as<double>();
+        }
+        if (trot["debug_print_period_s"]) {
+            params.trot.debug_print_period_s = trot["debug_print_period_s"].as<double>();
         }
     }
 
