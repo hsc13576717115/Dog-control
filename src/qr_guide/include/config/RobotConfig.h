@@ -102,8 +102,8 @@ struct HybridStandParameters {
 // 手柄速度映射参数。
 // 第一阶段统一约定为：死区 -> 非线性整形 -> 加速度限幅 -> 机体系限幅。
 struct JoyMappingParameters {
-    double deadband = 0.08;
-    double expo = 3.0;
+    double deadband = 0.02;
+    double expo = 1.0;
     double max_vx = 0.4;
     double max_vy = 0.3;
     double max_yaw = 0.5;
@@ -114,16 +114,60 @@ struct JoyMappingParameters {
 
 // trot 轨迹参数。
 struct TrotParameters {
+    std::string force_mode = "vmc";
+    double gait_start_command_eps = 0.0;
+    double gait_stop_command_eps = 0.0;
+    double gait_start_debounce_s = 0.0;
+    double gait_ramp_cycles = 0.0;
     double cycle_time = 0.35;
     double stance_ratio = 0.5;
     double lift_height = 0.10;
+    double swing_lift_peak_phase = 0.35;
     double landing_preview_gain = 0.5;
     double vel_error_gain = 0.05;
+    Vec3 vmc_kp_foot = Vec3(300.0, 700.0, 900.0);
+    Vec3 vmc_kd_foot = Vec3(6.0, 8.0, 60.0);
+    Vec3 vmc_error_limit_m = Vec3(0.03, 0.03, 0.04);
+    double vmc_q0_tau_limit_nm = 8.0;
+    Vec3 active_vmc_kp_foot = Vec3(300.0, 700.0, 900.0);
+    Vec3 active_vmc_kd_foot = Vec3(6.0, 8.0, 60.0);
+    Vec3 active_vmc_error_limit_m = Vec3(0.03, 0.03, 0.04);
+    double active_vmc_q0_tau_limit_nm = 8.0;
+    double stance_trajectory_gain = 1.0;
+    double vmc_attitude_fz_gain = 1.0;
+    double vmc_attitude_fz_limit_n = 8.0;
+    double vmc_force_rate_limit_n_per_s = 1800.0;
+    double active_tau_rate_limit_nm_per_s = 450.0;
+    double active_rear_fz_boost_n = 0.0;
+    double active_diagonal_fz_balance_gain = 0.0;
+    double idle_fz_min_per_leg_n = 8.0;
+    double active_fz_min_per_leg_n = 32.0;
+    double idle_fz_max_per_leg_n = 65.0;
+    double active_fz_max_per_leg_n = 95.0;
+    double idle_settle_duration_s = 0.20;
+    double planar_vmc_kp_x = 2000.0;
+    double planar_vmc_kd_x = 80.0;
+    double planar_vmc_kp_z = 2000.0;
+    double planar_vmc_kd_z = 80.0;
+    double planar_vmc_error_limit_x_m = 0.06;
+    double planar_vmc_error_limit_z_m = 0.08;
+    double planar_vmc_tau_limit_nm = 6.0;
+    double planar_q0_kp = 16.0;
+    double planar_q0_kd = 0.30;
+    Vec3 stance_joint_kp = Vec3(16.0, 6.0, 6.0);
+    Vec3 stance_joint_kd = Vec3(0.30, 0.20, 0.20);
+    Vec3 active_stance_joint_kp = Vec3(16.0, 6.0, 6.0);
+    Vec3 active_stance_joint_kd = Vec3(0.30, 0.20, 0.20);
+    Vec3 swing_joint_kp = Vec3(40.0, 50.0, 40.0);
+    Vec3 swing_joint_kd = Vec3(0.35, 0.45, 0.35);
+    double landing_vel_error_gain = 0.005;
+    double landing_yaw_error_gain = 0.005;
     double pure_yaw_threshold = 0.10;
     double pure_rotation_translation_eps = 0.05;
     double max_foothold_shift_x = 0.08;
     double max_foothold_shift_y = 0.05;
-    double max_joint_delta = 0.03;
+    double max_joint_delta = 0.04;
+    double debug_print_period_s = 0.10;
 };
 
 // 力控制参数（移植自 unitree_guide 的 BalanceCtrl + State_Trotting）。
