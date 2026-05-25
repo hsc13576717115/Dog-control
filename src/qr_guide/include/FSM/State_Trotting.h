@@ -17,13 +17,11 @@ class BalanceCtrl;
  * @brief Trotting state with hybrid force/position control.
  *
  * Architecture:
- *   1. Gait scheduler (existing) -> contact flags + phase per leg
- *   2. Body PD controller -> desired CoM acceleration (ddPcd, dWbd)
- *   3. QP force allocator (BalanceCtrl) -> stance foot forces
- *   4. Swing trajectory PD -> swing foot forces
- *   5. Jacobian transpose -> joint torques
- *   6. IK -> joint positions/velocities for swing legs
- *   7. Compound mode output: tau + q + qd with per-leg gains
+ *   1. IdleHold keeps all four feet in stance until a real velocity command arrives.
+ *   2. ActiveTrot uses diagonal gait scheduling.
+ *   3. Stance legs default to FixedStand-like VMC foot-force feed-forward plus joint hold.
+ *   4. Swing legs use cycloid foothold trajectories and IK position/velocity commands.
+ *   5. BalanceCtrl/QP is retained as an optional experiment mode, not the default.
  */
 class State_Trotting : public FSMState {
 public:
@@ -61,8 +59,14 @@ private:
         double remainingSwingTime = 0.0;
     };
 
+    struct FootTrajectorySample {
+        Vec3 pos = Vec3::Zero();
+        Vec3 vel = Vec3::Zero();
+    };
+
     static constexpr double HIP_JOINT_FIXED = 0.0;
     static constexpr double MOTION_EPS = 1e-3;
+    // Leg order is FR, FL, RR, RL: FR/RL and FL/RR are diagonal pairs.
     static constexpr double LEG_PHASE[4] = {0.0, 0.5, 0.5, 0.0};
 
     double _startTime = 0.0;
@@ -70,6 +74,12 @@ private:
     int _transitionCount = 0;
     qr_guide::JoyMappingParameters _joyMapping;
     qr_guide::TrotParameters _trotParams;
+    bool _gaitActive = false;
+    bool _torqueSafetyInitialized = false;
+    bool _forceRateInitialized = false;
+    double _commandActiveSince = -1.0;
+    double _gaitStartTime = 0.0;
+    double _lastDebugPrintTime = 0.0;
     Vec12 _initMotorQ = Vec12::Zero();
     std::array<Vec3, 4> _enterFootPos;
     std::array<Vec3, 4> _nominalFootPos;
@@ -78,6 +88,8 @@ private:
     std::array<Vec3, 4> _swingStartFootPos;
     std::array<Vec3, 4> _swingTargetFootPos;
     std::array<Vec3, 4> _stanceStartFootPos;
+    std::array<Vec3, 4> _idleBlendStartFootPos;
+    double _idleBlendStartTime = 0.0;
 
     static double getTimeSec();
     Vec3 footHipToBodyFrame(int leg, const Vec3& foot_in_hip) const;
@@ -87,17 +99,25 @@ private:
     Vec3 nominalFootBodyPosition(int leg) const;
     Vec3 projectBodyPointToRotationCircle(int leg, const Vec3& point_body) const;
     Vec3 computeSymmetricHalfStepShift(double stance_time) const;
-    Vec3 computeTouchdownFootBodyTarget(int leg, double stance_time) const;
+    Vec3 computeTouchdownFootBodyTarget(int leg, const LegPhaseState& phase_state) const;
     Vec3 computePureRotationSwingFootTarget(int leg, double phase) const;
     Vec3 computeSwingFootTarget(int leg, double phase) const;
+    FootTrajectorySample computeSwingFootSample(int leg, const LegPhaseState& phase_state) const;
     Vec3 computeStanceFootTarget(int leg, const LegPhaseState& phase_state) const;
+    Vec3 computeStanceFootVelocity(int leg, const LegPhaseState& phase_state) const;
     Vec3 clampFootholdToWorkspace(int leg, const Vec3& foothold_in_hip) const;
     void updateLegPhaseAnchors(int leg, const LegPhaseState& phase_state);
     void syncAnchorsForStanding(const std::array<Vec3, 4>& foot_targets);
+    void resetGaitAnchorsToNominal();
     void processJoystickInput();
     void applyAccelerationLimits(double velocity_x, double velocity_y, double yaw_rate, double dt);
     bool hasActiveMotionCommand() const;
+    bool isMotionCommandAbove(double eps) const;
     bool isPureRotationCommand() const;
+    const char* controlModeName() const;
+    double gaitRampScale(double now) const;
+    void startGait(double now);
+    void stopGait(double now);
     void generateLegTrajectory(int leg, double masterT, double trans, Vec12& cmd, VecInt4& contact, Vec4& phase);
     void calculateIKAndApply(int leg, const Vec3& target_foot_in_hip, Vec12& cmd);
     Vec3 clampJointAngles(const Vec3& angles) const;
@@ -105,10 +125,26 @@ private:
     // ===== Force control (new) =====
     void calcBodyWrench();
     void calcFootForces();
+    void calcVmcFootForces(const VecInt4& contact,
+                           double force_scale);
+    void calcPlanarVmcTorques();
     void calcJointTorques();
     void calcSwingQQd();
-    void applyTorqueSafety();
+    void applyTorqueSafety(const VecInt4& contact);
+    void zeroSwingLegTorques(const VecInt4& contact);
     bool checkStepOrNot() const;
+    void buildJointGoalsFromBodyTargets();
+    void captureIdleBlendStart(double now);
+    void sendHybridCommands(const VecInt4& contact);
+    void sendPlanarVmcCommands(const VecInt4& contact);
+    void runIdleHold();
+    void runVmcTrot(double now);
+    void runPlanarVmcTrot(double now);
+    void runQpTrot(double trans);
+    void printTrotDebug(double now,
+                        const VecInt4& contact,
+                        const Vec4& phase,
+                        double force_scale);
 
     // Pointers to shared components
     Estimator* _est = nullptr;
@@ -149,6 +185,7 @@ private:
     Vec3 _dWbd = Vec3::Zero();
     Vec34 _forceFeetGlobal = Vec34::Zero();
     Vec34 _forceFeetBody = Vec34::Zero();
+    Vec34 _lastForceFeetBody = Vec34::Zero();
     Vec34 _qGoal = Vec34::Zero();
     Vec34 _qdGoal = Vec34::Zero();
     Vec12 _tau = Vec12::Zero();
