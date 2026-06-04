@@ -105,6 +105,8 @@ private:
     FootTrajectorySample computeSwingFootSample(int leg, const LegPhaseState& phase_state) const;
     Vec3 computeStanceFootTarget(int leg, const LegPhaseState& phase_state) const;
     Vec3 computeStanceFootVelocity(int leg, const LegPhaseState& phase_state) const;
+    double lateralStabilityFootholdExtra() const;
+    Vec3 applyLateralStabilityFoothold(int leg, const Vec3& foothold_in_hip) const;
     Vec3 clampFootholdToWorkspace(int leg, const Vec3& foothold_in_hip) const;
     void updateLegPhaseAnchors(int leg, const LegPhaseState& phase_state);
     void syncAnchorsForStanding(const std::array<Vec3, 4>& foot_targets);

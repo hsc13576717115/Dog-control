@@ -294,11 +294,11 @@ void State_Trotting::processJoystickInput() {
     const double velocity_x =
         mapAxisToSignedLimit(-ly, effective_limit_x, _joyMapping.deadband, _joyMapping.expo);
     const double velocity_y =
-        mapAxisToSignedLimit(lx, effective_limit_y, _joyMapping.deadband, _joyMapping.expo);
+        mapAxisToSignedLimit(rx, effective_limit_y, _joyMapping.deadband, _joyMapping.expo);
     const double yaw_rate =
-        mapAxisToSignedLimit(rx, effective_limit_yaw, _joyMapping.deadband, _joyMapping.expo);
+        mapAxisToSignedLimit(lx, effective_limit_yaw, _joyMapping.deadband, _joyMapping.expo);
 
-    _motionParams.joy << ly, lx;
+    _motionParams.joy << ly, rx;
     applyAccelerationLimits(velocity_x, velocity_y, yaw_rate, dt);
 
     _motionParams.velocityX = clampValue(_motionParams.velocityX, effective_limit_x(0), effective_limit_x(1));
@@ -371,11 +371,45 @@ void State_Trotting::stopGait(double now) {
     std::cout << "[Trot] gait stop: joystick command released, holding stand" << std::endl;
 }
 
+double State_Trotting::lateralStabilityFootholdExtra() const {
+    const Vec3 rpy = rotMatToRPY(_lowState->getRotMat());
+    const Vec3 gyro = _lowState->getGyro();
+    const double roll_extra =
+        std::max(0.0, _trotParams.lateral_roll_foothold_gain) * std::abs(rpy.x());
+    const double gyro_extra =
+        std::max(0.0, _trotParams.lateral_gyro_foothold_gain) * std::abs(gyro.x());
+    const double vy_extra =
+        std::max(0.0, _trotParams.lateral_vy_foothold_gain) *
+        std::abs(_motionParams.velocityY);
+    return clampValue(
+        roll_extra + gyro_extra + vy_extra,
+        0.0,
+        std::max(0.0, _trotParams.lateral_foothold_extra_limit_m));
+}
+
+Vec3 State_Trotting::applyLateralStabilityFoothold(int leg, const Vec3& foothold_in_hip) const {
+    Vec3 stable = foothold_in_hip;
+    const bool right_leg = (leg == 0 || leg == 2);
+    const double side = right_leg ? 1.0 : -1.0;
+    const double min_abs_y =
+        std::max(0.0, _trotParams.lateral_min_foot_y_m) + lateralStabilityFootholdExtra();
+    if (min_abs_y <= 1e-6) {
+        return stable;
+    }
+    if (side > 0.0) {
+        stable.y() = std::max(stable.y(), min_abs_y);
+    } else {
+        stable.y() = std::min(stable.y(), -min_abs_y);
+    }
+    return stable;
+}
+
 Vec3 State_Trotting::clampFootholdToWorkspace(int leg, const Vec3& foothold_in_hip) const {
     const Vec3 shift = foothold_in_hip - _nominalFootPos[leg];
     const Vec3 clamped_shift = clampPlanarShift(
         shift, _trotParams.max_foothold_shift_x, _trotParams.max_foothold_shift_y);
     Vec3 clamped = _nominalFootPos[leg] + clamped_shift;
+    clamped = applyLateralStabilityFoothold(leg, clamped);
     clamped.z() = _nominalFootPos[leg].z();
     return clamped;
 }
