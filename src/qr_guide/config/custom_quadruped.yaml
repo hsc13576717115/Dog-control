@@ -60,10 +60,10 @@ robot:
     # 站立和匍匐目标统一定义为 hip frame 下的足端目标位置。
     # 同样采用 y>0 为机器人右侧，因此 FR / RR 的 y 为正。
     normal_feet_in_hip:
-      FR: [-0.03,  0.08415, -0.26]
-      FL: [-0.03, -0.08415, -0.26]
-      RR: [-0.05,  0.08415, -0.26]
-      RL: [-0.05, -0.08415, -0.26]
+      FR: [-0.03,  0.08415, -0.28]
+      FL: [-0.03, -0.08415, -0.28]
+      RR: [-0.05,  0.08415, -0.28]
+      RL: [-0.05, -0.08415, -0.28]
       # FR: [-0.03,  0.10415, -0.26]
       # FL: [-0.03, -0.10415, -0.26]
       # RR: [-0.05,  0.10415, -0.26]
@@ -81,9 +81,9 @@ robot:
     force_mode: vmc
     # roll/pitch 姿态补偿会转换成四条腿的竖直力差。
     # 过大：容易前后/左右抖；过小：机身倾斜时扶正慢。
-    kp_roll: 20.0
+    kp_roll: 100.0
     kd_roll: 0.8
-    kp_pitch: 20.0
+    kp_pitch: 100.0
     kd_pitch: 0.8
     # VMC 足端虚拟弹簧/阻尼，单位约为 N/m 和 N/(m/s)，顺序为 [x, y, z]。
     # x: 抑制前后窜动；y: 抑制内收/外扩；z: 提供站立高度和抗下陷。
@@ -143,12 +143,12 @@ robot:
     # 手柄速度映射统一走：极小死区 -> 线性映射 -> 加速度限幅 -> 机体系限幅。
     deadband: 0.02
     expo: 1.0
-    max_vx: 0.6
-    max_vy: 0.3
-    max_yaw: 0.5
+    max_vx: 3.0
+    max_vy: 0.18
+    max_yaw: 1.0
     # 第一阶段按“先稳后快”调，先把中低速和回中行为跑顺。
     max_accel_x: 1.2
-    max_accel_y: 0.9
+    max_accel_y: 0.45
     max_accel_yaw: 2.0
 
   trot:
@@ -165,9 +165,9 @@ robot:
     gait_ramp_cycles: 0.0
     # 对角 trot 周期，单位 s。代码固定 0.5 支撑相 / 0.5 摆动相：
     # 周期变大足端更慢、更稳但响应慢；周期变小步频高、冲击大。
-    cycle_time: 0.60
+    cycle_time: 0.50
     # 摆动腿抬脚高度，单位 m。砸地明显可略增，机身上下起伏大则略降。
-    lift_height: 0.08
+    lift_height: 0.06
     # 摆动腿 z 方向使用非对称摆线：前 25% 快速抬脚，后 75% 慢速落脚。
     # 越小越“快抬慢落”；太小会像突然抬腿，太大落地会更急。
     swing_lift_peak_phase: 0.25
@@ -178,8 +178,8 @@ robot:
     vmc_q0_tau_limit_nm: 8.0
     # 两腿 active_trot 支撑相足端 VMC。trot 只有两条腿支撑，因此不能直接照搬站立力。
     # 太大：支撑相轨迹不明显、腿像钉在地上；太小：支撑腿下陷、机身掉高。
-    active_vmc_kp_foot: [260.0, 200.0, 2000.0]
-    active_vmc_kd_foot: [5.0, 3.5, 56.0]
+    active_vmc_kp_foot: [260.0, 320.0, 2000.0]
+    active_vmc_kd_foot: [5.0, 8.0, 56.0]
     active_vmc_error_limit_m: [0.035, 0.035, 0.05]
     active_vmc_q0_tau_limit_nm: 8.0
     # 支撑足在地面相对机身向后/侧向滑动的轨迹放大系数。
@@ -217,8 +217,16 @@ robot:
     swing_joint_kp: [72.0, 28.0, 28.0]
     swing_joint_kd: [0.42, 0.30, 0.30]
     # 落脚点相对站立足端的最大 x/y 平移，限制单步太大导致 IK 激进或打滑。
+    # y 方向过大时侧移会把内侧腿收到髋轴附近，侧向支撑力矩变小，容易塌陷侧翻。
     max_foothold_shift_x: 0.08
-    max_foothold_shift_y: 0.05
+    max_foothold_shift_y: 0.025
+    # 侧向稳定落脚保护：先限制足端最小外展宽度，再根据 roll、roll_rate 和 vy 额外外扩。
+    # 这层是几何保护，配合上面的 IMU Fz 分配，避免运动时脚落得太窄。
+    lateral_min_foot_y_m: 0.075
+    lateral_roll_foothold_gain: 0.06
+    lateral_gyro_foothold_gain: 0.008
+    lateral_vy_foothold_gain: 0.04
+    lateral_foothold_extra_limit_m: 0.018
     # Trot 调试日志周期，单位 s。调参时 0.05~0.10，稳定后可调大减少刷屏。
     debug_print_period_s: 0.10
 

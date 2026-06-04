@@ -166,6 +166,11 @@ struct TrotParameters {
     double pure_rotation_translation_eps = 0.05;
     double max_foothold_shift_x = 0.08;
     double max_foothold_shift_y = 0.05;
+    double lateral_min_foot_y_m = 0.075;
+    double lateral_roll_foothold_gain = 0.06;
+    double lateral_gyro_foothold_gain = 0.008;
+    double lateral_vy_foothold_gain = 0.04;
+    double lateral_foothold_extra_limit_m = 0.018;
     double max_joint_delta = 0.04;
     double debug_print_period_s = 0.10;
 };
