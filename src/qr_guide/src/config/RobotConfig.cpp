@@ -536,6 +536,25 @@ RobotParameters LoadRobotParameters(const std::string& path) {
         if (trot["max_foothold_shift_y"]) {
             params.trot.max_foothold_shift_y = trot["max_foothold_shift_y"].as<double>();
         }
+        if (trot["lateral_min_foot_y_m"]) {
+            params.trot.lateral_min_foot_y_m = trot["lateral_min_foot_y_m"].as<double>();
+        }
+        if (trot["lateral_roll_foothold_gain"]) {
+            params.trot.lateral_roll_foothold_gain =
+                trot["lateral_roll_foothold_gain"].as<double>();
+        }
+        if (trot["lateral_gyro_foothold_gain"]) {
+            params.trot.lateral_gyro_foothold_gain =
+                trot["lateral_gyro_foothold_gain"].as<double>();
+        }
+        if (trot["lateral_vy_foothold_gain"]) {
+            params.trot.lateral_vy_foothold_gain =
+                trot["lateral_vy_foothold_gain"].as<double>();
+        }
+        if (trot["lateral_foothold_extra_limit_m"]) {
+            params.trot.lateral_foothold_extra_limit_m =
+                trot["lateral_foothold_extra_limit_m"].as<double>();
+        }
         if (trot["max_joint_delta"]) {
             params.trot.max_joint_delta = trot["max_joint_delta"].as<double>();
         }
