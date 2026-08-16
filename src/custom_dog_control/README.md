@@ -74,7 +74,7 @@ ros2 launch custom_dog_control gazebo.launch.py
 `yaw +/-2.0 rad/s`；空格或 `X` 触发受限减速并回到 STANCE，`Esc` 触发软件 FAULT 急停。
 `Q/E` 保留为 `J/L` 的偏航别名。
 
-动态步态固定使用 `0.20 s` 周期、50% 占空比的对角 Trot。控制器不在 NMPC
+动态步态固定使用 `0.25 s` 周期、50% 占空比的对角 Trot。控制器不在 NMPC
 运行过程中切换步频；零速由四足接触的 MPC_STANCE 处理。
 
 真机：
