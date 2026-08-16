@@ -317,6 +317,7 @@ install(PROGRAMS
   scripts/simulation_envelope_test.py
   scripts/simulation_motion_test.py
   scripts/simulation_smoke_test.py
+  scripts/simulation_terrain_test.py
   DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY patches repos DESTINATION share/${PROJECT_NAME})
