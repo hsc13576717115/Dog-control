@@ -1,0 +1,45 @@
+targetDisplacementVelocity          1.5
+targetRotationVelocity              2.0
+comHeight                           0.29
+
+defaultJointState
+{
+   (0,0)   0.0
+   (1,0)   0.873118638
+   (2,0)  -1.776967680
+   (3,0)   0.0
+   (4,0)   0.872802956
+   (5,0)  -1.777230490
+   (6,0)   0.0
+   (7,0)   0.872609587
+   (8,0)  -1.777385860
+   (9,0)   0.0
+   (10,0)  0.870485702
+   (11,0) -1.779097810
+}
+
+initialModeSchedule
+{
+  modeSequence
+  {
+    [0] STANCE
+    [1] STANCE
+  }
+  eventTimes
+  {
+    [0] 0.5
+  }
+}
+
+defaultModeSequenceTemplate
+{
+  modeSequence
+  {
+    [0] STANCE
+  }
+  switchingTimes
+  {
+    [0] 0.0
+    [1] 0.5
+  }
+}

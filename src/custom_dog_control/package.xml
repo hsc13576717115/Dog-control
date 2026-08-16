@@ -1,0 +1,63 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>custom_dog_control</name>
+  <version>0.1.0</version>
+  <description>ROS 2 Humble NMPC-WBC controller and ros2_control hardware for the custom quadruped.</description>
+
+  <maintainer email="1583924560@qq.com">hsc</maintainer>
+  <license>BSD-3-Clause</license>
+  <license>LGPL-2.1-only</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>ament_index_cpp</depend>
+  <depend>boost</depend>
+  <depend>controller_interface</depend>
+  <depend>diagnostic_msgs</depend>
+  <depend>eigen</depend>
+  <depend>geometry_msgs</depend>
+  <depend>hardware_interface</depend>
+  <depend>nav_msgs</depend>
+  <depend>ocs2_centroidal_model</depend>
+  <depend>ocs2_core</depend>
+  <depend>ocs2_legged_robot</depend>
+  <depend>ocs2_mpc</depend>
+  <depend>ocs2_oc</depend>
+  <depend>ocs2_pinocchio_interface</depend>
+  <depend>ocs2_robotic_tools</depend>
+  <depend>ocs2_self_collision</depend>
+  <depend>ocs2_sqp</depend>
+  <depend>pinocchio</depend>
+  <depend>pluginlib</depend>
+  <depend>rclcpp</depend>
+  <depend>rclcpp_lifecycle</depend>
+  <exec_depend>rclpy</exec_depend>
+  <depend>realtime_tools</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>tf2</depend>
+  <depend>tf2_eigen</depend>
+  <depend>tf2_ros</depend>
+  <depend>urdf</depend>
+  <depend>yaml-cpp</depend>
+
+  <exec_depend>controller_manager</exec_depend>
+  <exec_depend>custom_dog_description</exec_depend>
+  <exec_depend>fdilink_ahrs</exec_depend>
+  <exec_depend>gazebo_ros</exec_depend>
+  <exec_depend>gazebo_ros2_control</exec_depend>
+  <exec_depend>joint_state_broadcaster</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>xacro</exec_depend>
+
+  <test_depend>ament_cmake_gtest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

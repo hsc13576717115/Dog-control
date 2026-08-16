@@ -1,0 +1,9 @@
+repositories:
+  ocs2:
+    type: git
+    url: https://github.com/leggedrobotics/ocs2.git
+    version: cc73189408d4931d4d9b467a5e280a56ad7ab492
+  ocs2_robotic_assets:
+    type: git
+    url: https://github.com/leggedrobotics/ocs2_robotic_assets.git
+    version: 9feab348a1d9d10a0573ca43c7fc4ac2e4565cf2

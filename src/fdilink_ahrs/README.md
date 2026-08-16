@@ -1,6 +1,6 @@
 # fdilink_ahrs
 
-`fdilink_ahrs` 是 FDILink 姿态传感器在本工作区中的 ROS 2 驱动包，负责从串口读取原始数据帧，并发布标准 ROS 2 话题供 `qr_guide` 控制器使用。
+`fdilink_ahrs` 是 FDILink 姿态传感器在本工作区中的 ROS 2 驱动包，负责从串口读取原始数据帧，并发布标准 ROS 2 话题供 `custom_dog_control` 控制器使用。
 
 ## 1. 包定位
 
@@ -23,14 +23,14 @@ FDILink IMU
   -> /dev/ttyUSB0
   -> fdilink_ahrs::ahrs_driver_node
   -> /imu
-  -> qr_guide
+  -> custom_dog_control
 ```
 
 对于四足主控来说，最关键的是：
 
 - `/imu`
 
-这是 `qr_guide` 状态估计和机体姿态输入的直接来源。
+这是 `custom_dog_control` 状态估计和机体姿态输入的直接来源。
 
 ## 3. 代码框架
 
@@ -123,9 +123,9 @@ ros2 run fdilink_ahrs ahrs_driver_node --ros-args \
 4. 是否出现 CRC 校验失败或序号丢失告警。
 5. 坐标变换模式 `device_type_` 是否符合当前系统约定。
 
-## 9. 与 `qr_guide` 的关系
+## 9. 与 `custom_dog_control` 的关系
 
-对 `qr_guide` 来说，这个包最重要的约束是：
+对 `custom_dog_control` 来说，这个包最重要的约束是：
 
 - `/imu` 必须持续、稳定、方向一致
 

@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<library path="custom_dog_control_unitree_system">
+  <class
+      name="custom_dog_control/UnitreeSystemInterface"
+      type="custom_dog_control::UnitreeSystemInterface"
+      base_class_type="hardware_interface::SystemInterface">
+    <description>Four-port GO-M8010-6 ros2_control system for the custom dog.</description>
+  </class>
+</library>

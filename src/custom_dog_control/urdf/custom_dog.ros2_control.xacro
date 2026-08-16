@@ -1,0 +1,165 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="custom_dog">
+  <xacro:arg name="hardware_mode" default="gazebo"/>
+  <xacro:arg name="controllers_file" default=""/>
+  <xacro:arg name="gazebo_control_plugin" default="libgazebo_ros2_control.so"/>
+  <!-- Gazebo needs an abducted folded pose for the belly and folded-leg
+       collision shapes to touch down together. Real hardware independently
+       defines its current physical prone pose as logical hip=0 on START. -->
+  <xacro:property name="sim_prone_right_hip" value="-0.5672320069"/>
+  <xacro:property name="sim_prone_left_hip" value="0.5672320069"/>
+  <xacro:property name="sim_prone_thigh" value="1.2535642999"/>
+  <xacro:property name="prone_calf" value="-2.8239427297"/>
+  <xacro:arg name="physical_estop_verified" default="false"/>
+  <xacro:arg name="fr_port" default="/dev/ttyS3"/>
+  <xacro:arg name="fl_port" default="/dev/ttyS4"/>
+  <xacro:arg name="rr_port" default="/dev/ttyS7"/>
+  <xacro:arg name="rl_port" default="/dev/ttyS8"/>
+  <xacro:arg name="motor_directions" default="1 1 1 1 1 1 1 1 1 1 1 1"/>
+  <xacro:arg name="calibration_hip_deg" default="0.0"/>
+  <xacro:arg name="calibration_thigh_deg" default="71.8"/>
+  <xacro:arg name="calibration_calf_deg" default="-161.8"/>
+
+  <!-- The included URDF is the sole source of geometry and dynamics. -->
+  <xacro:include filename="$(find custom_dog_description)/urdf/custom_dog.urdf"/>
+
+  <xacro:macro name="sim_joint" params="name initial_position">
+    <joint name="${name}">
+      <command_interface name="effort"/>
+      <state_interface name="position">
+        <param name="initial_value">${initial_position}</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:macro name="real_joint" params="name">
+    <joint name="${name}">
+      <command_interface name="position"/>
+      <command_interface name="velocity"/>
+      <command_interface name="effort"/>
+      <command_interface name="kp"/>
+      <command_interface name="kd"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+      <state_interface name="temperature"/>
+      <state_interface name="valid"/>
+    </joint>
+  </xacro:macro>
+
+  <ros2_control name="CustomDogSystem" type="system">
+    <hardware>
+      <xacro:if value="${'$(arg hardware_mode)' == 'gazebo'}">
+        <plugin>gazebo_ros2_control/GazeboSystem</plugin>
+      </xacro:if>
+      <xacro:if value="${'$(arg hardware_mode)' == 'real'}">
+        <plugin>custom_dog_control/UnitreeSystemInterface</plugin>
+        <param name="fr_port">$(arg fr_port)</param>
+        <param name="fl_port">$(arg fl_port)</param>
+        <param name="rr_port">$(arg rr_port)</param>
+        <param name="rl_port">$(arg rl_port)</param>
+        <param name="base_gear_ratio">6.33</param>
+        <param name="calf_gear_ratio">12.66</param>
+        <param name="parallel_leg_io">true</param>
+        <param name="motor_directions">$(arg motor_directions)</param>
+        <param name="calibration_hip">${float('$(arg calibration_hip_deg)') * pi / 180.0}</param>
+        <param name="calibration_thigh">${float('$(arg calibration_thigh_deg)') * pi / 180.0}</param>
+        <param name="calibration_calf">${float('$(arg calibration_calf_deg)') * pi / 180.0}</param>
+        <param name="physical_estop_verified">$(arg physical_estop_verified)</param>
+        <param name="safe_damping">1.0</param>
+      </xacro:if>
+    </hardware>
+
+    <xacro:if value="${'$(arg hardware_mode)' == 'gazebo'}">
+      <xacro:sim_joint name="FR_hip_joint" initial_position="${sim_prone_right_hip}"/>
+      <xacro:sim_joint name="FR_thigh_joint" initial_position="${sim_prone_thigh}"/>
+      <xacro:sim_joint name="FR_calf_joint" initial_position="${prone_calf}"/>
+      <xacro:sim_joint name="FL_hip_joint" initial_position="${sim_prone_left_hip}"/>
+      <xacro:sim_joint name="FL_thigh_joint" initial_position="${sim_prone_thigh}"/>
+      <xacro:sim_joint name="FL_calf_joint" initial_position="${prone_calf}"/>
+      <xacro:sim_joint name="RR_hip_joint" initial_position="${sim_prone_right_hip}"/>
+      <xacro:sim_joint name="RR_thigh_joint" initial_position="${sim_prone_thigh}"/>
+      <xacro:sim_joint name="RR_calf_joint" initial_position="${prone_calf}"/>
+      <xacro:sim_joint name="RL_hip_joint" initial_position="${sim_prone_left_hip}"/>
+      <xacro:sim_joint name="RL_thigh_joint" initial_position="${sim_prone_thigh}"/>
+      <xacro:sim_joint name="RL_calf_joint" initial_position="${prone_calf}"/>
+    </xacro:if>
+    <xacro:if value="${'$(arg hardware_mode)' == 'real'}">
+      <xacro:real_joint name="FR_hip_joint"/>
+      <xacro:real_joint name="FR_thigh_joint"/>
+      <xacro:real_joint name="FR_calf_joint"/>
+      <xacro:real_joint name="FL_hip_joint"/>
+      <xacro:real_joint name="FL_thigh_joint"/>
+      <xacro:real_joint name="FL_calf_joint"/>
+      <xacro:real_joint name="RR_hip_joint"/>
+      <xacro:real_joint name="RR_thigh_joint"/>
+      <xacro:real_joint name="RR_calf_joint"/>
+      <xacro:real_joint name="RL_hip_joint"/>
+      <xacro:real_joint name="RL_thigh_joint"/>
+      <xacro:real_joint name="RL_calf_joint"/>
+      <gpio name="custom_dog">
+        <command_interface name="calibrate"/>
+        <command_interface name="emergency_stop"/>
+        <state_interface name="calibrated"/>
+        <state_interface name="communication_ok"/>
+        <state_interface name="physical_estop"/>
+        <state_interface name="io_period_ms"/>
+        <state_interface name="io_timeout_count"/>
+      </gpio>
+    </xacro:if>
+  </ros2_control>
+
+  <xacro:if value="${'$(arg hardware_mode)' == 'gazebo'}">
+    <!-- Folded calves must slide while the legs unfold. Foot friction matches
+         the 0.5 coefficient used by the NMPC and WBC contact constraints. -->
+    <xacro:macro name="gazebo_leg_friction" params="prefix">
+      <gazebo reference="${prefix}_calf">
+        <mu1>0.2</mu1>
+        <mu2>0.2</mu2>
+      </gazebo>
+      <gazebo reference="${prefix}_foot">
+        <mu1>1.0</mu1>
+        <mu2>1.0</mu2>
+        <kp>1000000.0</kp>
+        <kd>100.0</kd>
+        <maxVel>0.1</maxVel>
+        <minDepth>0.001</minDepth>
+      </gazebo>
+    </xacro:macro>
+    <xacro:gazebo_leg_friction prefix="FR"/>
+    <xacro:gazebo_leg_friction prefix="FL"/>
+    <xacro:gazebo_leg_friction prefix="RR"/>
+    <xacro:gazebo_leg_friction prefix="RL"/>
+    <gazebo>
+      <plugin filename="$(arg gazebo_control_plugin)" name="gazebo_ros2_control">
+        <parameters>$(arg controllers_file)</parameters>
+      </plugin>
+      <plugin filename="libgazebo_ros_p3d.so" name="custom_dog_ground_truth">
+        <ros>
+          <namespace>/</namespace>
+          <remapping>odom:=ground_truth/odom</remapping>
+        </ros>
+        <body_name>base</body_name>
+        <frame_name>world</frame_name>
+        <update_rate>250</update_rate>
+        <gaussian_noise>0.0</gaussian_noise>
+      </plugin>
+    </gazebo>
+    <gazebo reference="base">
+      <sensor name="base_imu" type="imu">
+        <always_on>true</always_on>
+        <update_rate>250</update_rate>
+        <visualize>false</visualize>
+        <plugin filename="libgazebo_ros_imu_sensor.so" name="base_imu_plugin">
+          <ros>
+            <namespace>/</namespace>
+            <remapping>~/out:=imu</remapping>
+          </ros>
+          <initial_orientation_as_reference>false</initial_orientation_as_reference>
+        </plugin>
+      </sensor>
+    </gazebo>
+  </xacro:if>
+</robot>

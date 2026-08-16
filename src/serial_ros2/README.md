@@ -54,6 +54,6 @@ colcon build --packages-select serial
 
 对于这个工作区来说，更重要的是把它当成“稳定依赖”来使用：
 
-- `qr_guide` 关注控制逻辑
+- `custom_dog_control` 关注控制逻辑
 - `fdilink_ahrs` 关注协议解析和 ROS 话题
 - `serial` 只负责提供可靠的串口基础能力
