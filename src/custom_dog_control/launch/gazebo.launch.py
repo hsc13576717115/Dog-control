@@ -46,7 +46,7 @@ def generate_launch_description():
     )
     xacro_file = os.path.join(
         package_share, 'urdf', 'custom_dog.ros2_control.xacro')
-    world = os.path.join(package_share, 'worlds', 'flat.world')
+    default_world = os.path.join(package_share, 'worlds', 'flat.world')
 
     robot_description = ParameterValue(
         Command([
@@ -62,7 +62,7 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             os.path.join(gazebo_share, 'launch', 'gazebo.launch.py')),
         launch_arguments={
-            'world': world,
+            'world': LaunchConfiguration('world'),
             'verbose': 'false',
             'gdb': LaunchConfiguration('gdb'),
             'gui': LaunchConfiguration('gui'),
@@ -183,6 +183,7 @@ def generate_launch_description():
         DeclareLaunchArgument('use_rviz', default_value='true'),
         DeclareLaunchArgument('start_keyboard', default_value='true'),
         DeclareLaunchArgument('gui', default_value='true'),
+        DeclareLaunchArgument('world', default_value=default_world),
         DeclareLaunchArgument('spawn_z', default_value='0.055'),
         DeclareLaunchArgument('gdb', default_value='false'),
         SetEnvironmentVariable('GAZEBO_MODEL_DATABASE_URI', ''),

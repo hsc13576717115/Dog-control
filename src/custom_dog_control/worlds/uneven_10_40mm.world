@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<sdf version="1.6">
+  <world name="uneven_10_40mm">
+    <gravity>0 0 -9.81</gravity>
+    <physics name="default_physics" default="0" type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_update_rate>1000</real_time_update_rate>
+      <ode>
+        <solver><type>quick</type><iters>100</iters><sor>1.3</sor><use_dynamic_moi_rescaling>true</use_dynamic_moi_rescaling></solver>
+        <constraints><cfm>0.0</cfm><erp>0.2</erp><contact_max_correcting_vel>0.1</contact_max_correcting_vel><contact_surface_layer>0.001</contact_surface_layer></constraints>
+      </ode>
+    </physics>
+    <include><uri>model://ground_plane</uri></include>
+    <include><uri>model://sun</uri></include>
+    <model name="uneven_20mm"><static>true</static><pose>1.25 0 0.010 0 0 0</pose><link name="link"><collision name="collision"><geometry><box><size>0.50 1.50 0.02</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.50 1.50 0.02</size></box></geometry><material><ambient>0.55 0.38 0.22 1</ambient></material></visual></link></model>
+    <model name="uneven_40mm"><static>true</static><pose>1.75 0 0.020 0 0 0</pose><link name="link"><collision name="collision"><geometry><box><size>0.50 1.50 0.04</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.50 1.50 0.04</size></box></geometry><material><ambient>0.48 0.32 0.18 1</ambient></material></visual></link></model>
+    <model name="uneven_10mm"><static>true</static><pose>2.25 0 0.005 0 0 0</pose><link name="link"><collision name="collision"><geometry><box><size>0.50 1.50 0.01</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.50 1.50 0.01</size></box></geometry><material><ambient>0.60 0.42 0.25 1</ambient></material></visual></link></model>
+    <model name="uneven_35mm"><static>true</static><pose>2.75 0 0.0175 0 0 0</pose><link name="link"><collision name="collision"><geometry><box><size>0.50 1.50 0.035</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.50 1.50 0.035</size></box></geometry><material><ambient>0.50 0.34 0.20 1</ambient></material></visual></link></model>
+    <model name="uneven_15mm"><static>true</static><pose>3.25 0 0.0075 0 0 0</pose><link name="link"><collision name="collision"><geometry><box><size>0.50 1.50 0.015</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.50 1.50 0.015</size></box></geometry><material><ambient>0.58 0.40 0.23 1</ambient></material></visual></link></model>
+  </world>
+</sdf>
