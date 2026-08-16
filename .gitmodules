@@ -1,0 +1,3 @@
+[submodule "src/custom_dog_control/third_party/qpOASES"]
+	path = src/custom_dog_control/third_party/qpOASES
+	url = https://github.com/coin-or/qpOASES.git

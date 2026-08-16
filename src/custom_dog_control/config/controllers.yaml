@@ -1,0 +1,114 @@
+controller_manager:
+  ros__parameters:
+    use_sim_time: true
+    update_rate: 1000
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    nmpc_wbc_controller:
+      type: custom_dog_control/NmpcWbcController
+
+nmpc_wbc_controller:
+  ros__parameters:
+    use_sim_time: true
+    joints:
+      - FR_hip_joint
+      - FR_thigh_joint
+      - FR_calf_joint
+      - FL_hip_joint
+      - FL_thigh_joint
+      - FL_calf_joint
+      - RR_hip_joint
+      - RR_thigh_joint
+      - RR_calf_joint
+      - RL_hip_joint
+      - RL_thigh_joint
+      - RL_calf_joint
+    hardware_mode: gazebo
+    legacy_joy_y_right: true
+    # Validate NMPC/WBC against Gazebo truth before enabling the estimator.
+    use_sim_ground_truth: true
+    ground_truth_timeout_s: 0.10
+    # Match legged_control's 1 kHz WBC loop. NMPC remains at 50 Hz because its
+    # measured desktop P99 solve time is above the 10 ms budget for 100 Hz.
+    mpc_frequency_hz: 50.0
+    # Gazebo and its GUI share a non-realtime desktop scheduler. Real hardware
+    # always keeps the stricter two-NMPC-cycle watchdog in the controller.
+    simulation_policy_timeout_cycles: 4.0
+    command_timeout_s: 0.30
+    joy_timeout_s: 0.30
+    # Prevent NMPC from chasing a velocity trajectory far ahead of the
+    # measured robot. Braking and zero commands bypass this acceleration lead.
+    max_reference_lead_xy_m_s: 0.10
+    max_reference_lead_yaw_rad_s: 0.40
+    trot_entry_dwell_s: 0.15
+    trot_exit_dwell_s: 0.30
+    # unitree_guide FixedStand structure, tuned for this 13.85 kg model.
+    # A slower, damped interpolation avoids saturating the simulated motors
+    # while unfolding from the prone collision-settled pose.
+    stand_up_duration_s: 2.50
+    stand_up_settle_duration_s: 2.0
+    stand_up_hip_kp: 45.0
+    stand_up_leg_kp: 45.0
+    stand_up_calf_kp: 45.0
+    stand_up_kd: 1.5
+    stand_up_settle_hip_kp: 55.0
+    stand_up_settle_leg_kp: 55.0
+    stand_up_settle_calf_kp: 55.0
+    stand_up_settle_kd: 2.5
+    stand_up_position_tolerance_rad: 0.55
+    stand_up_velocity_tolerance_rad_s: 2.0
+    stand_up_base_velocity_tolerance_m_s: 0.05
+    handoff_duration_s: 2.0
+    # Robot-specific low-level impedance around the WBC reference. These gains
+    # are required to control the joint-space null directions left by the
+    # task-space WBC and were validated at 1.0 m/s with the 1 kHz loop.
+    wbc_joint_stiffness: 20.0
+    wbc_hip_stiffness: 50.0
+    wbc_joint_damping: 2.0
+    locomotion_max_hip_angle_rad: 0.20
+    # NMPC itself has no joint-limit constraint. Keep its posture target far
+    # enough inside the URDF bounds to absorb swing-leg tracking inertia.
+    locomotion_joint_limit_margin_rad: 0.15
+    # Emergency guard only; normal zero-velocity stance remains world-locked.
+    stance_reanchor_distance_m: 1.0
+    max_consecutive_wbc_failures: 5
+    nominal_height_m: 0.29
+    # Simulation-only passive damping. Real hardware overrides this value.
+    safe_damping: 0.5
+    simulation_passive_hold: true
+    # Low gains are intentional: the folded calf pose is only 1 deg from its
+    # lower limit, and the effort controller must not fight Gazebo contact.
+    simulation_passive_hip_kp: 20.0
+    simulation_passive_leg_kp: 60.0
+    simulation_passive_kd: 0.35
+    # High-speed command envelope. The staged simulation test must pass before
+    # these limits are used on hardware.
+    velocity_limit_x: 1.5
+    velocity_limit_y: 1.0
+    velocity_limit_yaw: 2.0
+    acceleration_limit_xy: 0.2
+    acceleration_limit_yaw: 1.0
+    # Gazebo can push the folded, ground-contacting calf about 1.2 deg through
+    # its limit while unfolding. This does not change URDF or target bounds.
+    joint_limit_tolerance_rad: 0.035
+    nominal_joint_positions:
+      # Loaded posture used by Pinocchio/NMPC: feet below hips at z=-0.265 m.
+      [0.0, 0.873118638, -1.776967680,
+       0.0, 0.872802956, -1.777230490,
+       0.0, 0.872609587, -1.777385860,
+       0.0, 0.870485702, -1.779097810]
+    # Position-loop target including mg/4 static deflection at Kp=80.3.
+    stand_up_joint_positions:
+      [0.026376720, 0.876889620, -1.709903390,
+      -0.026442310, 0.876586360, -1.710184030,
+       0.026459680, 0.876378750, -1.710350660,
+      -0.026379650, 0.874245170, -1.712185710]
+    # Gazebo collision-settled prone pose. The real hardware START operation
+    # independently maps its current physical prone pose to logical hip=0.
+    passive_joint_positions:
+      [-0.5672320069, 1.2535642999, -2.8239427297,
+        0.5672320069, 1.2535642999, -2.8239427297,
+       -0.5672320069, 1.2535642999, -2.8239427297,
+        0.5672320069, 1.2535642999, -2.8239427297]

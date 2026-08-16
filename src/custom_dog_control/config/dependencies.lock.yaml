@@ -1,0 +1,39 @@
+platform:
+  os: Ubuntu 22.04
+  ros: humble
+  architecture: arm64
+
+dependencies:
+  legged_control:
+    repository: https://github.com/qiayuanl/legged_control.git
+    revision: a7f381c0367e98e31c01336e678eef47e304d40d
+    components:
+      - legged_interface
+      - legged_wbc
+  ocs2:
+    repository: https://github.com/leggedrobotics/ocs2.git
+    revision: cc73189408d4931d4d9b467a5e280a56ad7ab492
+  ocs2_robotic_assets:
+    repository: https://github.com/leggedrobotics/ocs2_robotic_assets.git
+    revision: 9feab348a1d9d10a0573ca43c7fc4ac2e4565cf2
+  pinocchio:
+    ros_package: ros-humble-pinocchio
+    version: 4.0.0-2jammy.20260606.100000
+  coal:
+    ros_package: ros-humble-coal
+    version: 3.0.3-5jammy.20260606.085557
+  qpoases:
+    repository: https://github.com/coin-or/qpOASES.git
+    revision: 51d3fbea30142d3acbf40cf7a1c519efc27ea67b
+  hpipm:
+    repository: https://github.com/giaf/hpipm.git
+    revision: 255ffdf38d3a5e2c3285b29568ce65ae286e5faf
+  blasfeo:
+    repository: https://github.com/giaf/blasfeo.git
+    revision: ae6e2d1dea015862a09990b95905038a756ffc7d
+  eigen:
+    ubuntu_package: libeigen3-dev
+    version: 3.4.0-2ubuntu2
+  yaml_cpp:
+    ubuntu_package: libyaml-cpp-dev
+    version: 0.7.0+dfsg-8build1

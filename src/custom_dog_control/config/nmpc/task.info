@@ -1,0 +1,295 @@
+centroidalModelType             0
+
+legged_robot_interface
+{
+  verbose                               false
+  useAnalyticalGradientsDynamics        false
+  useAnalyticalGradientsConstraints     false
+}
+
+model_settings
+{
+  positionErrorGain             0.0
+  phaseTransitionStanceTime     0.10
+  verboseCppAd                  false
+  recompileLibrariesCppAd       false
+  modelFolderCppAd              /tmp/custom_dog_control_ocs2
+
+  jointNames
+  {
+    [0]  FR_hip_joint
+    [1]  FR_thigh_joint
+    [2]  FR_calf_joint
+    [3]  FL_hip_joint
+    [4]  FL_thigh_joint
+    [5]  FL_calf_joint
+    [6]  RR_hip_joint
+    [7]  RR_thigh_joint
+    [8]  RR_calf_joint
+    [9]  RL_hip_joint
+    [10] RL_thigh_joint
+    [11] RL_calf_joint
+  }
+  contactNames3DoF
+  {
+    [0] FR_foot
+    [1] FL_foot
+    [2] RR_foot
+    [3] RL_foot
+  }
+}
+
+swing_trajectory_config
+{
+  liftOffVelocity               0.05
+  touchDownVelocity            -0.10
+  swingHeight                   0.08
+  touchdownAfterHorizon         0.15
+  swingTimeScale                0.15
+}
+
+sqp
+{
+  nThreads                              3
+  dt                                    0.015
+  sqpIteration                          2
+  deltaTol                              1e-4
+  g_max                                 1e-2
+  g_min                                 1e-6
+  inequalityConstraintMu                0.1
+  inequalityConstraintDelta             5.0
+  projectStateInputEqualityConstraints  true
+  printSolverStatistics                 false
+  printSolverStatus                     false
+  printLinesearch                       false
+  useFeedbackPolicy                     true
+  integratorType                        RK2
+  threadPriority                        50
+}
+
+ipm
+{
+  nThreads                              3
+  dt                                    0.015
+  ipmIteration                          1
+  deltaTol                              1e-4
+  g_max                                 10.0
+  g_min                                 1e-6
+  computeLagrangeMultipliers            true
+  printSolverStatistics                 false
+  printSolverStatus                     false
+  printLinesearch                       false
+  useFeedbackPolicy                     false
+  integratorType                        RK2
+  threadPriority                        50
+  initialBarrierParameter               1e-4
+  targetBarrierParameter                1e-4
+  barrierLinearDecreaseFactor           0.2
+  barrierSuperlinearDecreasePower       1.5
+  barrierReductionCostTol               1e-3
+  barrierReductionConstraintTol         1e-3
+  fractionToBoundaryMargin              0.995
+  usePrimalStepSizeForDual              false
+  initialSlackLowerBound                1e-4
+  initialDualLowerBound                 1e-4
+  initialSlackMarginRate                1e-2
+  initialDualMarginRate                 1e-2
+}
+
+ddp
+{
+  algorithm                       SLQ
+  nThreads                        3
+  threadPriority                  50
+  maxNumIterations                1
+  minRelCost                      1e-1
+  constraintTolerance             5e-3
+  displayInfo                     false
+  displayShortSummary             false
+  checkNumericalStability         false
+  debugPrintRollout               false
+  AbsTolODE                       1e-5
+  RelTolODE                       1e-3
+  maxNumStepsPerSecond            10000
+  timeStep                        0.015
+  backwardPassIntegratorType      ODE45
+  constraintPenaltyInitialValue   20.0
+  constraintPenaltyIncreaseRate   2.0
+  preComputeRiccatiTerms          true
+  useFeedbackPolicy               false
+  strategy                        LINE_SEARCH
+  lineSearch
+  {
+    minStepLength                 1e-2
+    maxStepLength                 1.0
+    hessianCorrectionStrategy     DIAGONAL_SHIFT
+    hessianCorrectionMultiple     1e-5
+  }
+}
+
+rollout
+{
+  AbsTolODE                       1e-5
+  RelTolODE                       1e-3
+  timeStep                        0.015
+  integratorType                  ODE45
+  maxNumStepsPerSecond            10000
+  checkNumericalStability         false
+}
+
+mpc
+{
+  timeHorizon                     1.0
+  solutionTimeWindow              -1
+  coldStart                       false
+  debugPrint                      false
+  mpcDesiredFrequency             50
+  mrtDesiredFrequency             250
+}
+
+initialState
+{
+   (0,0)  0.0
+   (1,0)  0.0
+   (2,0)  0.0
+   (3,0)  0.0
+   (4,0)  0.0
+   (5,0)  0.0
+   (6,0)  0.0
+   (7,0)  0.0
+   (8,0)  0.29
+   (9,0)  0.0
+   (10,0) 0.0
+   (11,0) 0.0
+   (12,0) 0.0
+   (13,0) 0.873118638
+   (14,0) -1.776967680
+   (15,0) 0.0
+   (16,0) 0.872802956
+   (17,0) -1.777230490
+   (18,0) 0.0
+   (19,0) 0.872609587
+   (20,0) -1.777385860
+   (21,0) 0.0
+   (22,0) 0.870485702
+   (23,0) -1.779097810
+}
+
+Q
+{
+  scaling 1e+0
+  (0,0)   15.0
+  (1,1)   15.0
+  (2,2)   100.0
+  (3,3)   10.0
+  (4,4)   30.0
+  (5,5)   100.0
+  (6,6)   1000.0
+  (7,7)   1000.0
+  (8,8)   1500.0
+  (9,9)   1000.0
+  (10,10) 300.0
+  (11,11) 300.0
+  (12,12) 5.0
+  (13,13) 5.0
+  (14,14) 2.5
+  (15,15) 5.0
+  (16,16) 5.0
+  (17,17) 2.5
+  (18,18) 5.0
+  (19,19) 5.0
+  (20,20) 2.5
+  (21,21) 5.0
+  (22,22) 5.0
+  (23,23) 2.5
+}
+
+R
+{
+  scaling 1e-3
+  (0,0)   1.0
+  (1,1)   1.0
+  (2,2)   1.0
+  (3,3)   1.0
+  (4,4)   1.0
+  (5,5)   1.0
+  (6,6)   1.0
+  (7,7)   1.0
+  (8,8)   1.0
+  (9,9)   1.0
+  (10,10) 1.0
+  (11,11) 1.0
+  (12,12) 5000.0
+  (13,13) 5000.0
+  (14,14) 5000.0
+  (15,15) 5000.0
+  (16,16) 5000.0
+  (17,17) 5000.0
+  (18,18) 5000.0
+  (19,19) 5000.0
+  (20,20) 5000.0
+  (21,21) 5000.0
+  (22,22) 5000.0
+  (23,23) 5000.0
+}
+
+frictionConeSoftConstraint
+{
+  frictionCoefficient    0.5
+  mu                     0.1
+  delta                  5.0
+}
+
+; legged_control LeggedInterface always installs its self-collision soft
+; constraint. The canonical model currently has collision primitives on the
+; body, hips and feet, so only verified primitive pairs are listed here.
+selfCollision
+{
+  collisionObjectPairs
+  {
+  }
+  collisionLinkPairs
+  {
+    [0] "FR_foot, FL_foot"
+    [1] "RR_foot, RL_foot"
+    [2] "FR_foot, RR_foot"
+    [3] "FL_foot, RL_foot"
+    [4] "FR_hip, FL_hip"
+    [5] "RR_hip, RL_hip"
+  }
+  minimumDistance  0.02
+  mu               1e-2
+  delta            1e-3
+}
+
+torqueLimitsTask
+{
+   (0,0)  23.7
+   (1,0)  23.7
+   (2,0)  45.0
+}
+
+jointLimitsTask
+{
+  positionMargin       0.10
+  predictionHorizon    0.05
+}
+
+frictionConeTask
+{
+  frictionCoefficient    0.5
+}
+
+swingLegTask
+{
+  kp                     350
+  kd                     37
+}
+
+weight
+{
+  swingLeg               100
+  baseAccel               1
+  contactForce            0.01
+  jointLimitSlack         100
+}

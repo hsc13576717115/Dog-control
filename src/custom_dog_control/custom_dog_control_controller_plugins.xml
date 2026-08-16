@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<library path="custom_dog_control_nmpc_wbc_controller">
+  <class
+      name="custom_dog_control/NmpcWbcController"
+      type="custom_dog_control::NmpcWbcController"
+      base_class_type="controller_interface::ControllerInterface">
+    <description>OCS2 centroidal NMPC and weighted whole-body controller.</description>
+  </class>
+</library>

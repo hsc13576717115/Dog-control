@@ -1,0 +1,20 @@
+controller_manager:
+  ros__parameters:
+    use_sim_time: false
+
+nmpc_wbc_controller:
+  ros__parameters:
+    use_sim_time: false
+    hardware_mode: real
+    use_sim_ground_truth: false
+    safe_damping: 1.0
+    simulation_passive_hold: false
+    stand_up_hip_kp: 8.0
+    stand_up_leg_kp: 12.0
+    stand_up_calf_kp: 12.0
+    stand_up_kd: 0.8
+    stand_up_settle_hip_kp: 8.0
+    stand_up_settle_leg_kp: 12.0
+    stand_up_settle_calf_kp: 12.0
+    stand_up_settle_kd: 0.8
+    joint_limit_tolerance_rad: 0.005
