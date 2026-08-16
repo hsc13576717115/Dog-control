@@ -1,0 +1,147 @@
+diff --git a/ocs2_pinocchio/ocs2_self_collision/CMakeLists.txt b/ocs2_pinocchio/ocs2_self_collision/CMakeLists.txt
+index c339d998e..01faeda07 100644
+--- a/ocs2_pinocchio/ocs2_self_collision/CMakeLists.txt
++++ b/ocs2_pinocchio/ocs2_self_collision/CMakeLists.txt
+@@ -9,30 +9,33 @@ find_package(ocs2_core REQUIRED)
+ find_package(ocs2_robotic_tools REQUIRED)
+ find_package(ocs2_pinocchio_interface REQUIRED)
+ find_package(pinocchio REQUIRED)
+-find_package(hpp-fcl REQUIRED)
+ find_package(coal QUIET)
+-find_package(tinyxml2 REQUIRED)
++if(NOT coal_FOUND)
++  find_package(hpp-fcl REQUIRED)
++endif()
++find_path(TINYXML_INCLUDE_DIR NAMES tinyxml.h REQUIRED)
++find_library(TINYXML_LIBRARY NAMES tinyxml REQUIRED)
+ find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+ find_package(Boost REQUIRED COMPONENTS system filesystem log_setup log)
+ 
+-set(SELF_COLLISION_FCL_LINK_TARGETS hpp-fcl::hpp-fcl)
+ if(TARGET coal::coal)
+-  list(APPEND SELF_COLLISION_FCL_LINK_TARGETS coal::coal)
++  set(SELF_COLLISION_FCL_LINK_TARGETS coal::coal)
++else()
++  set(SELF_COLLISION_FCL_LINK_TARGETS hpp-fcl::hpp-fcl)
+ endif()
+-list(REMOVE_DUPLICATES SELF_COLLISION_FCL_LINK_TARGETS)
+ 
+ set(SELF_COLLISION_EXPORT_DEPS
+   ocs2_core
+   ocs2_robotic_tools
+   ocs2_pinocchio_interface
+   pinocchio
+-  hpp-fcl
+-  tinyxml2
+   Eigen3
+   Boost
+ )
+ if(coal_FOUND)
+   list(APPEND SELF_COLLISION_EXPORT_DEPS coal)
++else()
++  list(APPEND SELF_COLLISION_EXPORT_DEPS hpp-fcl)
+ endif()
+ 
+ set(FLAGS
+@@ -55,7 +58,8 @@ target_link_libraries(${PROJECT_NAME}
+   PUBLIC
+     pinocchio::pinocchio
+     ${SELF_COLLISION_FCL_LINK_TARGETS}
+-    tinyxml2::tinyxml2
++  PRIVATE
++    ${TINYXML_LIBRARY}
+ )
+ target_include_directories(${PROJECT_NAME}
+   PUBLIC
+@@ -63,8 +67,16 @@ target_include_directories(${PROJECT_NAME}
+     $<INSTALL_INTERFACE:include>
+     ${EIGEN3_INCLUDE_DIRS}
+     ${pinocchio_INCLUDE_DIRS}
+-    ${hpp-fcl_INCLUDE_DIRS}
+ )
++if(hpp-fcl_FOUND)
++  target_include_directories(${PROJECT_NAME} PUBLIC ${hpp-fcl_INCLUDE_DIRS})
++endif()
++target_include_directories(${PROJECT_NAME} PRIVATE ${TINYXML_INCLUDE_DIR})
++if(coal_FOUND)
++  target_compile_definitions(${PROJECT_NAME} PUBLIC
++    OCS2_SELF_COLLISION_USE_COAL
++    COAL_BACKWARD_COMPATIBILITY_WITH_HPP_FCL)
++endif()
+ ament_target_dependencies(${PROJECT_NAME}
+   PUBLIC
+     ocs2_core
+@@ -95,9 +107,11 @@ install(
+ ament_export_include_directories(
+   include
+   ${pinocchio_INCLUDE_DIRS}
+-  ${hpp-fcl_INCLUDE_DIRS}
+   ${EIGEN3_INCLUDE_DIRS}
+ )
++if(hpp-fcl_FOUND)
++  ament_export_include_directories(${hpp-fcl_INCLUDE_DIRS})
++endif()
+ ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
+ ament_export_dependencies(
+   ${SELF_COLLISION_EXPORT_DEPS}
+diff --git a/ocs2_pinocchio/ocs2_self_collision/include/ocs2_self_collision/PinocchioGeometryInterface.h b/ocs2_pinocchio/ocs2_self_collision/include/ocs2_self_collision/PinocchioGeometryInterface.h
+index 1fa2784a4..570314df8 100644
+--- a/ocs2_pinocchio/ocs2_self_collision/include/ocs2_self_collision/PinocchioGeometryInterface.h
++++ b/ocs2_pinocchio/ocs2_self_collision/include/ocs2_self_collision/PinocchioGeometryInterface.h
+@@ -33,7 +33,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ 
+ #include <ocs2_pinocchio_interface/PinocchioInterface.h>
+ 
++#ifdef OCS2_SELF_COLLISION_USE_COAL
++#include <coal/collision_data.h>
++#else
+ #include <hpp/fcl/collision_data.h>
++#endif
+ 
+ #include <urdf_model/model.h>
+ 
+diff --git a/ocs2_pinocchio/ocs2_self_collision/package.xml b/ocs2_pinocchio/ocs2_self_collision/package.xml
+index b7abfef43..d056100f7 100644
+--- a/ocs2_pinocchio/ocs2_self_collision/package.xml
++++ b/ocs2_pinocchio/ocs2_self_collision/package.xml
+@@ -15,8 +15,8 @@
+   <depend>ocs2_robotic_tools</depend>
+   <depend>ocs2_pinocchio_interface</depend>
+   <depend>pinocchio</depend>
+-  <depend>hpp-fcl</depend>
+-  <depend>tinyxml2</depend>
++  <depend>coal</depend>
++  <depend>tinyxml</depend>
+   <depend>eigen3_cmake_module</depend>
+   <depend>boost</depend>
+   <export>
+diff --git a/ocs2_pinocchio/ocs2_self_collision/src/PinocchioGeometryInterface.cpp b/ocs2_pinocchio/ocs2_self_collision/src/PinocchioGeometryInterface.cpp
+index 35099a119..5918e0613 100644
+--- a/ocs2_pinocchio/ocs2_self_collision/src/PinocchioGeometryInterface.cpp
++++ b/ocs2_pinocchio/ocs2_self_collision/src/PinocchioGeometryInterface.cpp
+@@ -40,7 +40,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ #include <pinocchio/parsers/urdf.hpp>
+ 
+ #include <urdf_parser/urdf_parser.h>
+-#include <tinyxml2.h>
++#include <tinyxml.h>
+ 
+ namespace ocs2 {
+ 
+@@ -95,10 +95,12 @@ void PinocchioGeometryInterface::buildGeomFromPinocchioInterface(const Pinocchio
+   }
+ 
+   // TODO: Replace with pinocchio function that uses the ModelInterface directly.
+-  // Pinocchio still expects a URDF stream here, so export the URDFDOM model to a tinyxml2 document first.
+-  const std::unique_ptr<tinyxml2::XMLDocument> urdfAsXml(urdf::exportURDF(*pinocchioInterface.getUrdfModelPtr()));
+-  tinyxml2::XMLPrinter printer;
+-  urdfAsXml->Print(&printer);
++  // Humble urdfdom exports a TinyXML document. Serialize it to the stream
++  // consumed by Pinocchio without changing the model contents.
++  const std::unique_ptr<TiXmlDocument> urdfAsXml(
++      urdf::exportURDF(*pinocchioInterface.getUrdfModelPtr()));
++  TiXmlPrinter printer;
++  urdfAsXml->Accept(&printer);
+   std::stringstream urdfAsStringStream;
+   urdfAsStringStream << printer.CStr();
+ 

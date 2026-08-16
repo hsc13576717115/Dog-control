@@ -1,11 +1,13 @@
-# Catkin build artifacts
+# colcon / CMake build artifacts
 build/
+install/
+log/
 devel/
+symlink_install_manifest.txt
 
 # Python
 *.pyc
 __pycache__/
-*.pyc
 
 # IDE
 .vscode/
