@@ -74,7 +74,7 @@ ros2 launch custom_dog_control gazebo.launch.py
 `yaw +/-2.0 rad/s`；空格或 `X` 触发受限减速并回到 STANCE，`Esc` 触发软件 FAULT 急停。
 `Q/E` 保留为 `J/L` 的偏航别名。
 
-动态步态固定使用 `0.30 s` 周期、50% 占空比的对角 Trot。控制器不在 NMPC
+动态步态固定使用 `0.20 s` 周期、50% 占空比的对角 Trot。控制器不在 NMPC
 运行过程中切换步频；零速由四足接触的 MPC_STANCE 处理。
 
 真机：
@@ -91,6 +91,8 @@ ros2 launch custom_dog_control real.launch.py physical_estop_verified:=true
 `physical_estop_verified` 只能在独立硬件急停完成验收后设置为 `true`。
 折叠姿态有更准确的测量值时，通过 `calibration_hip_deg`、
 `calibration_thigh_deg` 和 `calibration_calf_deg` 覆盖默认值。
+真机覆盖配置默认限制为 `vx +/-0.30 m/s`、`vy +/-0.10 m/s` 和
+`yaw +/-0.30 rad/s`，仿真高速结果不作为放宽实机限值的依据。
 
 ## 模型与接口
 
@@ -122,7 +124,9 @@ ros2 run custom_dog_control simulation_envelope_test.py --vy -1.0
 测试流程为位置插值起身、NMPC/WBC Trot 前进 12 秒、速度清零并回到
 NMPC_STANCE，同时验证零速 Trot 门控、WBC、位移、姿态、髋内收和停车状态。
 指令矩阵测试会从独立冷启动依次验证前进、侧移、转向及每段停止后的稳定站立。
-全速包线脚本一次只测试一个轴，并检查稳态速度误差、姿态 RMS/峰值、机身高度、
-求解器有效性和停车结果；正负六个方向应分别冷启动 Gazebo 验收。
+全速包线脚本一次只测试一个轴，并检查起身后站立、20 秒满量程运动、稳态速度误差、
+姿态 RMS/峰值、机身高度、求解器有效性、受控停车和 10 秒停车后站立保持；正负六个
+方向应分别冷启动 Gazebo 验收。当前配置已通过 `vx +/-1.5 m/s`、`vy +/-1.0 m/s` 和
+`yaw +/-2.0 rad/s` 六项独立冷启动测试，详细数据见仓库根目录 README。
 
 完整依赖安装、架构说明、验收指标和真机测试顺序见仓库根目录 README。

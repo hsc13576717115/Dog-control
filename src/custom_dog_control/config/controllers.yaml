@@ -30,8 +30,8 @@ nmpc_wbc_controller:
     # Validate NMPC/WBC against Gazebo truth before enabling the estimator.
     use_sim_ground_truth: true
     ground_truth_timeout_s: 0.10
-    # Match legged_control's 1 kHz WBC loop. NMPC remains at 50 Hz because its
-    # measured desktop P99 solve time is above the 10 ms budget for 100 Hz.
+    # Two SQP iterations at 50 Hz keep the hard contact constraints converged;
+    # WBC is still evaluated by the 1 kHz ros2_control loop.
     mpc_frequency_hz: 50.0
     # Gazebo and its GUI share a non-realtime desktop scheduler. Real hardware
     # always keeps the stricter two-NMPC-cycle watchdog in the controller.
@@ -40,7 +40,7 @@ nmpc_wbc_controller:
     joy_timeout_s: 0.30
     # Prevent NMPC from chasing a velocity trajectory far ahead of the
     # measured robot. Braking and zero commands bypass this acceleration lead.
-    max_reference_lead_xy_m_s: 0.10
+    max_reference_lead_xy_m_s: 0.20
     max_reference_lead_yaw_rad_s: 0.40
     trot_entry_dwell_s: 0.15
     trot_exit_dwell_s: 0.30
@@ -58,16 +58,17 @@ nmpc_wbc_controller:
     stand_up_settle_calf_kp: 55.0
     stand_up_settle_kd: 2.5
     stand_up_position_tolerance_rad: 0.55
-    stand_up_velocity_tolerance_rad_s: 2.0
+    stand_up_velocity_tolerance_rad_s: 0.20
     stand_up_base_velocity_tolerance_m_s: 0.05
     handoff_duration_s: 2.0
-    # Robot-specific low-level impedance around the WBC reference. These gains
-    # are required to control the joint-space null directions left by the
-    # task-space WBC and were validated at 1.0 m/s with the 1 kHz loop.
+    # This custom mechanism needs modest joint impedance around the optimized
+    # posture to constrain directions that are weakly observable from WBC.
     wbc_joint_stiffness: 20.0
     wbc_hip_stiffness: 50.0
     wbc_joint_damping: 2.0
-    locomotion_max_hip_angle_rad: 0.20
+    # Preserve enough hip-abduction authority for lateral stabilization at
+    # full speed while staying well inside the URDF's +/-1.047 rad limit.
+    locomotion_max_hip_angle_rad: 0.65
     # NMPC itself has no joint-limit constraint. Keep its posture target far
     # enough inside the URDF bounds to absorb swing-leg tracking inertia.
     locomotion_joint_limit_margin_rad: 0.15
@@ -95,10 +96,10 @@ nmpc_wbc_controller:
     joint_limit_tolerance_rad: 0.035
     nominal_joint_positions:
       # Loaded posture used by Pinocchio/NMPC: feet below hips at z=-0.265 m.
-      [0.0, 0.873118638, -1.776967680,
-       0.0, 0.872802956, -1.777230490,
-       0.0, 0.872609587, -1.777385860,
-       0.0, 0.870485702, -1.779097810]
+      [-0.14, 0.873118638, -1.776967680,
+        0.14, 0.872802956, -1.777230490,
+       -0.14, 0.872609587, -1.777385860,
+        0.14, 0.870485702, -1.779097810]
     # Position-loop target including mg/4 static deflection at Kp=80.3.
     stand_up_joint_positions:
       [0.026376720, 0.876889620, -1.709903390,

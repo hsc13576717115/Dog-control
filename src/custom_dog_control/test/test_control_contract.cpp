@@ -17,12 +17,12 @@ TEST(ControlContract, JointAndFootOrderIsFixed) {
   EXPECT_EQ(kFootFrameNames[3], "RL_foot");
 }
 
-TEST(ControlContract, DiagonalTrotUsesFixedThreeHundredMillisecondCycle) {
+TEST(ControlContract, DiagonalTrotUsesFixedTwoHundredMillisecondCycle) {
   EXPECT_EQ(TrotModeAtTime(0.00), kTrotFrRlMode);
-  EXPECT_EQ(TrotModeAtTime(0.149), kTrotFrRlMode);
-  EXPECT_EQ(TrotModeAtTime(0.150), kTrotFlRrMode);
-  EXPECT_EQ(TrotModeAtTime(0.299), kTrotFlRrMode);
-  EXPECT_EQ(TrotModeAtTime(0.300), kTrotFrRlMode);
+  EXPECT_EQ(TrotModeAtTime(0.099), kTrotFrRlMode);
+  EXPECT_EQ(TrotModeAtTime(0.100), kTrotFlRrMode);
+  EXPECT_EQ(TrotModeAtTime(0.199), kTrotFlRrMode);
+  EXPECT_EQ(TrotModeAtTime(0.200), kTrotFrRlMode);
 
   EXPECT_EQ(ContactFlags(kTrotFrRlMode),
             (std::array<bool, 4>{true, false, false, true}));

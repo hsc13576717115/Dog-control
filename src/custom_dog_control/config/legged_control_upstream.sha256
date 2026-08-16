@@ -27,5 +27,6 @@ fcdd35824fa925a15ffd712dcf88e913d9b4c874c1851cc1bf11c5ecac4c61d3  third_party/le
 c9d05e1b0c9fa24ec90523b559cca53168b7963735b694edc3e506947d9b24d6  third_party/legged_wbc/include/legged_wbc/Task.h
 a3950e3263cf4109bec07d82e279a421c3370bf248dfdf203073e1e3a262c4fd  third_party/legged_wbc/src/HierarchicalWbc.cpp
 668a0e79ccb1861beed9a1550e83875c938796327b65f8f1c974fba81f4beef0  third_party/legged_wbc/src/HoQp.cpp
-# WbcBase.cpp is locally adapted with predictive soft joint-limit tasks.
-e29da91802f5dc7b3f86b4fdc36525071c41cad70bc2e6d4a74cbf9de5a63e68  third_party/legged_wbc/src/WbcBase.cpp
+# WbcBase is locally adapted with predictive joint limits and base feedback.
+90e090e6bfc67cc592868b11d67964acb8a9486cc197ce4271bbd66c0f5b5b39  third_party/legged_wbc/include/legged_wbc/WbcBase.h
+23d14cd90f59a1f32a69a5f8cf868a05b1790a140672cb93585a70d6d7dcf4da  third_party/legged_wbc/src/WbcBase.cpp

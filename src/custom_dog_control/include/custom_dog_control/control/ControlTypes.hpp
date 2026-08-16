@@ -19,8 +19,8 @@ constexpr std::size_t kTrotFrRlMode = 9U;
 constexpr std::size_t kTrotFlRrMode = 6U;
 // A single fixed contact schedule avoids changing the OCS2 mode sequence
 // while the solver is running. Zero velocity is handled as full stance.
-constexpr double kTrotPeriodSeconds = 0.30;
-constexpr double kTrotHalfPeriodSeconds = 0.15;
+constexpr double kTrotPeriodSeconds = 0.20;
+constexpr double kTrotHalfPeriodSeconds = 0.10;
 
 inline constexpr std::array<std::string_view, kJointCount> kJointNames = {
     "FR_hip_joint", "FR_thigh_joint", "FR_calf_joint",
