@@ -8,6 +8,7 @@
 #include <iostream>
 #include <limits>
 #include <mutex>
+#include <optional>
 #include <stdexcept>
 #include <thread>
 #include <utility>
@@ -112,7 +113,7 @@ class NmpcBackend::Impl {
     config = new_config;
     try {
       interface = std::make_unique<legged::LeggedInterface>(
-          config.task_file, config.urdf_file, config.reference_file, false);
+          config.task_file, config.urdf_file, config.reference_file, true);
       interface->setupOptimalControlProblem(
           config.task_file, config.urdf_file, config.reference_file, false);
       const auto validation = ModelValidator::Validate(
@@ -158,6 +159,7 @@ class NmpcBackend::Impl {
       target_heading_yaw = observation.state(9);
       target_heading_update_time = observation.time;
       target_reference_initialized = true;
+      pending_target.reset();
       mrt->setCurrentObservation(observation);
       mrt->resetMpcNode(TargetFromCommand(VelocityCommand{}));
       configured_flag = true;
@@ -193,6 +195,21 @@ class NmpcBackend::Impl {
         next += std::chrono::duration_cast<std::chrono::steady_clock::duration>(period);
         const auto start = std::chrono::steady_clock::now();
         try {
+          std::optional<ocs2::TargetTrajectories> target;
+          {
+            std::lock_guard<std::mutex> lock(target_mutex);
+            if (pending_target) {
+              target.emplace(std::move(*pending_target));
+              pending_target.reset();
+            }
+          }
+          if (target) {
+            // ReferenceManager is owned by the solver. Applying updates on
+            // this thread avoids racing advanceMpc() with the 1 kHz control
+            // loop while still collapsing bursts to the newest target.
+            mrt->getReferenceManager().setTargetTrajectories(
+                std::move(*target));
+          }
           mrt->advanceMpc();
           const auto elapsed = std::chrono::duration<double, std::milli>(
               std::chrono::steady_clock::now() - start).count();
@@ -309,7 +326,9 @@ class NmpcBackend::Impl {
     return measured;
   }
 
-  void SetVelocityCommand(const VelocityCommand& command) {
+  void SetVelocityCommand(
+      const VelocityCommand& command, bool reanchor_position,
+      bool reanchor_heading) {
     if (!configured_flag) {
       return;
     }
@@ -321,6 +340,12 @@ class NmpcBackend::Impl {
       target_position_world = observation.state.segment<2>(6);
       target_heading_yaw = observation.state(9);
       target_reference_initialized = true;
+    }
+    if (reanchor_position) {
+      target_position_world = observation.state.segment<2>(6);
+    }
+    if (reanchor_heading) {
+      target_heading_yaw = observation.state(9);
     }
     if (moving) {
       // Match legged_control's cmdVelToTargetTrajectories(): every moving
@@ -337,7 +362,11 @@ class NmpcBackend::Impl {
     }
     yaw_command_was_active = yaw_command_active;
     target_heading_update_time = observation.time;
-    mrt->getReferenceManager().setTargetTrajectories(TargetFromCommand(command));
+    auto target = TargetFromCommand(command);
+    {
+      std::lock_guard<std::mutex> lock(target_mutex);
+      pending_target = std::move(target);
+    }
   }
 
   bool EvaluatePolicy(double now_seconds, PolicySample& output) {
@@ -360,6 +389,22 @@ class NmpcBackend::Impl {
       std::size_t mode = kStanceMode;
       mrt->evaluatePolicy(
           observation.time, observation.state, state, input, mode);
+      if (mode == kStanceMode) {
+        // SQP feedback gains are useful for dynamic gait tracking but produce
+        // excessive joint-velocity corrections in this model's constrained
+        // four-foot stance. Re-evaluating at the nominal state returns the
+        // same policy's feed-forward input without disabling feedback for
+        // diagonal Trot modes.
+        ocs2::vector_t feedforward_state;
+        ocs2::vector_t feedforward_input;
+        std::size_t feedforward_mode = mode;
+        mrt->evaluatePolicy(
+            observation.time, state, feedforward_state,
+            feedforward_input, feedforward_mode);
+        if (feedforward_mode == mode) {
+          input = std::move(feedforward_input);
+        }
+      }
       if (state.size() != kCentroidalStateDim ||
           input.size() != kCentroidalInputDim ||
           !state.allFinite() || !input.allFinite()) {
@@ -484,6 +529,8 @@ class NmpcBackend::Impl {
   std::thread worker;
   std::mutex worker_mutex;
   std::condition_variable worker_cv;
+  std::mutex target_mutex;
+  std::optional<ocs2::TargetTrajectories> pending_target;
   mutable std::mutex error_mutex;
   std::string last_error;
 
@@ -518,8 +565,11 @@ ocs2::vector_t NmpcBackend::UpdateObservation(
     double observation_time, std::size_t planned_mode) {
   return impl_->UpdateObservation(estimate, joints, observation_time, planned_mode);
 }
-void NmpcBackend::SetVelocityCommand(const VelocityCommand& command) {
-  impl_->SetVelocityCommand(command);
+void NmpcBackend::SetVelocityCommand(
+    const VelocityCommand& command, bool reanchor_position,
+    bool reanchor_heading) {
+  impl_->SetVelocityCommand(
+      command, reanchor_position, reanchor_heading);
 }
 void NmpcBackend::RequestGait(bool trot) {
   if (impl_->gait_module) {

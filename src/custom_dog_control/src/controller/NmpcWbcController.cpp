@@ -127,8 +127,8 @@ controller_interface::CallbackReturn NmpcWbcController::on_init() {
     auto_declare<bool>("legacy_joy_y_right", true);
     auto_declare<bool>("use_sim_ground_truth", true);
     auto_declare<double>("ground_truth_timeout_s", 0.10);
-    // legged_control task.info uses mpcDesiredFrequency=50 Hz. The WBC is
-    // evaluated from update() at the controller_manager rate.
+    // The hard-constrained custom model uses two SQP iterations at 50 Hz. WBC
+    // is evaluated from update() at the controller_manager rate.
     auto_declare<double>("mpc_frequency_hz", 50.0);
     auto_declare<double>("simulation_policy_timeout_cycles", 4.0);
     auto_declare<double>("command_timeout_s", 0.30);
@@ -752,7 +752,10 @@ void NmpcWbcController::TransitionTo(
     // Zero velocity is still handled as MPC_STANCE by the gait supervisor.
     trot_enabled_ = true;
     backend_->RequestGait(false);
-    backend_->SetVelocityCommand(VelocityCommand{});
+    // Position-controlled stand-up can translate and rotate the floating
+    // base. Start WBC from the achieved pose instead of chasing the NMPC
+    // target captured before Gazebo physics was unpaused.
+    backend_->SetVelocityCommand(VelocityCommand{}, true, true);
     last_target_update_seconds_ = now_seconds;
     target_command_was_moving_ = false;
     stance_anchor_xy_ = {estimate_.position.x(), estimate_.position.y()};
@@ -1105,23 +1108,39 @@ bool NmpcWbcController::ApplyStateMachine(
         (now_seconds - state_entered_seconds_) /
         std::max(0.1, handoff_duration_s_));
     for (std::size_t i = 0; i < kJointCount; ++i) {
-      command.position[i] =
-          (1.0 - alpha) * stand_up_joint_positions_[i] +
-          alpha * nominal_joint_positions_[i];
-      command.effort[i] *= alpha;
       const std::size_t joint_in_leg = i % kJointsPerLeg;
       const double stand_kp =
           joint_in_leg == 0
               ? stand_up_settle_hip_kp_
               : (joint_in_leg == 1 ? stand_up_settle_leg_kp_
                                    : stand_up_settle_calf_kp_);
-      command.kp[i] =
-          (1.0 - alpha) * stand_kp +
-          alpha * (joint_in_leg == 0 ? wbc_hip_stiffness_
-                                     : wbc_joint_stiffness_);
+      const double wbc_position = command.position[i];
+      const double wbc_velocity = command.velocity[i];
+      const double wbc_effort = command.effort[i];
+      const double wbc_kp = command.kp[i];
+      const double wbc_kd = command.kd[i];
+      const double measured_position = joints_state_.position[i];
+      const double measured_velocity = joints_state_.velocity[i];
+      const double stand_net_effort =
+          stand_kp * (stand_up_joint_positions_[i] - measured_position) -
+          stand_up_settle_kd_ * measured_velocity;
+      const double wbc_net_effort =
+          wbc_effort + wbc_kp * (wbc_position - measured_position) +
+          wbc_kd * (wbc_velocity - measured_velocity);
+
+      command.position[i] =
+          (1.0 - alpha) * stand_up_joint_positions_[i] +
+          alpha * wbc_position;
+      command.velocity[i] = alpha * wbc_velocity;
+      command.kp[i] = (1.0 - alpha) * stand_kp + alpha * wbc_kp;
       command.kd[i] =
-          (1.0 - alpha) * stand_up_settle_kd_ +
-          alpha * wbc_joint_damping_;
+          (1.0 - alpha) * stand_up_settle_kd_ + alpha * wbc_kd;
+      const double blended_net_effort =
+          (1.0 - alpha) * stand_net_effort + alpha * wbc_net_effort;
+      command.effort[i] =
+          blended_net_effort -
+          command.kp[i] * (command.position[i] - measured_position) -
+          command.kd[i] * (command.velocity[i] - measured_velocity);
     }
   }
   return true;
@@ -1187,7 +1206,7 @@ controller_interface::return_type NmpcWbcController::update(
         std::max({std::abs(backend_command.vx),
                   std::abs(backend_command.vy),
                   std::abs(backend_command.yaw)}) > 1e-3;
-    const bool target_update_due =
+    const bool moving_target_update_due =
         target_command_is_moving &&
         now_seconds - last_target_update_seconds_ >= 0.05;
     const double stance_anchor_error = std::hypot(
@@ -1196,13 +1215,16 @@ controller_interface::return_type NmpcWbcController::update(
     const bool stance_reanchor_due =
         mode_ == OperatingMode::MPC_STANCE && !target_command_is_moving &&
         stance_anchor_error >= stance_reanchor_distance_m_;
-    // Hold the world-frame stance target during normal contact motion. If
-    // accumulated foot slip exceeds the configured guard distance, re-anchor
-    // once so NMPC does not build an unsafe horizontal recovery force.
-    if (last_target_update_seconds_ < 0.0 || target_update_due ||
+    // Keep a stable reference between updates. Re-anchoring is event driven
+    // below so the 50 Hz solver is not continuously restarted while WBC is
+    // taking over from the position-controlled stand.
+    if (last_target_update_seconds_ < 0.0 || moving_target_update_due ||
         stance_reanchor_due ||
         (target_command_was_moving_ && !target_command_is_moving)) {
-      backend_->SetVelocityCommand(backend_command);
+      backend_->SetVelocityCommand(
+          backend_command,
+          stance_reanchor_due ||
+              (target_command_was_moving_ && !target_command_is_moving));
       last_target_update_seconds_ = now_seconds;
       if (!target_command_is_moving) {
         stance_anchor_xy_ = {estimate_.position.x(), estimate_.position.y()};
@@ -1356,6 +1378,12 @@ void NmpcWbcController::PublishDiagnostics(
       KeyValue("fr_hip_velocity_rad_s", Number(joints_state_.velocity[0])),
       KeyValue("fr_thigh_velocity_rad_s", Number(joints_state_.velocity[1])),
       KeyValue("fr_calf_velocity_rad_s", Number(joints_state_.velocity[2])),
+      KeyValue("wbc_q_fr_hip_rad", Number(wbc.command.position[0])),
+      KeyValue("wbc_q_fr_thigh_rad", Number(wbc.command.position[1])),
+      KeyValue("wbc_q_fr_calf_rad", Number(wbc.command.position[2])),
+      KeyValue("wbc_qd_fr_hip_rad_s", Number(wbc.command.velocity[0])),
+      KeyValue("wbc_qd_fr_thigh_rad_s", Number(wbc.command.velocity[1])),
+      KeyValue("wbc_qd_fr_calf_rad_s", Number(wbc.command.velocity[2])),
       KeyValue("mpc_policy_age_s", Number(backend_->policyAgeSeconds(stamp.seconds()))),
       KeyValue("mpc_solver_healthy", backend_->solverHealthy() ? "true" : "false"),
       KeyValue("mpc_last_error", backend_->lastError()),
