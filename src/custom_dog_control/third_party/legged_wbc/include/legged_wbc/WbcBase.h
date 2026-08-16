@@ -65,6 +65,10 @@ class WbcBase {
   // Task Parameters:
   vector_t torqueLimits_;
   scalar_t frictionCoeff_{}, swingKp_{}, swingKd_{};
+  vector3_t basePositionKp_ = vector3_t::Zero();
+  vector3_t basePositionKd_ = vector3_t::Zero();
+  vector3_t baseOrientationKp_ = vector3_t::Zero();
+  vector3_t baseOrientationKd_ = vector3_t::Zero();
   scalar_t jointPositionMargin_{0.10}, jointLimitHorizon_{0.05};
   bool lastSolverSucceeded_ = false;
   scalar_t lastEqualityResidual_ = 0.0;

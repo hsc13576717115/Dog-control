@@ -6,8 +6,8 @@
 ros2_control + OCS2 NMPC + weighted WBC + Pinocchio state estimation
 ```
 
-当前仿真目标是平地起身、站立，以及 `vx +/-1.5 m/s`、`vy +/-1.0 m/s`、
-`yaw +/-2.0 rad/s` 的 Trot 速度包线。开发机运行 Gazebo，香橙派运行 IMU、
+当前配置已通过平地起身、站立，以及 `vx +/-1.5 m/s`、`vy +/-1.0 m/s`、
+`yaw +/-2.0 rad/s` 的 Gazebo Trot 速度包线。开发机运行 Gazebo，香橙派运行 IMU、
 串口电机、估计器、NMPC、WBC 和诊断节点；仿真包线通过不代表真机可直接使用。
 
 ## 目录和命名
@@ -50,8 +50,9 @@ NMPC/WBC 不是仅按接口仿写：`qiayuanl/legged_control` 提交
 `a7f381c0367e98e31c01336e678eef47e304d40d` 的 `legged_interface` 算法源码
 直接编译为 `custom_dog_control_legged_interface`，WBC 直接编译其
 `legged::WeightedWbc`。ROS 2 控制器只负责状态机、消息、实时缓冲和硬件适配。
-上游文件 SHA-256 记录在
-`config/legged_control_upstream.sha256`，测试会阻止后端退回 OCS2 示例接口。
+上游文件及明确标注的本地 WBC 适配 SHA-256 记录在
+`config/legged_control_upstream.sha256`，测试会阻止未登记的算法源码变化，也会阻止
+后端退回 OCS2 示例接口。
 
 ## 控制架构
 
@@ -179,7 +180,7 @@ Gazebo 使用与真机相同的控制器，只把 `q/qd/kp/kd/tau` 换算成仿�
 进入 `MPC_STANCE` 或 `MPC_TROT` 后，Gazebo 和真机都执行同一套 OCS2 NMPC
 策略与 weighted WBC，仿真不存在位置控制步态或运动兜底。Gazebo 足端接触参数采用
 显式 ODE 摩擦、刚度和阻尼配置，以便稳定复现实机接触约束。
-Trot 使用固定 `0.30 s` 周期和 50% 占空比的对角接触序列；零速不原地踏步，
+Trot 使用固定 `0.20 s` 周期和 50% 占空比的对角接触序列；零速不原地踏步，
 而是保持四足 STANCE。这里借鉴 `unitree_guide` 的固定步频、相位安全切换和
 “目标速度不得远离实测速度”的设计，但不叠加其解析逆运动学摆腿轨迹，避免与
 OCS2 的 NMPC 状态、接触约束和 WBC 任务产生两套相互冲突的足端目标。
@@ -228,6 +229,8 @@ ros2 launch custom_dog_control real.launch.py \
 只有独立物理急停完成安装和验收后才允许使用该参数。
 三个 `calibration_*_deg` 参数是 START 标定时当前折叠姿态对应的 URDF 角度，后续
 实测值可直接在 launch 命令中覆盖，不需要重新编译。
+真机配置单独把速度限制保留为 `vx +/-0.30 m/s`、`vy +/-0.10 m/s`、
+`yaw +/-0.30 rad/s`；不得因为 Gazebo 已通过高速包线而直接放宽实机限值。
 
 ## 接口和测试
 
@@ -250,6 +253,11 @@ ros2 run custom_dog_control simulation_smoke_test.py
 ros2 run custom_dog_control simulation_motion_test.py
 ros2 run custom_dog_control simulation_command_matrix_test.py
 ros2 run custom_dog_control simulation_envelope_test.py --vx 1.5
+ros2 run custom_dog_control simulation_envelope_test.py --vx -1.5
+ros2 run custom_dog_control simulation_envelope_test.py --vy 1.0
+ros2 run custom_dog_control simulation_envelope_test.py --vy -1.0
+ros2 run custom_dog_control simulation_envelope_test.py --yaw 2.0
+ros2 run custom_dog_control simulation_envelope_test.py --yaw -2.0
 ```
 
 `simulation_motion_test.py` 会从 PASSIVE 起身，切换到 NMPC/WBC Trot，以
@@ -259,9 +267,22 @@ WBC 有效性、零速启用 Trot 时保持 STANCE、前向位移、侧偏、航
 原地转向，每段都必须从 Trot 正常停止到 STANCE。测试还要求运行时诊断明确
 报告 `legged::LeggedInterface`、`legged::WeightedWbc` 和固定上游提交。运行自动测试时应以
 `start_keyboard:=false` 启动 Gazebo，避免键盘节点同时发布命令。
-`simulation_envelope_test.py` 每次只验证一个速度轴，统计末段实际速度、姿态 RMS、
-高度、NMPC/WBC 有效性和受控停车。六个正负方向必须各自在全新 Gazebo 世界运行，
-不能复用已经积累位姿误差或接触状态的世界来替代独立验收。
+`simulation_envelope_test.py` 每次只验证一个速度轴，执行起身前站立检查、20 秒满量程
+运动、受控停车和 10 秒停车后站立保持，并统计末段速度、姿态 RMS/峰值、机身高度及
+NMPC/WBC 有效性。六个正负方向必须各自在全新 Gazebo 世界运行，不能复用已经积累
+位姿误差或接触状态的世界来替代独立验收。
+
+当前配置的独立冷启动验收结果如下；线速度允许误差为 `0.20 m/s`，角速度允许误差为
+`0.30 rad/s`，六项均完成受控停车及 10 秒 MPC_STANCE 保持：
+
+| 目标 | 稳态实测 | roll/pitch RMS | 最大高度误差 |
+| --- | --- | --- | --- |
+| `vx +1.5 m/s` | `+1.460 m/s` | `0.005 / 0.007 rad` | `0.028 m` |
+| `vx -1.5 m/s` | `-1.501 m/s` | `0.003 / 0.008 rad` | `0.025 m` |
+| `vy +1.0 m/s` | `+0.993 m/s` | `0.014 / 0.008 rad` | `0.019 m` |
+| `vy -1.0 m/s` | `-0.990 m/s` | `0.017 / 0.008 rad` | `0.019 m` |
+| `yaw +2.0 rad/s` | `+1.981 rad/s` | `0.002 / 0.003 rad` | `0.009 m` |
+| `yaw -2.0 rad/s` | `-1.980 rad/s` | `0.003 / 0.002 rad` | `0.010 m` |
 
 真机顺序固定为：物理急停、单电机、单腿悬空、四腿悬空、位置起身、悬挂 WBC、绳保护站立、低速前后/侧移/转向。任一通信超时、温升异常、方向错误、求解失败或振荡都必须停止测试。
 

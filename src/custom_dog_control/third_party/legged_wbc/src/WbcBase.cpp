@@ -6,6 +6,7 @@
 #include "legged_wbc/WbcBase.h"
 
 #include <algorithm>
+#include <cmath>
 #include <ocs2_centroidal_model/AccessHelperFunctions.h>
 #include <ocs2_centroidal_model/ModelHelperFunctions.h>
 #include <pinocchio/algorithm/centroidal.hpp>
@@ -253,6 +254,21 @@ Task WbcBase::formulateBaseAccelTask(const vector_t& stateDesired, const vector_
 
   Vector6 b = AbInv * centroidalMomentumRate;
 
+  const vector3_t positionError =
+      qDesired.head<3>() - qMeasured_.head<3>();
+  vector3_t orientationError =
+      qDesired.segment<3>(3) - qMeasured_.segment<3>(3);
+  orientationError(0) = std::remainder(
+      orientationError(0), 2.0 * std::acos(-1.0));
+  b.head<3>() +=
+      basePositionKp_.cwiseProduct(positionError) +
+      basePositionKd_.cwiseProduct(
+          vDesired.head<3>() - vMeasured_.head<3>());
+  b.tail<3>() +=
+      baseOrientationKp_.cwiseProduct(orientationError) +
+      baseOrientationKd_.cwiseProduct(
+          vDesired.segment<3>(3) - vMeasured_.segment<3>(3));
+
   return {a, b, matrix_t(), vector_t()};
 }
 
@@ -322,6 +338,14 @@ void WbcBase::loadTasksSetting(const std::string& taskFile, bool verbose) {
   }
   loadData::loadPtreeValue(pt, swingKp_, prefix + "kp", verbose);
   loadData::loadPtreeValue(pt, swingKd_, prefix + "kd", verbose);
+  loadData::loadEigenMatrix(
+      taskFile, "baseAccelTask.positionKp", basePositionKp_);
+  loadData::loadEigenMatrix(
+      taskFile, "baseAccelTask.positionKd", basePositionKd_);
+  loadData::loadEigenMatrix(
+      taskFile, "baseAccelTask.orientationKp", baseOrientationKp_);
+  loadData::loadEigenMatrix(
+      taskFile, "baseAccelTask.orientationKd", baseOrientationKd_);
   prefix = "jointLimitsTask.";
   loadData::loadPtreeValue(
       pt, jointPositionMargin_, prefix + "positionMargin", verbose);

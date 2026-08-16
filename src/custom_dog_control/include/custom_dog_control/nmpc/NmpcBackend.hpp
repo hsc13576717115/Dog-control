@@ -53,7 +53,9 @@ class NmpcBackend {
       const JointSample& joints,
       double observation_time,
       std::size_t planned_mode);
-  void SetVelocityCommand(const VelocityCommand& command);
+  void SetVelocityCommand(
+      const VelocityCommand& command, bool reanchor_position = false,
+      bool reanchor_heading = false);
   void RequestGait(bool trot);
   bool EvaluatePolicy(double now_seconds, PolicySample& output);
   WbcOutput ComputeWbc(
