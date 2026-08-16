@@ -17,9 +17,9 @@ nmpc_wbc_controller:
     stand_up_settle_leg_kp: 12.0
     stand_up_settle_calf_kp: 12.0
     stand_up_settle_kd: 0.8
-    # The high-speed envelope is simulation-validated only. Keep the first
-    # hardware commissioning limits conservative until tethered tests pass.
-    velocity_limit_x: 0.30
-    velocity_limit_y: 0.10
-    velocity_limit_yaw: 0.30
+    # Match the simulation command envelope. These limits still require
+    # physical-estop, tethered, and staged hardware validation before use.
+    velocity_limit_x: 1.5
+    velocity_limit_y: 1.0
+    velocity_limit_yaw: 2.0
     joint_limit_tolerance_rad: 0.005
