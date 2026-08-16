@@ -91,8 +91,9 @@ ros2 launch custom_dog_control real.launch.py physical_estop_verified:=true
 `physical_estop_verified` 只能在独立硬件急停完成验收后设置为 `true`。
 折叠姿态有更准确的测量值时，通过 `calibration_hip_deg`、
 `calibration_thigh_deg` 和 `calibration_calf_deg` 覆盖默认值。
-真机覆盖配置默认限制为 `vx +/-0.30 m/s`、`vy +/-0.10 m/s` 和
-`yaw +/-0.30 rad/s`，仿真高速结果不作为放宽实机限值的依据。
+真机覆盖配置当前与仿真一致，为 `vx +/-1.5 m/s`、`vy +/-1.0 m/s` 和
+`yaw +/-2.0 rad/s`。这只是指令限幅配置，真机启用前仍必须完成独立物理急停、系留
+和分阶段低速测试。
 
 ## 模型与接口
 
