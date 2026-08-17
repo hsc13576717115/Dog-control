@@ -11,16 +11,20 @@ from launch_ros.parameter_descriptions import ParameterValue
 
 def generate_launch_description():
     package_share = get_package_share_directory('custom_dog_control')
+    description_share = get_package_share_directory('custom_dog_description')
     controllers = os.path.join(package_share, 'config', 'controllers.yaml')
     real_override = os.path.join(
         package_share, 'config', 'real_controller.yaml')
     xacro_file = os.path.join(
         package_share, 'urdf', 'custom_dog.ros2_control.xacro')
+    canonical_urdf = os.path.join(
+        description_share, 'urdf', 'custom_dog.urdf')
 
     robot_description = ParameterValue(
         Command([
             'xacro ', xacro_file,
             ' hardware_mode:=real',
+            ' description_urdf:=', canonical_urdf,
             ' physical_estop_verified:=',
             LaunchConfiguration('physical_estop_verified'),
             ' fr_port:=', LaunchConfiguration('fr_port'),

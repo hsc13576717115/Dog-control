@@ -117,11 +117,22 @@ PASSIVE -> CALIBRATION -> STAND_UP -> MPC_STANCE <-> MPC_TROT
 
 ## 模型与标定约定
 
-唯一运动学和动力学模型为：
+唯一运动学和动力学模型为公共完整 URDF：
 
 ```text
 /home/hsc/Dog_RL/custom_dog_stack/ros2/src/custom_dog_description/urdf/custom_dog.urdf
 ```
+
+碰撞模型按仿真器显式分离，但质量、惯量、视觉、关节树和限位都继承上述公共模型：
+
+| 使用方 | URDF | 碰撞约定 |
+| --- | --- | --- |
+| 真机、Pinocchio、模型契约 | `custom_dog.urdf` | 完整 primitive 碰撞体 |
+| Gazebo 传统控制 | `custom_dog_gazebo_point_foot.urdf` | 去除 thigh/calf 地面碰撞，只保留机身、hip 和足端 |
+| HimLoco/Isaac | `custom_dog_selective_collision.urdf` | 标定后的 thigh/calf 代理碰撞体 |
+
+Gazebo launch 必须显式加载点足版本，不能再通过修改公共 URDF 绕开起身阶段的腿段
+接触。点足版本仅匹配当前 NMPC/WBC 的四足端接触假设，不代表真实腿部不存在碰撞。
 
 | 项目 | 约定 |
 | --- | --- |
@@ -161,7 +172,7 @@ Dog-control/
 | `qiayuanl/legged_control` | 固定提交的 `LeggedInterface`、OCS2 质心模型和 `WeightedWbc` |
 | `unitree_guide` | 状态组织、操作语义、增量键盘和固定步态思路 |
 | 原 `qr_guide` | GO-M8010-6、四路 RS485、关节换算和趴姿零点标定 |
-| `custom_dog.urdf` + Pinocchio | 唯一模型、坐标、关节限位和运动学来源 |
+| 公共 `custom_dog.urdf` + Pinocchio | 唯一模型、坐标、关节限位和运动学来源 |
 
 ROS 2 控制器负责状态机、消息、实时数据交换和硬件适配。工程直接编译
 `legged_control` 提交 `a7f381c0367e98e31c01336e678eef47e304d40d` 的算法源码，

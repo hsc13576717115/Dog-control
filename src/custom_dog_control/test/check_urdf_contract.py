@@ -13,6 +13,8 @@ EXPECTED_FEET = [f'{leg}_foot' for leg in ('FR', 'FL', 'RR', 'RL')]
 EXPECTED_COLLISION_LINKS = {
     'base',
     *(f'{leg}_hip' for leg in ('FR', 'FL', 'RR', 'RL')),
+    *(f'{leg}_thigh' for leg in ('FR', 'FL', 'RR', 'RL')),
+    *(f'{leg}_calf' for leg in ('FR', 'FL', 'RR', 'RL')),
     *EXPECTED_FEET,
 }
 EXPECTED_MASS = 13.84916
