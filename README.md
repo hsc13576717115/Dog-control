@@ -10,6 +10,15 @@ ros2_control + OCS2 NMPC + weighted WBC + Pinocchio
 仿真与真机共用同一个控制器。位置插值只负责从趴姿起身，站立和 Trot 均由
 NMPC-WBC 控制。
 
+## 自制四足平台演示
+
+以下视频展示本项目使用的 12 自由度串联四足实机平台。当前 `main` / `ros2-nmpc-wbc`
+分支维护 ROS 2 + OCS2 NMPC + weighted WBC 主线，`qr_ws` 分支保留较早的真机控制工作区。
+
+[![12自由度自制四足实机演示](docs/media/custom-dog-platform-preview.gif)](docs/media/custom-dog-platform-demo.mp4)
+
+[点击播放或下载完整 MP4 视频](docs/media/custom-dog-platform-demo.mp4)
+
 ## 当前状态
 
 | 项目 | 状态 |
