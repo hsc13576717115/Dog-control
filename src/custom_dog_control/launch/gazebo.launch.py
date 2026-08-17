@@ -46,12 +46,15 @@ def generate_launch_description():
     )
     xacro_file = os.path.join(
         package_share, 'urdf', 'custom_dog.ros2_control.xacro')
+    point_foot_urdf = os.path.join(
+        description_share, 'urdf', 'custom_dog_gazebo_point_foot.urdf')
     default_world = os.path.join(package_share, 'worlds', 'flat.world')
 
     robot_description = ParameterValue(
         Command([
             'xacro ', xacro_file,
             ' hardware_mode:=gazebo',
+            ' description_urdf:=', point_foot_urdf,
             ' controllers_file:=', controllers,
             ' gazebo_control_plugin:=', gazebo_control_plugin,
         ]),

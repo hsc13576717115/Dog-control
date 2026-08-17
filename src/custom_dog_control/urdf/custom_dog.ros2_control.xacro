@@ -1,6 +1,7 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="custom_dog">
   <xacro:arg name="hardware_mode" default="gazebo"/>
+  <xacro:arg name="description_urdf" default="$(find custom_dog_description)/urdf/custom_dog.urdf"/>
   <xacro:arg name="controllers_file" default=""/>
   <xacro:arg name="gazebo_control_plugin" default="libgazebo_ros2_control.so"/>
   <!-- Gazebo needs an abducted folded pose for the belly and folded-leg
@@ -20,8 +21,9 @@
   <xacro:arg name="calibration_thigh_deg" default="71.8"/>
   <xacro:arg name="calibration_calf_deg" default="-161.8"/>
 
-  <!-- The included URDF is the sole source of geometry and dynamics. -->
-  <xacro:include filename="$(find custom_dog_description)/urdf/custom_dog.urdf"/>
+  <!-- Launch files choose an engine-specific collision variant. All variants
+       preserve the canonical inertial, visual, joint and limit contract. -->
+  <xacro:include filename="$(arg description_urdf)"/>
 
   <xacro:macro name="sim_joint" params="name initial_position">
     <joint name="${name}">
