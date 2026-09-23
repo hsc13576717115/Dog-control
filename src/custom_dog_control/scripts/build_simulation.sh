@@ -1,29 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-package_dir="$(cd "${script_dir}/.." && pwd)"
-workspace="$(cd "${package_dir}/../.." && pwd)"
-stack_root="$(cd "${workspace}/../.." && pwd)"
-model_workspace="${stack_root}/ros2"
-deps_workspace="${CUSTOM_DOG_CONTROL_DEPS_WS:-${workspace}/../custom_dog_control_deps_ws}"
+# shellcheck source=lib/workspace.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/workspace.sh"
+script_dir="$DOG_SCRIPTS_DIR"
+workspace="$DOG_WORKSPACE"
+model_workspace="$DOG_MODEL_WS"
+model_source="$DOG_MODEL_SOURCE"
 
-if [[ "${ROS_DISTRO:-}" != "humble" ]]; then
-  if [[ -f /opt/ros/humble/setup.bash ]]; then
-    # shellcheck disable=SC1091
-    source /opt/ros/humble/setup.bash
-  fi
-fi
+dog_source_ros
 
-if [[ "${ROS_DISTRO:-}" != "humble" ]]; then
-  echo "ERROR: ROS 2 Humble is not sourced (ROS_DISTRO=${ROS_DISTRO:-unset})."
-  echo "Run: source /opt/ros/humble/setup.bash"
-  exit 2
-fi
-
-if [[ ! -f "${model_workspace}/src/custom_dog_description/package.xml" ]]; then
-  echo "ERROR: custom_dog_description source package was not found:"
-  echo "  ${model_workspace}/src/custom_dog_description"
+model_package="${model_workspace}/src/custom_dog_description"
+if [[ -f "${model_source}/package.xml" ]]; then
+  python3 "${script_dir}/prepare_simulation_model.py" "${model_source}" "${model_package}"
+elif [[ -f "${model_package}/package.xml" ]]; then
+  python3 "${script_dir}/prepare_simulation_model.py" "${model_package}" "${model_package}"
+else
+  echo "ERROR: Set CUSTOM_DOG_DESCRIPTION_DIR to the custom_dog_description source package."
+  echo "Searched: ${model_source} and ${model_package}"
   exit 2
 fi
 
@@ -34,21 +28,9 @@ colcon --log-base "${model_workspace}/log" build \
   --install-base "${model_workspace}/install" \
   --packages-select custom_dog_description
 
-set +u
-# shellcheck disable=SC1090
-source "${model_workspace}/install/setup.bash"
-set -u
-deps_setup=""
-if [[ -f "${deps_workspace}/install/setup.bash" ]]; then
-  deps_setup="${deps_workspace}/install/setup.bash"
-elif [[ -f "${deps_workspace}/setup.bash" ]]; then
-  deps_setup="${deps_workspace}/setup.bash"
-fi
-if [[ -n "${deps_setup}" ]]; then
-  set +u
-  # shellcheck disable=SC1090
-  source "${deps_setup}"
-  set -u
+dog_source "${model_workspace}/install/local_setup.bash"
+if [[ -d "${DOG_DEPS_WS}" ]]; then
+  dog_source_dependencies
 fi
 if [[ -d "${workspace}/src/ocs2" ]]; then
   export CUSTOM_DOG_CONTROL_ALLOW_OCS2_SOURCE_BUILD=1
@@ -62,16 +44,21 @@ if [[ -n "${multiarch}" && -d "${ros_multiarch_lib}" ]]; then
 fi
 export GAZEBO_PLUGIN_PATH="/opt/ros/humble/lib:${GAZEBO_PLUGIN_PATH:-}"
 export GAZEBO_MODEL_DATABASE_URI=""
+# Pinocchio/CppAD translation units are memory intensive on desktop systems.
+export CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-2}"
+export MAKEFLAGS="${MAKEFLAGS:--j${CMAKE_BUILD_PARALLEL_LEVEL}}"
 
 cd "${workspace}"
 colcon build --symlink-install --packages-up-to custom_dog_control \
+  --executor sequential \
   --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+               -DCUSTOM_DOG_CONTROL_CANONICAL_URDF="${model_package}/urdf/custom_dog.urdf" \
                -DCUSTOM_DOG_CONTROL_BUILD_REAL_HARDWARE=OFF
 
 # Only source a freshly successful build. set -e above prevents stale installs
 # from being used after a compiler or linker failure.
-set +u
-# shellcheck disable=SC1091
-source "${workspace}/install/setup.bash"
-set -u
+dog_source "${workspace}/install/local_setup.bash"
+if [[ "${CUSTOM_DOG_BUILD_ONLY:-0}" == "1" ]]; then
+  exit 0
+fi
 exec ros2 launch custom_dog_control gazebo.launch.py use_rviz:=false "$@"
