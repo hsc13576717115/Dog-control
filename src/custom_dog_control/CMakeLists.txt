@@ -182,6 +182,11 @@ target_link_libraries(custom_dog_control_core
 
 add_library(custom_dog_control_nmpc_wbc_controller SHARED
   src/controller/NmpcWbcController.cpp
+  src/controller/ControllerLifecycle.cpp
+  src/controller/ControllerInputs.cpp
+  src/controller/ControllerHardware.cpp
+  src/controller/ControllerStateMachine.cpp
+  src/controller/ControllerDiagnostics.cpp
 )
 target_include_directories(custom_dog_control_nmpc_wbc_controller PUBLIC include)
 ament_target_dependencies(custom_dog_control_nmpc_wbc_controller
@@ -306,13 +311,12 @@ install(FILES
 if(CUSTOM_DOG_CONTROL_BUILD_REAL_HARDWARE)
   install(FILES custom_dog_control_hardware_plugins.xml DESTINATION share/${PROJECT_NAME})
 endif()
+# Workspace-relative shell entry points are run from source, not ros2 run.
 install(PROGRAMS
-  scripts/check_dependencies.sh
-  scripts/build_simulation.sh
   scripts/event2joy.py
-  scripts/fetch_ocs2.sh
   scripts/keyboard_teleop.py
   scripts/profile_runtime.py
+  scripts/prepare_simulation_model.py
   scripts/simulation_command_matrix_test.py
   scripts/simulation_envelope_test.py
   scripts/simulation_motion_test.py
@@ -335,13 +339,21 @@ if(BUILD_TESTING AND CUSTOM_DOG_CONTROL_BUILD_TESTING)
   target_include_directories(test_control_contract PRIVATE include)
   target_link_libraries(test_control_contract Eigen3::Eigen)
 
+  ament_add_gtest(test_joint_command_utils test/test_joint_command_utils.cpp)
+  target_include_directories(test_joint_command_utils PRIVATE include)
+
   ament_add_gtest(test_safety_monitor test/test_safety_monitor.cpp)
   target_include_directories(test_safety_monitor PRIVATE include)
   target_link_libraries(test_safety_monitor custom_dog_control_core)
 
-  set(CUSTOM_DOG_CONTROL_CANONICAL_URDF
-      "${CMAKE_CURRENT_SOURCE_DIR}/../../../../ros2/src/custom_dog_description/urdf/custom_dog.urdf"
-      CACHE FILEPATH "Canonical custom dog URDF used by the model contract test")
+  set(CUSTOM_DOG_CONTROL_CANONICAL_URDF "" CACHE FILEPATH
+      "Canonical custom dog URDF used by the model contract test")
+  if(NOT CUSTOM_DOG_CONTROL_CANONICAL_URDF)
+    find_package(custom_dog_description REQUIRED)
+    get_filename_component(CUSTOM_DOG_DESCRIPTION_SHARE "${custom_dog_description_DIR}/.." ABSOLUTE)
+    set(CUSTOM_DOG_CONTROL_CANONICAL_URDF
+        "${CUSTOM_DOG_DESCRIPTION_SHARE}/urdf/custom_dog.urdf")
+  endif()
   if(EXISTS "${CUSTOM_DOG_CONTROL_CANONICAL_URDF}")
     add_test(
       NAME test_urdf_contract
@@ -356,7 +368,7 @@ if(BUILD_TESTING AND CUSTOM_DOG_CONTROL_BUILD_TESTING)
       CUSTOM_DOG_CONTROL_CANONICAL_URDF="${CUSTOM_DOG_CONTROL_CANONICAL_URDF}")
     target_link_libraries(test_model_validator custom_dog_control_core)
   else()
-    message(WARNING "Skipping URDF contract test: ${CUSTOM_DOG_CONTROL_CANONICAL_URDF} does not exist")
+    message(FATAL_ERROR "Cannot run URDF contract test: ${CUSTOM_DOG_CONTROL_CANONICAL_URDF} does not exist")
   endif()
 endif()
 
