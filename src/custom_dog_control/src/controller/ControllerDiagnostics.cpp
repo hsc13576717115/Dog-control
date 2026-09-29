@@ -38,6 +38,8 @@ Eigen::Quaterniond QuaternionFromZyx(const Eigen::Vector3d& zyx) {
 void NmpcWbcController::PublishDiagnostics(
     const rclcpp::Time& stamp, const EstimatedState& estimate,
     const PolicySample& policy, const WbcOutput& wbc) {
+  // 诊断按 ROS 时间限频到约 10 Hz；统计窗口在控制循环中持续采样。
+  // 这里仍有消息分配、排序和发布开销，并非独立的实时安全发布线程。
   if (last_diagnostics_seconds_ >= 0.0 &&
       stamp.seconds() - last_diagnostics_seconds_ < 0.10) {
     return;
@@ -49,6 +51,7 @@ void NmpcWbcController::PublishDiagnostics(
   mode_publisher_->publish(mode_message);
 
   std_msgs::msg::Float64MultiArray contact_message;
+  // 发布的是策略接触计划；无有效策略时显示全支撑，不表示检测到了触地。
   const auto contacts = ContactFlags(policy.valid ? policy.mode : kStanceMode);
   contact_message.data.reserve(kLegCount);
   for (const bool contact : contacts) {
@@ -167,6 +170,8 @@ void NmpcWbcController::PublishDiagnostics(
   odometry.pose.pose.orientation.x = quaternion.x();
   odometry.pose.pose.orientation.y = quaternion.y();
   odometry.pose.pose.orientation.z = quaternion.z();
+  // Odometry 的 pose 位于 odom，twist 位于 child_frame_id=base；
+  // 估计器输出的是世界系速度，发布前必须旋转到机体系。
   const Eigen::Vector3d velocity_body =
       quaternion.inverse() * estimate.velocity_world;
   const Eigen::Vector3d angular_body =

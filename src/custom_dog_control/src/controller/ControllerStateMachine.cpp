@@ -8,6 +8,7 @@
 namespace custom_dog_control {
 namespace {
 
+// 归一化时间超过两端时不外插；三次曲线在起止点的导数为零。
 double SmoothStep(double x) {
   x = std::clamp(x, 0.0, 1.0);
   return x * x * (3.0 - 2.0 * x);
@@ -15,6 +16,7 @@ double SmoothStep(double x) {
 
 }  // namespace
 
+// 所有模式进入动作集中在此处。同模式请求不重置计时器，否则起身/交接永远无法完成。
 void NmpcWbcController::TransitionTo(
     OperatingMode next, double now_seconds) {
   if (mode_ == next) {
@@ -30,18 +32,15 @@ void NmpcWbcController::TransitionTo(
     consecutive_wbc_failures_ = 0;
     stand_start_positions_ = joints_state_.position;
   } else if (next == OperatingMode::MPC_STANCE) {
-    // The fixed-pose blend is only the position-control-to-WBC handoff.
-    // Reapplying it after Trot would drag four planted feet back to the
-    // original stand posture and can overturn the robot after a yaw command.
+    // 固定站姿混合只用于起身 PD→WBC 的首次交接。
+    // Trot 停车后重复混合会把已落地的脚拖回初始姿态，转向后尤其容易破坏平衡。
     stance_handoff_active_ = previous == OperatingMode::STAND_UP;
     consecutive_wbc_failures_ = 0;
-    // Arm locomotion after the explicit calibration and stand-up sequence.
-    // Zero velocity is still handled as MPC_STANCE by the gait supervisor.
+    // 完成启动流程后允许自动行走；零速度仍由监督器维持为四足站立。
     trot_enabled_ = true;
     backend_->RequestGait(false);
-    // Position-controlled stand-up can translate and rotate the floating
-    // base. Start WBC from the achieved pose instead of chasing the NMPC
-    // target captured before Gazebo physics was unpaused.
+    // 起身 PD 会改变浮动基座位姿。接管时锚定实际达到的位置/朝向，
+    // 避免追踪 Gazebo 尚未解除暂停时捕获的旧参考。
     backend_->SetVelocityCommand(VelocityCommand{}, true, true);
     last_target_update_seconds_ = now_seconds;
     target_command_was_moving_ = false;
@@ -54,6 +53,8 @@ void NmpcWbcController::TransitionTo(
   }
 }
 
+// 速度滞回和驻留时间抑制抖动；发出请求后还必须收到更高序号、接触模式匹配的策略，
+// 才改变 OperatingMode，确保控制器模式与优化器接触约束同步。
 void NmpcWbcController::UpdateLocomotionSupervisor(
     double now_seconds, const VelocityCommand& command, const JoyInput& joy,
     const PolicySample& policy, double policy_age_seconds) {
@@ -81,6 +82,7 @@ void NmpcWbcController::UpdateLocomotionSupervisor(
       policy_age_seconds <= safety_monitor_->limits().max_policy_age_s;
 
   if (gait_transition_ == GaitTransition::STARTING_TROT) {
+    // 启动尚未确认时允许取消；确认后才进入正常 Trot 的停车流程。
     if (!trot_enabled_ || !ExceedsTrotEntryThreshold(command)) {
       backend_->RequestGait(false);
       gait_transition_ = GaitTransition::NONE;
@@ -98,6 +100,7 @@ void NmpcWbcController::UpdateLocomotionSupervisor(
   }
 
   if (gait_transition_ == GaitTransition::STOPPING_TROT) {
+    // 等待新的四足站立策略，不在对角支撑阶段直接宣告停车完成。
     if (policy_fresh &&
         policy.sequence > gait_request_policy_sequence_ &&
         policy.mode == kStanceMode) {
@@ -144,6 +147,8 @@ void NmpcWbcController::UpdateLocomotionSupervisor(
   }
 }
 
+// command/wbc 由本周期选中的控制路径填写。false 表示无法生成有效输出；
+// true 也可能处于被动、标定或故障模式，调用方仍须根据 mode_ 选择安全命令。
 bool NmpcWbcController::ApplyStateMachine(
     double now_seconds, double dt, const JoyInput& joy,
     const PolicySample& policy, bool policy_available,
@@ -157,6 +162,7 @@ bool NmpcWbcController::ApplyStateMachine(
     TransitionTo(OperatingMode::FAULT, now_seconds);
   }
   if (mode_ == OperatingMode::FAULT) {
+    // 故障锁存只由明确的 PASSIVE 请求复位；真机下次启动还需重新完成标定。
     if (request == RequestedMode::PASSIVE) {
       safety_monitor_->Reset();
       reset_calibration_pending_ = IsRealHardware();
@@ -195,8 +201,8 @@ bool NmpcWbcController::ApplyStateMachine(
   if (mode_ == OperatingMode::STAND_UP) {
     const double elapsed = now_seconds - state_entered_seconds_;
     const double duration = std::max(0.1, stand_up_duration_s_);
-    // Match unitree_guide FixedStand: interpolate every joint from the
-    // measured entry pose to the fixed standing pose with position PD.
+    // 从进入起身时的实测关节角插值到固定站姿；随后单独平滑切换到稳定站立增益。
+    // 目标速度为零，由位置误差与阻尼共同完成起身，不叠加 WBC 前馈力矩。
     const double phase = SmoothStep(elapsed / duration);
     const double settle_phase = SmoothStep(
         (elapsed - stand_up_duration_s_) /
@@ -223,6 +229,7 @@ bool NmpcWbcController::ApplyStateMachine(
           (1.0 - settle_phase) * stand_up_kd_ +
           settle_phase * stand_up_settle_kd_;
     }
+    // 时间到达只是必要条件；关节位置/速度、基座速度及策略可用性同时满足才交接。
     bool joints_settled = true;
     for (std::size_t i = 0; i < kJointCount; ++i) {
       joints_settled =
@@ -257,8 +264,8 @@ bool NmpcWbcController::ApplyStateMachine(
       return false;
     }
 
-    // A single active-set failure must not drop a standing robot. Hold the
-    // proven position-controlled stance while NMPC/WBC recovers next cycle.
+    // 未达到连续失败阈值时短暂退回固定站姿 PD，避免单次 QP 失败立即失去支撑。
+    // 这是命令回退，不清除失败计数；达到阈值仍进入 FAULT。
     command = PositionPdCommand(
         stand_up_joint_positions_,
         {stand_up_settle_hip_kp_, stand_up_settle_leg_kp_,
@@ -269,13 +276,13 @@ bool NmpcWbcController::ApplyStateMachine(
   consecutive_wbc_failures_ = 0;
   command = wbc.command;
   for (std::size_t i = 0; i < kJointCount; ++i) {
-    // Match legged_control's hybrid command: optimized position/velocity,
-    // low joint impedance, and WBC feed-forward torque.
+    // NMPC 提供位置/速度，WBC 提供前馈力矩；这里补齐控制器配置的关节阻抗。
     command.kp[i] =
         i % kJointsPerLeg == 0 ? wbc_hip_stiffness_ : wbc_joint_stiffness_;
     command.kd[i] = wbc_joint_damping_;
   }
   if (mode_ == OperatingMode::MPC_STANCE && stance_handoff_active_) {
+    // 仅插值目标和增益会产生力矩交叉项；BlendHybridCommands 用前馈补偿保持总力矩连续。
     const double alpha = SmoothStep(
         (now_seconds - state_entered_seconds_) /
         std::max(0.1, handoff_duration_s_));

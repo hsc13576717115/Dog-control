@@ -7,6 +7,8 @@
 namespace custom_dog_control {
 namespace {
 
+// 限制速度参考领先实测同向速度的幅度，避免机器人尚未跟上时目标位姿持续跑远。
+// 减速请求可直接通过；实测速度反向时以零作为基线。这不是按 dt 限制加速度的 Slew。
 double LimitAcceleratingReference(
     double requested, double measured, double max_lead) {
   if (requested > 0.0) {
@@ -23,6 +25,7 @@ double LimitAcceleratingReference(
 controller_interface::return_type NmpcWbcController::update(
     const rclcpp::Time& time, const rclcpp::Duration& period) {
   const double now_seconds = time.seconds();
+  // 估计、限速及 WBC 使用有界步长；诊断仍记录真实周期，以免掩盖调度抖动或超时。
   const double dt = std::clamp(period.seconds(), 1e-4, 0.02);
   control_period_ms_ = period.seconds() * 1000.0;
   control_timing_.Add(control_period_ms_);
@@ -30,10 +33,13 @@ controller_interface::return_type NmpcWbcController::update(
   if (IsRealHardware()) {
     io_timing_.Add(io_period_ms_);
   }
+  // 回调只更新输入缓冲；本周期读取快照后统一仲裁速度、推进状态和写入硬件。
   imu_sample_ = *imu_buffer_.readFromRT();
   const JoyInput joy = *joy_buffer_.readFromRT();
   const VelocityCommand command = SelectVelocityCommand(now_seconds, dt);
 
+  // 估计器先使用上一份有效策略的接触计划；首次获得策略前按四足支撑初始化。
+  // planned contacts 是模型假设，不能当作真实足端触地测量。
   std::size_t planned_mode = last_policy_.valid ? last_policy_.mode : kStanceMode;
   const auto contacts = ContactFlags(planned_mode);
   if (!IsRealHardware() && use_sim_ground_truth_) {
@@ -44,20 +50,21 @@ controller_interface::return_type NmpcWbcController::update(
   } else {
     estimate_ = estimator_->Update(joints_state_, imu_sample_, contacts, dt);
   }
+  // 无效估计不推进优化器观测/目标；后面的安全检查和状态机仍会执行。
   if (estimate_.valid) {
     observation_time_ += dt;
     measured_rbd_state_ = backend_->UpdateObservation(
         estimate_, joints_state_, observation_time_, planned_mode);
-    // The operator command must request the gait transition immediately, but
-    // the moving world-frame target must not run ahead while NMPC is still
-    // producing a stance policy. Start integrating it only after the first
-    // Trot policy has been accepted by the locomotion supervisor.
+    // 原始速度请求仍交给步态监督器；在新 Trot 策略确认前，给后端的速度参考保持零。
+    // 否则求解器仍按四足站立约束工作时，运动目标已经向前推进，会积累跟踪误差。
     VelocityCommand backend_command = command;
     if (mode_ != OperatingMode::MPC_TROT) {
       backend_command.vx = 0.0;
       backend_command.vy = 0.0;
       backend_command.yaw = 0.0;
     } else {
+      // 只按偏航角把世界系水平速度投影到机体前向/侧向，与速度指令使用同一平面基准。
+      // 这里不是包含 roll/pitch 的完整三维坐标变换。
       const double yaw = estimate_.euler_zyx.x();
       const double cos_yaw = std::cos(yaw);
       const double sin_yaw = std::sin(yaw);
@@ -80,6 +87,7 @@ controller_interface::return_type NmpcWbcController::update(
         std::max({std::abs(backend_command.vx),
                   std::abs(backend_command.vy),
                   std::abs(backend_command.yaw)}) > 1e-3;
+    // 连续运动参考至多每 50 ms 更新一次；首次目标、停车和站立漂移重锚定走事件更新。
     const bool moving_target_update_due =
         target_command_is_moving &&
         now_seconds - last_target_update_seconds_ >= 0.05;
@@ -89,9 +97,7 @@ controller_interface::return_type NmpcWbcController::update(
     const bool stance_reanchor_due =
         mode_ == OperatingMode::MPC_STANCE && !target_command_is_moving &&
         stance_anchor_error >= stance_reanchor_distance_m_;
-    // Keep a stable reference between updates. Re-anchoring is event driven
-    // below so the 50 Hz solver is not continuously restarted while WBC is
-    // taking over from the position-controlled stand.
+    // 两次更新之间保持参考不变，避免位置控制向 WBC 交接期间不断扰动求解目标。
     if (last_target_update_seconds_ < 0.0 || moving_target_update_due ||
         stance_reanchor_due ||
         (target_command_was_moving_ && !target_command_is_moving)) {
@@ -107,6 +113,8 @@ controller_interface::return_type NmpcWbcController::update(
     target_command_was_moving_ = target_command_is_moving;
   }
 
+  // 只有评估成功才替换策略缓存；序号变化才计入一次 MPC 求解耗时，
+  // 因为同一份后台策略会被高频控制循环重复评估。
   PolicySample evaluated_policy;
   const bool evaluated = estimate_.valid &&
                          backend_->EvaluatePolicy(now_seconds, evaluated_policy);
@@ -119,8 +127,11 @@ controller_interface::return_type NmpcWbcController::update(
   }
   last_policy_ = *policy_buffer_.readFromRT();
   const bool policy_available = last_policy_.valid;
+  // 后端按单调墙钟计算策略年龄，仿真时钟暂停不会把陈旧策略误判为新鲜。
   const double policy_age = backend_->policyAgeSeconds(now_seconds);
 
+  // 起身和 MPC 活动模式执行安全检查；求解器/策略时效检查由 dynamic_mode 限定为 Trot。
+  // 安全故障先于本周期的步态监督处理，防止继续发出正常运动切换请求。
   if (mode_ != OperatingMode::PASSIVE &&
       mode_ != OperatingMode::CALIBRATION &&
       mode_ != OperatingMode::FAULT) {
@@ -149,6 +160,8 @@ controller_interface::return_type NmpcWbcController::update(
         now_seconds, command, joy, last_policy_, policy_age);
   }
 
+  // 状态机负责起身 PD、WBC 输出和短暂失败回退；最后集中决定正常输出或安全输出。
+  // state_ok 只说明状态机已处理本周期，不能替代对 PASSIVE/CALIBRATION/FAULT 的判断。
   HybridJointCommand hybrid_command;
   WbcOutput wbc;
   const bool state_ok = ApplyStateMachine(
@@ -163,11 +176,13 @@ controller_interface::return_type NmpcWbcController::update(
   }
 
   PublishDiagnostics(time, estimate_, last_policy_, wbc);
+  // FAULT 由内部模式和安全命令处理；这里的 OK 表示完成 update，不表示机器人无故障。
   return controller_interface::return_type::OK;
 }
 
 }  // namespace custom_dog_control
 
+// 与插件描述 XML 配合，使 controller_manager 能按插件名创建本控制器。
 PLUGINLIB_EXPORT_CLASS(
     custom_dog_control::NmpcWbcController,
     controller_interface::ControllerInterface)
