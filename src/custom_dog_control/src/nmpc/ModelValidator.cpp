@@ -32,6 +32,7 @@ ModelValidationResult ModelValidator::Validate(
   const auto& model = interface.getModel();
   auto& data = interface.getData();
 
+  // 控制器的固定数组和状态切片依赖这些维数，必须在创建运行时适配器前核对。
   if (info.actuatedDofNum != kJointCount) {
     result.errors.emplace_back("actuated DoF count is not 12");
   }
@@ -55,6 +56,7 @@ ModelValidationResult ModelValidator::Validate(
     }
     const auto joint_id = model.getJointId(std::string(kJointNames[i]));
     const auto& joint = model.joints[joint_id];
+    // 硬件顺序与 URDF 遍历顺序可能不同；保存显式映射，不能直接用关节数组下标。
     const int q_slot = joint.idx_q() - 6;
     const int v_slot = joint.idx_v() - 6;
     if (joint.nq() != 1 || joint.nv() != 1 || q_slot < 0 ||
@@ -92,6 +94,7 @@ ModelValidationResult ModelValidator::Validate(
     }
   }
 
+  // 跳过 universe；检查模型中合并后的刚体惯量，而不是仅统计 URDF 的 link 标签。
   for (std::size_t i = 1; i < model.inertias.size(); ++i) {
     const auto& inertia = model.inertias[i];
     result.total_mass_kg += inertia.mass();
@@ -119,6 +122,7 @@ ModelValidationResult ModelValidator::Validate(
     result.errors.emplace_back("joint effort limits are missing or non-finite");
   }
 
+  // 在统一名义姿态下验证几何约定。这里检查的是模型一致性，不能替代真机零位标定。
   try {
     ocs2::vector_t q = pinocchio::neutral(model);
     constexpr std::array<double, kJointsPerLeg> kNominalLeg = {
@@ -141,6 +145,7 @@ ModelValidationResult ModelValidator::Validate(
         result.errors.emplace_back("non-finite FK/Jacobian for " + std::string(foot_name));
       }
       const auto& position = data.oMf[frame_id].translation();
+      // REP-103：x 向前、y 向左、z 向上。足端应位于对应象限且低于基座。
       const bool front_expected = leg < 2;
       const bool left_expected = leg == 1 || leg == 3;
       if ((front_expected && position.x() <= 0.0) ||

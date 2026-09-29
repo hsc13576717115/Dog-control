@@ -24,6 +24,9 @@
 
 namespace custom_dog_control {
 
+// ros2_control 周期入口：读反馈 -> 估计 -> 评估后台 MPC 策略 -> 安全/状态机
+// -> WBC/PD 命令 -> 写接口。ROS 回调只提交快照，控制状态由 update 串行维护；
+// 配置/停机在生命周期回调执行。当前 update 包含 WBC 和诊断，并非无锁无分配。
 class NmpcWbcController final : public controller_interface::ControllerInterface {
  public:
   ~NmpcWbcController() override;
@@ -57,6 +60,7 @@ class NmpcWbcController final : public controller_interface::ControllerInterface
     bool active = false;
   };
 
+  // 步态请求与策略生效之间的等待阶段；不能把 requested_mode 直接当接触计划。
   enum class GaitTransition : std::uint8_t {
     NONE,
     STARTING_TROT,
@@ -129,6 +133,8 @@ class NmpcWbcController final : public controller_interface::ControllerInterface
   double simulation_passive_hip_kp_ = 20.0;
   double simulation_passive_leg_kp_ = 60.0;
   double simulation_passive_kd_ = 3.0;
+  // 状态驻留和输入/目标节流使用 ROS 时间；observation_time_ 单独累加控制 dt，
+  // 用于 OCS2 轨迹时间轴。策略陈旧度使用后端 steady_clock，见 NmpcBackend。
   double state_entered_seconds_ = 0.0;
   double observation_time_ = 0.0;
   double last_target_update_seconds_ = -1.0;
@@ -159,6 +165,7 @@ class NmpcWbcController final : public controller_interface::ControllerInterface
   bool trot_enabled_ = false;
   GaitTransition gait_transition_ = GaitTransition::NONE;
   double gait_condition_since_seconds_ = -1.0;
+  // limited 是输入仲裁后的加速度斜坡；governed 再限制参考领先于实测速度的幅度。
   VelocityCommand limited_command_;
   VelocityCommand governed_command_;
   JointSample joints_state_;
@@ -174,6 +181,7 @@ class NmpcWbcController final : public controller_interface::ControllerInterface
   std::unique_ptr<KinematicStateEstimator> estimator_;
   std::unique_ptr<SafetyMonitor> safety_monitor_;
 
+  // 回调与控制线程之间传递完整样本，避免读取到同一消息的部分更新字段。
   realtime_tools::RealtimeBuffer<ImuSample> imu_buffer_;
   realtime_tools::RealtimeBuffer<EstimatedState> ground_truth_buffer_;
   realtime_tools::RealtimeBuffer<JoyInput> joy_buffer_;

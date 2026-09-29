@@ -15,6 +15,7 @@ Eigen::Quaterniond QuaternionFrom(const ImuSample& imu) {
       imu.orientation_wxyz[0], imu.orientation_wxyz[1],
       imu.orientation_wxyz[2], imu.orientation_wxyz[3]);
   if (!std::isfinite(quaternion.norm()) || quaternion.norm() < 1e-6) {
+    // 退回单位姿态以保持运算可定义；此处不会单独将本次输出标为无效。
     return Eigen::Quaterniond::Identity();
   }
   return quaternion.normalized();
@@ -86,6 +87,8 @@ EstimatedState KinematicStateEstimator::Update(
     v(6 + model_joint_slots_[i]) = joints.velocity[i];
   }
 
+  // 基座平移与线速度保持为零，保留实际姿态、角速度和关节状态。
+  // 因此 FK 给出世界轴下的相对足端位置，以及转动/关节运动引起的速度。
   pinocchio::forwardKinematics(model, data, q, v);
   pinocchio::updateFramePlacements(model, data);
 
@@ -99,6 +102,7 @@ EstimatedState KinematicStateEstimator::Update(
             model, data, frame_id, pinocchio::LOCAL_WORLD_ALIGNED).linear();
   }
 
+  // 首帧把规划支撑足放在 z=0 平面；无支撑足时使用 0.28 m 回退高度。
   if (!initialized_) {
     double height_sum = 0.0;
     int contact_count = 0;
@@ -134,6 +138,8 @@ EstimatedState KinematicStateEstimator::Update(
       noise_.foot_process_position * dt *
       Eigen::Matrix<double, 12, 12>::Identity();
 
+  // 支撑足近似静止：v_base = -v_foot_relative。摆动时该假设不成立，
+  // 通过更大的协方差降低权重；足端 z=0 也只是同样加权的软约束。
   ObservationCovariance measurement_noise = ObservationCovariance::Zero();
   ObservationVector measurement = ObservationVector::Zero();
   for (std::size_t leg = 0; leg < kLegCount; ++leg) {
@@ -153,6 +159,8 @@ EstimatedState KinematicStateEstimator::Update(
   const Eigen::Vector3d acceleration_body(
       imu.linear_acceleration[0], imu.linear_acceleration[1],
       imu.linear_acceleration[2]);
+  // IMU 输入是机体系比力，静止水平时 z 分量约为 +g；旋转后加入重力，
+  // 得到世界系运动加速度。若上游已去重力，此处会重复补偿。
   const Eigen::Vector3d acceleration_world =
       rotation_world_from_body * acceleration_body + Eigen::Vector3d(0.0, 0.0, -9.81);
 
@@ -170,6 +178,7 @@ EstimatedState KinematicStateEstimator::Update(
   covariance_ =
       (StateMatrix::Identity() - kalman_gain * observation_model_) *
       predicted_covariance;
+  // 消除浮点运算造成的非对称项，便于后续创新协方差的 LDLT 分解。
   covariance_ = 0.5 * (covariance_ + covariance_.transpose());
 
   output.position = state_.head<3>();

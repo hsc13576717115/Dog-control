@@ -1,4 +1,7 @@
+import atexit
 import os
+import shutil
+import tempfile
 
 from ament_index_python.packages import (
     get_package_prefix,
@@ -38,7 +41,14 @@ def generate_launch_description():
     package_share = get_package_share_directory('custom_dog_control')
     description_share = get_package_share_directory('custom_dog_description')
     gazebo_share = get_package_share_directory('gazebo_ros')
-    controllers = os.path.join(package_share, 'config', 'controllers.yaml')
+    # Gazebo Classic's SDF string conversion can corrupt non-ASCII paths
+    # embedded in XML (e.g. a workspace under ~/桌面). Keep the parameter
+    # filename and model search root passed to Gazebo ASCII-only.
+    runtime_dir = tempfile.mkdtemp(prefix='custom_dog_gazebo_', dir='/tmp')
+    atexit.register(shutil.rmtree, runtime_dir, ignore_errors=True)
+    controllers = os.path.join(runtime_dir, 'controllers.yaml')
+    shutil.copy2(os.path.join(package_share, 'config', 'controllers.yaml'), controllers)
+    os.symlink(description_share, os.path.join(runtime_dir, 'custom_dog_description'))
     gazebo_control_plugin = os.path.join(
         get_package_prefix('gazebo_ros2_control'),
         'lib',
@@ -177,7 +187,7 @@ def generate_launch_description():
         os.environ.get('GAZEBO_PLUGIN_PATH', ''),
     ]))
     gazebo_model_path = os.pathsep.join(filter(None, [
-        os.path.dirname(description_share),
+        runtime_dir,
         '/usr/share/gazebo-11/models',
         os.environ.get('GAZEBO_MODEL_PATH', ''),
     ]))
