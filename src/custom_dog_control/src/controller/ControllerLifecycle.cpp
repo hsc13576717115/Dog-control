@@ -72,8 +72,8 @@ controller_interface::CallbackReturn NmpcWbcController::on_init() {
     auto_declare<bool>("legacy_joy_y_right", true);
     auto_declare<bool>("use_sim_ground_truth", true);
     auto_declare<double>("ground_truth_timeout_s", 0.10);
-    // The hard-constrained custom model uses two SQP iterations at 50 Hz. WBC
-    // is evaluated from update() at the controller_manager rate.
+    // MPC 在后台按此频率求解；WBC 则随 controller_manager 的 update 周期执行。
+    // SQP 迭代数和求解时域由 task.info 配置，两层控制频率不要混用。
     auto_declare<double>("mpc_frequency_hz", 50.0);
     auto_declare<double>("simulation_policy_timeout_cycles", 4.0);
     auto_declare<double>("command_timeout_s", 0.30);
@@ -267,6 +267,8 @@ controller_interface::CallbackReturn NmpcWbcController::on_configure(
       reference_file_ = share + "/config/nmpc/reference.info";
     }
 
+    // 后端需要 URDF 文件路径；非空 robot_description 会生成进程临时文件，
+    // 覆盖 urdf_file，并在析构时删除。两者都未提供时回退到描述包默认模型。
     const std::string robot_description =
         node->get_parameter("robot_description").as_string();
     if (!robot_description.empty()) {
@@ -304,6 +306,8 @@ controller_interface::CallbackReturn NmpcWbcController::on_configure(
     }
     backend_config.nominal_joint_positions = nominal_joint_positions_;
 
+    // 先完成模型与求解器配置，再创建依赖相同模型布局的估计器和安全限值。
+    // 配置失败直接拒绝生命周期切换，不能带着不完整映射进入 update。
     backend_ = std::make_unique<NmpcBackend>();
     const auto validation = backend_->Configure(backend_config);
     if (!validation.ok) {
@@ -314,6 +318,7 @@ controller_interface::CallbackReturn NmpcWbcController::on_configure(
     estimator_->Reset(nominal_height_m_);
 
     SafetyLimits safety_limits;
+    // 策略容许年龄按 MPC 周期换算为秒；实机固定两周期，仿真可配置更宽裕。
     const double policy_timeout_cycles =
         IsRealHardware()
             ? 2.0
@@ -404,6 +409,8 @@ controller_interface::CallbackReturn NmpcWbcController::on_configure(
 
 controller_interface::CallbackReturn NmpcWbcController::on_activate(
     const rclcpp_lifecycle::State&) {
+  // 激活只准备控制链路，仍从 PASSIVE 开始并要求标定；启动求解器本身
+  // 不授予运动权限。接口索引必须在 controller_manager 分配句柄后解析。
   if (!ResolveInterfaceIndices()) {
     return controller_interface::CallbackReturn::ERROR;
   }
@@ -439,6 +446,8 @@ controller_interface::CallbackReturn NmpcWbcController::on_activate(
 
 controller_interface::CallbackReturn NmpcWbcController::on_deactivate(
     const rclcpp_lifecycle::State&) {
+  // 先把命令句柄切到安全输出，再等待求解线程退出；Stop 可能阻塞，
+  // 因此放在生命周期路径，而不是周期控制路径。
   mode_ = OperatingMode::FAULT;
   WriteSafeCommand();
   if (backend_) {

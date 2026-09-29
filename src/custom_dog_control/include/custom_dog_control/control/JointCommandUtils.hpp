@@ -4,6 +4,7 @@
 
 namespace custom_dog_control {
 
+// 四腿复用 hip/thigh/calf 三个刚度；默认零目标速度、零前馈力矩。
 inline HybridJointCommand PositionPdCommand(
     const std::array<double, kJointCount>& position,
     const std::array<double, kJointsPerLeg>& stiffness, double damping) {
@@ -24,9 +25,9 @@ inline double EquivalentEffort(
          command.kd[joint] * (command.velocity[joint] - measured.velocity[joint]);
 }
 
-// Interpolating gains and targets alone adds cross terms to the resulting
-// torque. Compensate in feed-forward so the net effort remains a linear blend
-// at the current measured state. The caller supplies alpha in [0, 1].
+// 同时插值增益和目标会在 PD 力矩中产生交叉项，故用前馈补偿，保证在
+// 当前 measured 下总力矩等于两端总力矩的线性插值。调用方提供 [0,1] 的 alpha；
+// 此处不限幅，后续输出饱和以及下一周期测量变化都会影响实际力矩。
 inline HybridJointCommand BlendHybridCommands(
     const HybridJointCommand& from, const HybridJointCommand& to,
     const JointSample& measured, double alpha) {

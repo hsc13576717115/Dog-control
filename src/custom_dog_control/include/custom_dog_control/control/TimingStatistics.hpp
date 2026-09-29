@@ -15,6 +15,9 @@ struct TimingSnapshot {
   std::size_t samples = 0;
 };
 
+// 固定容量滑动窗口：Add 为常数开销，Snapshot 复制并排序有效样本。
+// 分位数采用 nearest-rank；单位沿用输入（控制器使用 ms），不是累计全程统计。
+// 不含同步机制，采样和快照需由同一线程或外部同步。
 template <std::size_t Capacity>
 class TimingWindow {
  public:

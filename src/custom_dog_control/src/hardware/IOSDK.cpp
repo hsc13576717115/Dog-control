@@ -246,6 +246,8 @@ void IOSDK::TryCalibrate(bool calibration_requested) {
 
 void IOSDK::FinalizeCycleCalibration(
     bool calibration_requested, LowLevelState& state) {
+    // 只有整轮无通信失败才采纳标定。零点改变后重算同一批回包的关节位置，
+    // 避免 calibrated 已置位、输出却仍沿用旧零点的一个周期不一致。
     const int failures = current_cycle_failures_.load(std::memory_order_relaxed);
     last_cycle_failures_.store(failures, std::memory_order_release);
     const bool was_calibrated = calibrated_;
@@ -265,6 +267,8 @@ void IOSDK::PopulateMotorCommand(int leg, int joint, const ActuatorCommand& user
     const int motor_id = leg * 3 + joint;
     const float gear = GearRatioForJoint(joint);
     const float gear_sq = gear * gear;
+    // 角度/速度乘减速比，力矩除减速比；PD 增益除减速比平方，
+    // 才能保持输出侧的等效刚度与阻尼。calf 使用包含额外传动的总减速比。
     const float dir = motor_directions_[leg * 3 + joint];
     auto& motor_cmd = motor_commands_[motor_id];
     motor_cmd.id = joint;
@@ -298,6 +302,7 @@ void IOSDK::UpdateMotorStateFromFeedback(int leg, int joint, LowLevelState& stat
 }
 
 void IOSDK::MarkMotorOffline(int leg, int joint, LowLevelState& state) const {
+    // 不把上一帧反馈伪装成本轮有效数据；0xFF 使上层 valid 接口明确失效。
     const int motor_id = leg * 3 + joint;
     auto& motor_state = state.motors[motor_id];
     motor_state = {};
@@ -351,6 +356,7 @@ void IOSDK::SendReceive(
         active_command_ = &command;
         active_state_ = &state;
         completed_workers_ = 0;
+        // epoch 区分每轮任务，使条件变量的虚假唤醒不会重复发送旧命令。
         ++dispatch_epoch_;
     }
     dispatch_cv_.notify_all();

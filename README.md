@@ -7,7 +7,8 @@
 
 当前平地仿真已跑通起身、站立、Trot 和停车。实机通信、状态估计及落地行走仍需分阶段验收。
 历史高速包线与地形数据见 [验收基线](docs/validation-baselines.md)，
-本机本次实测见 [2026-09-23 验证记录](docs/simulation-validation-20260923.md)。
+最近的平地基础回归见 [2026-09-29 验证记录](docs/simulation-validation-20260929.md)；
+结构重构与依赖迁移记录见 [2026-09-23 验证记录](docs/simulation-validation-20260923.md)。
 
 ## 快速开始
 
