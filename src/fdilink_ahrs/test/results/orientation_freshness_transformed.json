@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "valid_stream_messages": 30,
+  "device_type": 1,
+  "orientation_timeout_s": 0.1,
+  "checks": [
+    "no publication before valid AHRS",
+    "valid stream publishes",
+    "bad CRC neither poisons cached quaternion nor refreshes age",
+    "gyro-only stream expires",
+    "valid AHRS recovers publication",
+    "bad frame end rejected",
+    "non-finite quaternion rejected",
+    "short AHRS/IMU payload rejected",
+    "parser recovers after short frame"
+  ],
+  "hardware_access": "PTY only; no real serial device"
+}

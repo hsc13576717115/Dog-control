@@ -3,6 +3,11 @@
 自制 12 自由度四足机器人的传统运动控制工作区：**ROS 2 Humble + OCS2 NMPC + weighted WBC + Pinocchio**。
 仿真与真机共用控制器，目标系统为 Ubuntu 22.04，开发机支持 x86_64，真机目标为 ARM64 香橙派 5 Plus。
 
+新增独立的 **HIM RL / ONNX Runtime 控制器**，复用现有电机驱动，支持不构建 OCS2 的
+Jetson Orin NX 部署路线。模型接口、构建、离线验证、状态机及实机待验收项见
+[RL 部署与 NX 移植说明](src/custom_dog_rl/README.md)。默认启动不使能运动，
+新控制器不能与 NMPC 控制器同时占用同一组关节命令接口。
+
 [![自制四足实机平台演示](docs/media/custom-dog-platform-preview.gif)](docs/media/custom-dog-platform-demo.mp4)
 
 当前平地仿真已跑通起身、站立、Trot 和停车。实机通信、状态估计及落地行走仍需分阶段验收。
