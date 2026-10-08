@@ -1,133 +1,174 @@
 # custom_dog_control
 
-`custom_dog_control` 是自定义四足机器人的 ROS 2 Humble 控制包。它使用同一个 `ControllerInterface` 驱动 Gazebo 和真实硬件，launch 文件只负责切换 ros2_control 后端。
+ROS 2 Humble 的四足 NMPC-WBC 控制包，仿真和真机共用一个控制器生命周期实例。
 
-## 模块
-
-```text
-include/custom_dog_control/          公共 C++ 接口
-src/controller/                      NmpcWbcController 生命周期和状态机
-src/nmpc/                            OCS2 NMPC、模型验证和状态估计
-src/safety/                          超时、限位、温度和故障降级
-src/hardware/                        ros2_control 实机插件与 GO-M8010-6 通信
-config/                              控制器、NMPC、步态和硬件参数
-launch/                              Gazebo 与真机启动入口
-third_party/                         legged_control 算法源码和 qpOASES
-```
-
-迁移前的 qr_guide FSM、VMC/QP 和解析腿运动学已从本包删除。运行时运动学和
-动力学全部来自 URDF 创建的 Pinocchio 模型；`hardware/IOSDK` 只负责串口、减速比、
-电机方向和零点偏差，不包含足端正逆解。
-
-NMPC 直接编译并实例化 `qiayuanl/legged_control` 固定提交 `a7f381c...` 的
-`legged::LeggedInterface`，WBC 直接使用同一提交的 `legged::WeightedWbc`。
-上游源码哈希由 `test_legged_control_provenance` 校验；ROS 2 适配没有用
-`ocs2::legged_robot::LeggedRobotInterface` 替代该算法接口。
-
-## 运行时
-
-控制器插件：`custom_dog_control/NmpcWbcController`
-
-硬件插件：`custom_dog_control/UnitreeSystemInterface`
-
-默认频率：
-
-| 环节 | 频率 |
+| 项目 | 入口 |
 | --- | --- |
-| ros2_control / WBC | 1000 Hz |
-| OCS2 NMPC | 50 Hz |
-| Gazebo IMU | 250 Hz |
+| 控制器插件 | `custom_dog_control/NmpcWbcController` |
+| 实机硬件插件 | `custom_dog_control/UnitreeSystemInterface`（启用实机构建时） |
+| 主循环 / WBC | 1000 Hz，`src/controller/NmpcWbcController.cpp` |
+| NMPC | 50 Hz，`src/nmpc/NmpcBackend.cpp` |
+| 控制参数 | `config/controllers.yaml`、`config/real_controller.yaml` |
+| 模型 | 外部 `custom_dog_description` 包的规范 URDF |
 
-状态机为 `PASSIVE -> CALIBRATION -> STAND_UP -> MPC_STANCE <-> MPC_TROT`，所有严重故障进入锁存的 `FAULT`。
+`src/controller/` 按生命周期、输入、状态机、硬件接口和诊断拆分。
+`include/custom_dog_control/control/JointCommandUtils.hpp` 提供不依赖 ROS 的 PD、等效力矩和交接计算。
+上游 `LeggedInterface` / `WeightedWbc` 固定版本直接参与构建，并用来源哈希测试校验。
 
-`STAND_UP` 使用关节位置插值并平滑交接 WBC。`MPC_STANCE` 和 `MPC_TROT`
-在 Gazebo 与真机上都使用相同的 OCS2 NMPC + weighted WBC 控制链，不提供
-仿真专用的位置控制运动模式。
+## 算法链路
 
-## 编译与启动
+下图展开 `MPC_STANCE` / `MPC_TROT` 的计算过程。两个执行区域属于同一控制器进程，
+NMPC 在后端独立线程运行，WBC 在 ros2_control 的 `update()` 中同步计算。
 
-仿真：
+```mermaid
+flowchart TB
+    model["URDF → Pinocchio + ModelValidator<br/>模型、关节映射、足端运动学"]
+    sensor["IMU + 关节位置 / 速度"]
+    truth["Gazebo /ground_truth/odom"]
 
-```bash
-cd /home/hsc/Dog_RL/custom_dog_stack/third_party/Dog-control
-source /opt/ros/humble/setup.bash
-src/custom_dog_control/scripts/build_simulation.sh
+    subgraph fast["ros2_control update · 默认 1000 Hz"]
+        estimator["KinematicStateEstimator<br/>IMU 姿态 + 18 维线性卡尔曼滤波"] --> select["状态源选择"]
+        select --> rbd["基座估计 + 关节反馈<br/>实测刚体状态 36 维"]
+        rbd --> obs["UpdateObservation<br/>刚体状态 → 质心状态 x：24 维"]
+        cmd["/joy · /cmd_vel<br/>仲裁、限幅、加速度限制"] --> ref["SetVelocityCommand / TargetFromCommand<br/>世界系速度、位姿与名义关节目标"]
+        obs --> ref
+        supervisor["UpdateLocomotionSupervisor<br/>阈值、驻留时间、新 policy 确认"]
+        cmd --> supervisor
+        evaluate["EvaluatePolicy / MRT<br/>x_des、u_des、接触模式与策略序号"]
+        evaluate --> project["ComputeWbc：目标关节投影<br/>URDF 限位裕量 + 髋关节范围"]
+        project --> qp["legged::WeightedWbc<br/>qpOASES 加权 QP"]
+        rbd --> qp
+        qp --> validate["求解成功、有限值、约束残差<br/>及 URDF 力矩限位检查"]
+        validate -->|"有效"| hybrid["q_des / dq_des 来自投影后的 NMPC<br/>tau_ff 来自 WBC；控制器设置 kp / kd"]
+        validate -->|"无效"| fallback["短暂站立 PD 保持<br/>连续失败达到阈值 → FAULT"]
+    end
+
+    subgraph slow["NmpcBackend::Impl::Start 求解线程 · 默认 50 Hz"]
+        pending["pending_target<br/>互斥保护，应用最新参考"] --> manager["SwitchedModelReferenceManager<br/>目标轨迹 + GaitSchedule + 摆动足轨迹"]
+        gait["GaitCommandModule::preSolverRun<br/>求解边界同步站立 / Trot 请求"] --> manager
+        manager --> sqp["ocs2::SqpMpc / advanceMpc<br/>质心动力学 NMPC"]
+        problem["legged::LeggedInterface<br/>代价、接触约束、自动微分动力学"] --> sqp
+    end
+
+    sensor --> estimator
+    truth --> select
+    sensor -->|"关节反馈"| rbd
+    model -.-> estimator
+    ref --> pending
+    supervisor -->|"RequestGait"| gait
+    obs -->|"MPC_MRT_Interface：当前 observation"| sqp
+    sqp -->|"MPC_MRT_Interface：策略交换"| evaluate
+    evaluate -->|"新序号与接触模式"| supervisor
+    evaluate -->|"计划接触相位"| estimator
+    model -.-> problem
+    model -.-> qp
+    hybrid --> hardware["ControllerStateMachine：起身交接 / 输出选择<br/>ControllerHardware：仿真 effort 或真机混合命令"]
+    fallback --> hardware
+
+    classDef fastNode fill:#e8f1ff,stroke:#4775ad,color:#172b4d;
+    classDef solver fill:#e5f5ec,stroke:#39815a,color:#193e2b;
+    classDef guard fill:#fce8e8,stroke:#b85454,color:#602626;
+    class rbd,obs,cmd,ref,supervisor,evaluate,hybrid,hardware fastNode;
+    class model,estimator,pending,manager,gait,sqp,problem,qp solver;
+    class project,validate,fallback guard;
 ```
 
-该脚本使用 `set -euo pipefail`：模型 underlay、ROS 依赖或本工作区构建任一失败时
-都会停止，不会继续使用残缺的 `install` 目录启动 Gazebo。
+实线为数据/控制流，虚线为模型依赖；状态源二选一。图中 50 Hz 指 NMPC 求解频率，
+运动目标参考由主循环以不快于 20 Hz 更新，站立重锚定及运动停止还会触发事件更新。
+站立策略评估采用其前馈输入，Trot 保留 SQP 策略反馈；主循环随后通过
+`policy_buffer_` 保存最近有效的 `PolicySample`。
 
-仿真 Launch 默认在控制器成功激活后直接启动键盘控制：
+### 优化问题与状态估计
 
-```bash
-ros2 launch custom_dog_control gazebo.launch.py
+| 环节 | 当前实际实现 |
+| --- | --- |
+| 状态估计 | IMU 提供姿态/角速度；18 维滤波状态为基座位置 3、速度 3、四足世界坐标 12；使用计划接触相位调整观测噪声 |
+| NMPC 状态 `x` | 24 维：归一化质心动量 6 + 基座位置/ZYX 姿态 6 + 关节位置 12 |
+| NMPC 输入 `u` | 24 维：四足接触力 12 + 关节速度 12 |
+| NMPC 求解 | `LeggedRobotDynamicsAD` + `ocs2::SqpMpc`；跟踪代价、摩擦锥硬约束、摆动足零力、支撑足零速度、足端法向速度约束和自碰撞软约束 |
+| 步态 | 固定 0.25 s、50% 占空比 Trot，FR+RL / FL+RR 交替；零速退出到四足站立；周期来自 `ControlTypes.hpp` |
+| WBC 决策变量 | 广义加速度 18 + 足端力 12 + 关节力矩 12 + 关节限位松弛量 24，共 66 维 |
+| WBC 约束 | 全身动力学等式、力矩限位、带松弛的预测关节限位、摩擦锥、摆动足零力、支撑足零加速度 |
+| WBC 加权目标 | 摆动足加速度、基座加速度、接触力跟踪、关节限位松弛惩罚 |
+| 混合输出 | `tau = tau_ff + kp*(q_des-q) + kd*(dq_des-dq)`；Gazebo 换算并限幅为 effort，真机通过电机 SDK 下发各分量 |
+
+WBC 返回的力矩用于前馈，关节目标来自 NMPC 的限位投影结果；WBC 加速度解并不被积分为关节目标。
+当前采用 `WeightedWbc`，仓库中的 `HierarchicalWbc` 不参与运行时求解。
+状态估计没有真实触地传感器反馈；摆动足参考仍采用平地高度假设。
+
+模型加载优先级为控制器参数 `robot_description` → `urdf_file` → 模型包的
+`urdf/custom_dog.urdf`。Gazebo 使用从规范模型派生的点足碰撞版本，真机使用规范模型；
+二者保留相同质量、惯量、运动学和关节限位。
+
+## 模式与输出选择
+
+```mermaid
+stateDiagram-v2
+    [*] --> PASSIVE
+    PASSIVE --> CALIBRATION: START，真机需要标定
+    PASSIVE --> STAND_UP: START，仿真或真机已标定
+    CALIBRATION --> STAND_UP: 12 电机反馈标定完成
+    STAND_UP --> MPC_STANCE: 起身稳定且 policy 可用
+    MPC_STANCE --> MPC_TROT: 速度超过阈值、驻留满足、新 Trot policy 到达
+    MPC_TROT --> MPC_STANCE: 停止条件、驻留满足、新 stance policy 到达
+    STAND_UP --> FAULT: 安全检查失败
+    MPC_STANCE --> FAULT: 安全检查失败或连续 WBC 失败
+    MPC_TROT --> FAULT: 安全检查失败或连续 WBC 失败
+    FAULT --> PASSIVE: PASSIVE 确认复位，真机重新标定
+    note right of STAND_UP
+        关节 PD 插值起身
+        首次进入 MPC_STANCE 时平滑交接
+        保持当前测量状态下总力矩连续
+    end note
+    note right of MPC_STANCE
+        四足接触 NMPC + WBC
+        Trot 停止后不重复起身交接
+    end note
 ```
 
-键盘输入由运行 Launch 的终端读取。无交互终端、自动测试或需要单独运行键盘时，
-使用 `start_keyboard:=false`，再从另一个终端执行
-`ros2 run custom_dog_control keyboard_teleop.py`。
+图中省略通用操作：任意模式可由软件 ESTOP 进入 FAULT；活动模式可由 PASSIVE 请求返回被动状态。
+`SafetyMonitor` 在 STAND_UP / MPC_STANCE / MPC_TROT 中运行，其中策略过期/求解器失效检查
+仅对 MPC_TROT 生效。连续 WBC 失败阈值默认 5 次；未达到阈值时使用站立 PD 保持。
+PASSIVE / CALIBRATION / FAULT 或无法生成有效状态机输出时调用 `WriteSafeCommand()`：
+通常输出安全阻尼，仿真 PASSIVE 可按配置保持趴姿。
 
-键位沿用 `unitree_guide` 的交互语义：`1` PASSIVE，`2` START 标定并起身。
-起身完成后自动进入可行走状态；非零速度指令自动请求 TROT，速度清零后自动回到
-`MPC_STANCE` 保持站立。`W/S`、`A/D`、`J/L` 以键盘限值的 5% 分别调整前后、左右和
-偏航目标。键盘和 `/cmd_vel` 的仿真包线均为 `vx +/-1.5 m/s`、`vy +/-1.0 m/s`、
-`yaw +/-2.0 rad/s`；空格或 `X` 触发受限减速并回到 STANCE，`Esc` 触发软件 FAULT 急停。
-`Q/E` 保留为 `J/L` 的偏航别名。
+## 实现文件对应关系
 
-动态步态固定使用 `0.25 s` 周期、50% 占空比的对角 Trot。控制器不在 NMPC
-运行过程中切换步频；零速由四足接触的 MPC_STANCE 处理。
+| 图中职责 | 实现入口 |
+| --- | --- |
+| 主周期编排 | [NmpcWbcController.cpp](src/controller/NmpcWbcController.cpp) |
+| 参数、模型与资源生命周期 | [ControllerLifecycle.cpp](src/controller/ControllerLifecycle.cpp) |
+| 回调缓冲、指令仲裁与限幅 | [ControllerInputs.cpp](src/controller/ControllerInputs.cpp) |
+| 步态监督、状态机、PD/WBC 输出选择 | [ControllerStateMachine.cpp](src/controller/ControllerStateMachine.cpp) |
+| ros2_control 状态读取与命令写入 | [ControllerHardware.cpp](src/controller/ControllerHardware.cpp) |
+| 10 Hz 诊断、里程计与基座 TF | [ControllerDiagnostics.cpp](src/controller/ControllerDiagnostics.cpp) |
+| NMPC 线程、MRT、参考与 WBC 适配 | [NmpcBackend.cpp](src/nmpc/NmpcBackend.cpp) |
+| 运动学与卡尔曼融合 | [KinematicStateEstimator.cpp](src/nmpc/KinematicStateEstimator.cpp) |
+| WBC 加权 QP / 任务与约束 | [WeightedWbc.cpp](third_party/legged_wbc/src/WeightedWbc.cpp)、[WbcBase.cpp](third_party/legged_wbc/src/WbcBase.cpp) |
+| 安全检查与锁存 | [SafetyMonitor.cpp](src/safety/SafetyMonitor.cpp) |
 
-真机：
+## 开发入口
 
-```bash
-export UNITREE_ACTUATOR_SDK_ROOT=/absolute/path/to/unitree_actuator_sdk
-colcon build --packages-up-to custom_dog_control \
-  --cmake-args -DCUSTOM_DOG_CONTROL_BUILD_REAL_HARDWARE=ON \
-               -DUNITREE_ACTUATOR_SDK_ROOT="$UNITREE_ACTUATOR_SDK_ROOT"
-source install/setup.bash
-ros2 launch custom_dog_control real.launch.py physical_estop_verified:=true
-```
-
-`physical_estop_verified` 只能在独立硬件急停完成验收后设置为 `true`。
-折叠姿态有更准确的测量值时，通过 `calibration_hip_deg`、
-`calibration_thigh_deg` 和 `calibration_calf_deg` 覆盖默认值。
-真机覆盖配置当前与仿真一致，为 `vx +/-1.5 m/s`、`vy +/-1.0 m/s` 和
-`yaw +/-2.0 rad/s`。这只是指令限幅配置，真机启用前仍必须完成独立物理急停、系留
-和分阶段低速测试。
-
-## 模型与接口
-
-动力学和几何只来自 `custom_dog_description/urdf/custom_dog.urdf`。本包 NMPC 配置不重复保存质量、惯量、腿长或关节限位。
-
-真机标定约定：按 START 前，四条腿必须已经处于手工折叠趴下姿态。仿真和真机
-统一采用 `hip=0 deg、thigh=71.8 deg、calf=-161.8 deg`。START 将本周期 12 个有效电机反馈
-对齐到配置的名义角度；它不是“回到电机零位”命令，也不会调用 qr_guide 运动学。
-
-订阅：`/imu`、`/joy`、`/cmd_vel`。
-
-发布：`/joint_states`、`/odom`、TF、控制模式、接触计划和诊断。
-
-## 测试
+从源码工作区根目录使用：
 
 ```bash
-colcon test --packages-select custom_dog_control
-colcon test-result --verbose
+CUSTOM_DOG_BUILD_ONLY=1 src/custom_dog_control/scripts/build_simulation.sh
+src/custom_dog_control/scripts/run_simulation.sh
+src/custom_dog_control/scripts/test_simulation.sh
 ```
 
-无键盘启动 Gazebo 后可执行完整运动验收：
+开发工具需在源码工作区运行；运行工具可在加载环境后调用：
 
 ```bash
-ros2 run custom_dog_control simulation_motion_test.py
-ros2 run custom_dog_control simulation_command_matrix_test.py
-ros2 run custom_dog_control simulation_envelope_test.py --vy -1.0
+source src/custom_dog_control/scripts/env.sh
+ros2 run custom_dog_control keyboard_teleop.py
 ```
 
-测试流程为位置插值起身、NMPC/WBC Trot 前进 12 秒、速度清零并回到
-NMPC_STANCE，同时验证零速 Trot 门控、WBC、位移、姿态、髋内收和停车状态。
-指令矩阵测试会从独立冷启动依次验证前进、侧移、转向及每段停止后的稳定站立。
-全速包线脚本一次只测试一个轴，并检查起身后站立、20 秒满量程运动、稳态速度误差、
-姿态 RMS/峰值、机身高度、求解器有效性、受控停车和 10 秒停车后站立保持；正负六个
-方向应分别冷启动 Gazebo 验收。当前配置已通过 `vx +/-1.5 m/s`、`vy +/-1.0 m/s` 和
-`yaw +/-2.0 rad/s` 六项独立冷启动测试，详细数据见仓库根目录 README。
+源码文档：
 
-完整依赖安装、架构说明、验收指标和真机测试顺序见仓库根目录 README。
+- [工作区 README](../../README.md)：安装、构建、启动、键盘和测试。
+- [架构与维护入口](../../docs/architecture.md)：职责、执行边界、配置、状态机和模型契约。
+- [真机说明](../../docs/hardware.md)：ARM64 构建及硬件验收。
+- [验收基线](../../docs/validation-baselines.md)：完整包线和地形测试。
+
+以上相对链接适用于源码仓库；安装后的 `share/custom_dog_control/README.md` 请结合源码阅读。

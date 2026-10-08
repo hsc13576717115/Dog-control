@@ -15,6 +15,7 @@ bool SafetyMonitor::Trip(const std::string& reason) {
 }
 
 bool SafetyMonitor::Evaluate(const SafetyInput& input) {
+  // 保留首次故障及其原因，后续周期的派生异常不覆盖排障线索。
   if (faulted_) {
     return false;
   }
@@ -63,6 +64,7 @@ bool SafetyMonitor::Evaluate(const SafetyInput& input) {
              << " upper=" << limits_.upper_position[i];
       return Trip(reason.str());
     }
+    // 对实测力矩留出 10% 瞬态裕量；这是故障判据，命令限幅在输出链路完成。
     if (std::abs(input.joints.effort[i]) > limits_.effort_limit[i] * 1.10) {
       return Trip("joint effort limit");
     }

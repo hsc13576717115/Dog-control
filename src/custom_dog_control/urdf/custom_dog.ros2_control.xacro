@@ -136,6 +136,9 @@
     <xacro:gazebo_leg_friction prefix="RL"/>
     <gazebo>
       <plugin filename="$(arg gazebo_control_plugin)" name="gazebo_ros2_control">
+        <ros>
+          <namespace>/</namespace>
+        </ros>
         <parameters>$(arg controllers_file)</parameters>
       </plugin>
       <plugin filename="libgazebo_ros_p3d.so" name="custom_dog_ground_truth">

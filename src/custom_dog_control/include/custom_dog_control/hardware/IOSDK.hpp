@@ -17,8 +17,9 @@
 
 namespace custom_dog_control {
 
-// GO-M8010-6 transport and output-side coordinate conversion. This class has
-// no robot kinematics; all positions exposed here are direct URDF coordinates.
+// GO-M8010-6 通信与电机侧/关节侧单位转换；不负责运动学或步态。
+// 标定前位置仅经过减速比和方向转换，标定后才与 URDF 零位对齐。
+// 生命周期、标定及 SendReceive 由同一上层线程串行调用，不支持并发收发。
 class IOSDK final {
  public:
   explicit IOSDK(const DriveParameters& drive_parameters);
@@ -27,6 +28,9 @@ class IOSDK final {
   IOSDK(const IOSDK&) = delete;
   IOSDK& operator=(const IOSDK&) = delete;
 
+  // 同步完成一轮通信：每腿串行访问三个电机，四腿可并行。调用期间借用
+  // command/state，调用方不得修改或释放；失败通过电机 fault 和计数器报告。
+  // 未激活时直接返回，不刷新状态。Deactivate 不应与本函数并发执行。
   void SendReceive(
       const LowLevelCommand& command, LowLevelState& state,
       bool calibration_requested);

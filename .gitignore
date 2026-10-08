@@ -23,3 +23,7 @@ Makefile
 *.swp
 *.swo
 *~
+
+# External dependency workspaces: reproduced by scripts, not committed
+/external/ocs2_ws/
+/external/model_ws/

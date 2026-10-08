@@ -87,8 +87,8 @@ bool UnitreeSystemInterface::ParseHardwareParameters() {
         ParameterOr<std::string>(info_, "parallel_leg_io", "true"));
     physical_estop_verified_ = ParseBool(
         ParameterOr<std::string>(info_, "physical_estop_verified", "false"));
-    // Verification is an activation interlock, not an asserted E-stop signal.
-    // The physical E-stop remains independent and cuts actuator power directly.
+    // 该配置是激活前的人工确认条件，不是实时急停反馈。本驱动没有从中读取
+    // 急停电平；物理急停独立切断执行器电源，不能用此标志代替硬件回路。
     physical_estop_ = 0.0;
     safe_damping_ = ParameterOr<double>(info_, "safe_damping", 1.0);
     drive_parameters_.calibration_pose = {
@@ -206,6 +206,8 @@ hardware_interface::CallbackReturn UnitreeSystemInterface::on_deactivate(
 
 hardware_interface::return_type UnitreeSystemInterface::read(
     const rclcpp::Time&, const rclcpp::Duration&) {
+  // 本实现的串口收发集中在 read：发送上一轮 write 打包的命令并获取反馈。
+  // 因此 read -> update -> write 链路中的新控制量在下一次 read 才真正发出。
   if (!sdk_) {
     return hardware_interface::return_type::ERROR;
   }
@@ -226,6 +228,7 @@ hardware_interface::return_type UnitreeSystemInterface::read(
   }
   calibrated_ = sdk_->IsCalibrated() ? 1.0 : 0.0;
   communication_ok_ = sdk_->CommunicationOk() ? 1.0 : 0.0;
+  // 累计的是电机通信失败次数；同一控制周期多电机失败会累计多次。
   io_timeout_count_ = static_cast<double>(sdk_->TotalFailures());
   consecutive_failures_ =
       sdk_->CommunicationOk() ? 0 : consecutive_failures_ + 1;
@@ -245,6 +248,8 @@ void UnitreeSystemInterface::SetDampingCommand() {
 }
 
 void UnitreeSystemInterface::FillLowCommand() {
+  // 传输前把非有限命令替换为可序列化的回退值，并保证增益非负。
+  // 这层只做格式防护，URDF 限位和力矩安全判断由上游控制链路负责。
   for (std::size_t i = 0; i < kJointCount; ++i) {
     auto& motor = low_command_.motors[i];
     motor.mode = static_cast<std::uint32_t>(ActuatorControlMode::COMPOUND);
