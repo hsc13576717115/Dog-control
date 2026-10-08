@@ -2,9 +2,10 @@
 set -euo pipefail
 
 failed=0
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-workspace_dir="$(cd "${script_dir}/../../.." && pwd)"
-deps_workspace="${CUSTOM_DOG_CONTROL_DEPS_WS:-${workspace_dir}/../custom_dog_control_deps_ws}"
+# shellcheck source=lib/workspace.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/workspace.sh"
+workspace_dir="$DOG_WORKSPACE"
+deps_workspace="$DOG_DEPS_WS"
 
 check_command() {
   if ! command -v "$1" >/dev/null; then

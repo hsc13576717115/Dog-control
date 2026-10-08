@@ -39,6 +39,8 @@ double SteadyNowSeconds() {
       .count();
 }
 
+// 控制线程只提交步态意图；求解器在 preSolverRun 的同步点修改接触计划。
+// 请求是最新值语义，不承诺逐个执行短时间内连续到来的切换。
 class GaitCommandModule final : public ocs2::SolverSynchronizedModule {
  public:
   explicit GaitCommandModule(
@@ -63,6 +65,7 @@ class GaitCommandModule final : public ocs2::SolverSynchronizedModule {
     }
     const bool trot = requested_trot_.load(std::memory_order_acquire);
     const auto& active_schedule = reference_manager.getModeSchedule();
+    // 优先沿用下一接触事件的时刻和对角腿顺序，避免截断当前支撑相。
     const auto next_event = std::upper_bound(
         active_schedule.eventTimes.begin(), active_schedule.eventTimes.end(),
         init_time + 1e-6);
@@ -204,9 +207,8 @@ class NmpcBackend::Impl {
             }
           }
           if (target) {
-            // ReferenceManager is owned by the solver. Applying updates on
-            // this thread avoids racing advanceMpc() with the 1 kHz control
-            // loop while still collapsing bursts to the newest target.
+            // ReferenceManager 只在求解线程更新，避免与 advanceMpc 并发修改。
+            // 交换区只保留最新目标，控制循环无需等待每个旧目标被求解。
             mrt->getReferenceManager().setTargetTrajectories(
                 std::move(*target));
           }
@@ -241,6 +243,8 @@ class NmpcBackend::Impl {
   }
 
   ocs2::TargetTrajectories TargetFromCommand(const VelocityCommand& command) {
+    // 生成两个带时间戳的参考点；这是参考预瞄长度，不修改 MPC 求解时域。
+    // 静止时维持锚定的 xy/yaw，运动时由 SetVelocityCommand 更新参考锚点。
     const double horizon = std::max(0.2, config.target_horizon_s);
     ocs2::vector_t current_pose = observation.state.segment<6>(6);
     if (target_reference_initialized) {
@@ -267,10 +271,8 @@ class NmpcBackend::Impl {
 
     const auto& info = interface->getCentroidalModelInfo();
     auto centroidal_state = [&](const ocs2::vector_t& pose) {
-      // Match legged_control's target publisher: prescribe normalized linear
-      // momentum directly and leave angular momentum at zero. Converting a
-      // synthetic RBD velocity here would inject momentum from the custom
-      // model's base-to-COM offset and bias moving targets.
+      // 与上游目标发布器一致，直接指定归一化线动量、令角动量参考为零。
+      // 若从虚构的基座速度反算，会因本机基座与质心偏置引入额外动量。
       ocs2::vector_t state = ocs2::vector_t::Zero(info.stateDim);
       state.head<3>() =
           Eigen::Vector3d(velocity_world.x(), velocity_world.y(), 0.0);
@@ -315,6 +317,7 @@ class NmpcBackend::Impl {
     observation.state =
         rbd_conversions->computeCentroidalStateFromRbdModel(measured);
     if (has_yaw) {
+      // 跨越 +/-pi 时选取离上一帧最近的等价角度，保持优化器参考连续。
       const double raw_yaw = observation.state(9);
       observation.state(9) =
           previous_yaw + std::remainder(raw_yaw - previous_yaw, kTwoPi);
@@ -348,16 +351,12 @@ class NmpcBackend::Impl {
       target_heading_yaw = observation.state(9);
     }
     if (moving) {
-      // Match legged_control's cmdVelToTargetTrajectories(): every moving
-      // command starts at the latest observed pose and is extrapolated only
-      // across the MPC horizon. Integrating a separate world-frame target
-      // accumulates slip/velocity error and eventually makes NMPC chase an
-      // unreachable pose.
+      // 移动目标每次从最新实测位置出发，只在参考预瞄区间外推。
+      // 独立积分世界系目标会累积打滑/速度误差，使机器人追赶不可达的位置。
       target_position_world = observation.state.segment<2>(6);
     }
     if (yaw_command_active || yaw_command_was_active) {
-      // A yaw-rate command is relative to the latest heading. Once it is
-      // released, capture the achieved heading exactly once and hold it.
+      // 转向参考相对最新航向生成；松开转向的第一帧捕获实际航向，随后保持。
       target_heading_yaw = observation.state(9);
     }
     yaw_command_was_active = yaw_command_active;
@@ -376,6 +375,8 @@ class NmpcBackend::Impl {
     }
     try {
       if (mrt->updatePolicy()) {
+        // 只有新策略被控制线程接收时才更新时间和序号；重复评估旧策略
+        // 不能使其重新变“新鲜”，否则后台停滞会被高频评估掩盖。
         active_policy_seconds = now_seconds;
         last_policy_steady_seconds.store(
             SteadyNowSeconds(), std::memory_order_release);
@@ -390,11 +391,8 @@ class NmpcBackend::Impl {
       mrt->evaluatePolicy(
           observation.time, observation.state, state, input, mode);
       if (mode == kStanceMode) {
-        // SQP feedback gains are useful for dynamic gait tracking but produce
-        // excessive joint-velocity corrections in this model's constrained
-        // four-foot stance. Re-evaluating at the nominal state returns the
-        // same policy's feed-forward input without disabling feedback for
-        // diagonal Trot modes.
+        // 本机四足受约束站立时，SQP 反馈易给出过大的关节速度修正。
+        // 在名义状态上重评估以取前馈输入；对角 Trot 仍使用实际状态反馈。
         ocs2::vector_t feedforward_state;
         ocs2::vector_t feedforward_input;
         std::size_t feedforward_mode = mode;
@@ -449,9 +447,8 @@ class NmpcBackend::Impl {
       desired_input(i) = policy.input[i];
     }
 
-    // legged_control does not add joint-limit constraints to the NMPC by
-    // default. Project its desired posture before WBC, with a deliberately
-    // tighter hip domain that prevents crossed-under footholds.
+    // 在 WBC 前投影 NMPC 目标到关节安全区间，并收紧髋外展角以避免交叉落足。
+    // 位置被截断时同步清零该关节目标速度，避免继续朝越界方向运动。
     auto joint_positions = ocs2::centroidal_model::getJointAngles(
         desired_state, interface->getCentroidalModelInfo());
     auto joint_velocities = ocs2::centroidal_model::getJointVelocities(
@@ -484,6 +481,8 @@ class NmpcBackend::Impl {
         std::chrono::steady_clock::now() - start).count();
     output.equality_residual = wbc->lastEqualityResidual();
     output.inequality_violation = wbc->lastInequalityViolation();
+    // 求解器返回成功还不足以使用结果：同时检查有限性和约束残差，
+    // 再逐关节复核力矩。失败时由上层决定短时回退或锁存故障。
     output.valid = wbc->lastSolverSucceeded() &&
                    solution.size() >= static_cast<Eigen::Index>(kJointCount) &&
                    solution.allFinite() &&
@@ -501,6 +500,8 @@ class NmpcBackend::Impl {
     const auto command_joint_velocities =
         ocs2::centroidal_model::getJointVelocities(
             desired_input, interface->getCentroidalModelInfo());
+    // QP 解的尾部是模型顺序力矩；q/dq 仍取投影后的 NMPC 目标。
+    // 在这里统一转换回硬件顺序，kp/kd 留给控制器的模式与交接逻辑设置。
     const auto joint_torques = solution.tail(kJointCount);
     for (std::size_t i = 0; i < kJointCount; ++i) {
       const auto joint_id = model.getJointId(std::string(kJointNames[i]));

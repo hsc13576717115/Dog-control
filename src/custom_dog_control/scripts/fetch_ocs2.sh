@@ -1,23 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-workspace=${1:-"${CUSTOM_DOG_CONTROL_DEPS_WS:-$PWD/custom_dog_control_deps_ws}"}
-script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-source_package_dir=$(cd "${script_dir}/.." && pwd)
+# shellcheck source=lib/workspace.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/workspace.sh"
+workspace="${1:-${DOG_DEPS_WS}}"
+source_package_dir="${DOG_SCRIPTS_DIR}/.."
 repos_file="${source_package_dir}/repos/ocs2_humble.repos"
 patch_files=(
   "${source_package_dir}/patches/ocs2-humble-custom-dog.patch"
   "${source_package_dir}/patches/ocs2-coal-self-collision.patch"
 )
-
-if [[ ! -f "${repos_file}" ]]; then
-  prefix=$(ros2 pkg prefix custom_dog_control 2>/dev/null || true)
-  repos_file="${prefix}/share/custom_dog_control/repos/ocs2_humble.repos"
-  patch_files=(
-    "${prefix}/share/custom_dog_control/patches/ocs2-humble-custom-dog.patch"
-    "${prefix}/share/custom_dog_control/patches/ocs2-coal-self-collision.patch"
-  )
-fi
 
 if ! command -v vcs >/dev/null; then
   user_bin="$(python3 -m site --user-base 2>/dev/null || true)/bin"

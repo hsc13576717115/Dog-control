@@ -22,6 +22,8 @@ constexpr std::size_t kTrotFlRrMode = 6U;
 constexpr double kTrotPeriodSeconds = 0.25;
 constexpr double kTrotHalfPeriodSeconds = 0.125;
 
+// 控制器/硬件数组的唯一顺序：FR、FL、RR、RL，每腿 hip、thigh、calf。
+// Pinocchio/OCS2 的内部顺序可能不同，跨边界必须使用模型校验得到的映射。
 inline constexpr std::array<std::string_view, kJointCount> kJointNames = {
     "FR_hip_joint", "FR_thigh_joint", "FR_calf_joint",
     "FL_hip_joint", "FL_thigh_joint", "FL_calf_joint",
@@ -58,6 +60,8 @@ inline constexpr std::string_view ToString(OperatingMode mode) {
   return "UNKNOWN";
 }
 
+// 航向对齐的水平速度：x 向前、y 向左（m/s）；yaw 是偏航角速度（rad/s）。
+// active 表示输入通道有效，不代表状态机已允许运动；时间戳用于输入超时。
 struct VelocityCommand {
   double vx = 0.0;
   double vy = 0.0;
@@ -101,6 +105,8 @@ inline bool IsTrotMode(std::size_t mode) {
   return mode == kTrotFrRlMode || mode == kTrotFlRrMode;
 }
 
+// 进入用任一轴超过高阈值，退出用所有轴低于低阈值，形成迟滞区间。
+// 状态机还会叠加持续时间和新策略确认，不能仅凭这两个函数直接切步态。
 inline bool ExceedsTrotEntryThreshold(const VelocityCommand& command) {
   return std::abs(command.vx) > 0.04 || std::abs(command.vy) > 0.025 ||
          std::abs(command.yaw) > 0.15;
@@ -126,6 +132,8 @@ inline VelocityCommand SlewVelocity(
   return output;
 }
 
+// 关节输出侧、URDF 正方向下的反馈：rad、rad/s、N·m、°C。
+// valid 使用 double 以适配 ros2_control 状态接口，>=0.5 视为有效。
 struct JointSample {
   std::array<double, kJointCount> position{};
   std::array<double, kJointCount> velocity{};
@@ -134,6 +142,8 @@ struct JointSample {
   std::array<double, kJointCount> valid{};
 };
 
+// 关节输出侧混合控制：tau = effort + kp*(position-q) + kd*(velocity-dq)。
+// effort 是前馈力矩；kp/kd 分别为 N·m/rad、N·m·s/rad。
 struct HybridJointCommand {
   std::array<double, kJointCount> position{};
   std::array<double, kJointCount> velocity{};
@@ -142,6 +152,8 @@ struct HybridJointCommand {
   std::array<double, kJointCount> kd{};
 };
 
+// 四元数 WXYZ 表示机体系到世界系的旋转；角速度为机体系 rad/s，
+// 加速度为机体系比力（m/s²，含重力响应）。时间戳与输入超时使用同一时钟。
 struct ImuSample {
   std::array<double, 4> orientation_wxyz{1.0, 0.0, 0.0, 0.0};
   std::array<double, 3> angular_velocity{};
@@ -150,6 +162,10 @@ struct ImuSample {
   bool valid = false;
 };
 
+// OCS2 布局：state=[归一化质心动量(6), 基座 xyz/ZYX(6), 关节位置(12)]；
+// input=[四足世界系接触力(12), 关节速度(12)]，关节部分采用模型顺序。
+// sequence 仅在接收新策略时递增；generated_at_seconds 是接收时的 ROS 时间，
+// 实际陈旧度由后端 steady_clock 计算，不能用两个时钟的数值相减。
 struct PolicySample {
   std::array<double, kCentroidalStateDim> state{};
   std::array<double, kCentroidalInputDim> input{};
@@ -161,6 +177,7 @@ struct PolicySample {
   bool valid = false;
 };
 
+// 接触掩码从高到低对应 FR、FL、RR、RL：15 为全支撑，9/6 为两组对角腿。
 inline constexpr std::array<bool, kLegCount> ContactFlags(std::size_t mode) {
   return {
       static_cast<bool>(mode & 0x8U),
