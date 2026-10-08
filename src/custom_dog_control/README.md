@@ -2,6 +2,11 @@
 
 ROS 2 Humble 的四足 NMPC-WBC 控制包，仿真和真机共用一个控制器生命周期实例。
 
+本包专用于传统控制。HIM 策略及真机 RL 接入统一位于
+[himloco_custom_dog/deployment](https://github.com/hsc13576717115/himloco_custom_dog/tree/master/deployment)；
+这里的 `UnitreeSystemInterface` 继续服务于 NMPC/WBC，RL 工作区使用独立的硬件包。
+本包正常构建需要 OCS2；不再提供为 RL 引入的 `CUSTOM_DOG_CONTROL_BUILD_NMPC=OFF` 构建路径。
+
 | 项目 | 入口 |
 | --- | --- |
 | 控制器插件 | `custom_dog_control/NmpcWbcController` |
