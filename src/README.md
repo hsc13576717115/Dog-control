@@ -8,6 +8,10 @@
 
 机器人模型来自外部 underlay 中的 `custom_dog_description` 包。
 
+本目录只维护传统控制包。RL 控制器已迁至
+[himloco_custom_dog/deployment/ros2_ws](https://github.com/hsc13576717115/himloco_custom_dog/tree/master/deployment/ros2_ws)，
+其 `custom_dog_hardware` 插件独立构建，不作为本工作区的依赖。
+
 `unitree_guide` 是历史参考代码，不属于当前 ROS 2 控制运行时。
 
 ## 工作区与依赖关系
