@@ -1,5 +1,7 @@
 ﻿#include <ahrs_driver.h>
-//#include <Eigen/Eigen>
+#include <chrono>
+#include <cmath>
+#include <stdexcept>
 rclcpp::Node::SharedPtr nh_=nullptr;
 
 
@@ -48,6 +50,12 @@ ahrsBringup::ahrsBringup()
 
   this->declare_parameter<std::int64_t>("serial_baud_",921600);
   this->get_parameter("serial_baud_", serial_baud_);  
+
+  const double orientation_timeout =
+      this->declare_parameter<double>("orientation_timeout_s", 0.1);
+  if (!std::isfinite(orientation_timeout) || orientation_timeout <= 0.0) {
+    throw std::invalid_argument("orientation_timeout_s must be finite and positive");
+  }
 
   //pravite_nh.param("debug",     if_debug_,  false);
   //pravite_nh.param("device_type", device_type_, 1); // default: single imu
@@ -122,6 +130,12 @@ ahrsBringup::~ahrsBringup()  // 析构函数关闭串口通道
 void ahrsBringup::processLoop()  // 数据处理过程
 {
   RCLCPP_INFO(this->get_logger(),"ahrsBringup::processLoop: start");
+  const double orientation_timeout = get_parameter("orientation_timeout_s").as_double();
+  // Payload buffers are overwritten before CRC checks. Only this separate cache
+  // may supply the orientation in /imu, and only after a complete valid AHRS frame.
+  Eigen::Quaterniond valid_orientation = Eigen::Quaterniond::Identity();
+  std::chrono::steady_clock::time_point orientation_received;
+  bool have_orientation = false;
   while (rclcpp::ok())
   {
     if (!serial_.isOpen())
@@ -131,6 +145,7 @@ void ahrsBringup::processLoop()  // 数据处理过程
     // 1. 检查帧头，找到一个合法包的开始。
     uint8_t check_head[1] = {0xff};  
     size_t head_s = serial_.read(check_head, 1);
+    if (head_s != 1) continue;
     if (if_debug_){
       if (head_s != 1)
       {
@@ -146,6 +161,7 @@ void ahrsBringup::processLoop()  // 数据处理过程
     // 2. 检查数据类型。
     uint8_t head_type[1] = {0xff};
     size_t type_s = serial_.read(head_type, 1);
+    if (type_s != 1) continue;
     if (if_debug_){
       std::cout << "head_type:  " << std::hex << (int)head_type[0] << std::dec << std::endl;
     }
@@ -157,6 +173,7 @@ void ahrsBringup::processLoop()  // 数据处理过程
     // 3. 检查长度，先把明显异常的包过滤掉。
     uint8_t check_len[1] = {0xff};
     size_t len_s = serial_.read(check_len, 1);
+    if (len_s != 1) continue;
     if (if_debug_){
       std::cout << "check_len: "<< std::dec << (int)check_len[0]  << std::endl;
     }
@@ -181,6 +198,7 @@ void ahrsBringup::processLoop()  // 数据处理过程
     {
       uint8_t ground_sn[1];
       size_t ground_sn_s = serial_.read(ground_sn, 1);
+      if (ground_sn_s != 1) continue;
       if (++read_sn_ != ground_sn[0])
       {
         if ( ground_sn[0] < read_sn_)
@@ -204,17 +222,22 @@ void ahrsBringup::processLoop()  // 数据处理过程
       }
       uint8_t ground_ignore[500];
       size_t ground_ignore_s = serial_.read(ground_ignore, (check_len[0]+4));
+      if (ground_ignore_s != static_cast<size_t>(check_len[0]+4)) continue;
       continue;
     }
     // 4. 读取序号与头部 CRC 字段。
     uint8_t check_sn[1] = {0xff};
     size_t sn_s = serial_.read(check_sn, 1);
+    if (sn_s != 1) continue;
     uint8_t head_crc8[1] = {0xff};
     size_t crc8_s = serial_.read(head_crc8, 1);
+    if (crc8_s != 1) continue;
     uint8_t head_crc16_H[1] = {0xff};
     uint8_t head_crc16_L[1] = {0xff};
     size_t crc16_H_s = serial_.read(head_crc16_H, 1);
+    if (crc16_H_s != 1) continue;
     size_t crc16_L_s = serial_.read(head_crc16_L, 1);
+    if (crc16_L_s != 1) continue;
     if (if_debug_){
       std::cout << "check_sn: "     << std::hex << (int)check_sn[0]     << std::dec << std::endl;
       std::cout << "head_crc8: "    << std::hex << (int)head_crc8[0]    << std::dec << std::endl;
@@ -317,6 +340,7 @@ void ahrsBringup::processLoop()  // 数据处理过程
       uint16_t head_crc16_h = imu_frame_.frame.header.header_crc16_h;
       uint16_t head_crc16 = head_crc16_l + (head_crc16_h << 8);
       size_t data_s = serial_.read(imu_frame_.read_buf.read_msg, (IMU_LEN + 1)); //48+1
+      if (data_s != IMU_LEN + 1) continue;
       // if (if_debug_){
       //   for (size_t i = 0; i < (IMU_LEN + 1); i++)
       //   {
@@ -353,6 +377,7 @@ void ahrsBringup::processLoop()  // 数据处理过程
       uint16_t head_crc16_h = ahrs_frame_.frame.header.header_crc16_h;
       uint16_t head_crc16 = head_crc16_l + (head_crc16_h << 8);
       size_t data_s = serial_.read(ahrs_frame_.read_buf.read_msg, (AHRS_LEN + 1)); //48+1
+      if (data_s != AHRS_LEN + 1) continue;
       // if (if_debug_){
       //   for (size_t i = 0; i < (AHRS_LEN + 1); i++)
       //   {
@@ -380,6 +405,18 @@ void ahrsBringup::processLoop()  // 数据处理过程
         RCLCPP_WARN(this->get_logger(),"check frame end.");
         continue;
       }
+      Eigen::Quaterniond candidate(ahrs_frame_.frame.data.data_pack.Qw,
+                                   ahrs_frame_.frame.data.data_pack.Qx,
+                                   ahrs_frame_.frame.data.data_pack.Qy,
+                                   ahrs_frame_.frame.data.data_pack.Qz);
+      const double norm = candidate.norm();
+      if (!candidate.coeffs().allFinite() || !std::isfinite(norm) || norm < 0.5 || norm > 1.5) {
+        RCLCPP_WARN(this->get_logger(), "AHRS quaternion invalid");
+        continue;
+      }
+      valid_orientation = candidate.normalized();
+      orientation_received = std::chrono::steady_clock::now();
+      have_orientation = true;
     }
     else if (head_type[0] == TYPE_INSGPS)
     {
@@ -387,6 +424,7 @@ void ahrsBringup::processLoop()  // 数据处理过程
       uint16_t head_crc16_h = insgps_frame_.frame.header.header_crc16_h;
       uint16_t head_crc16 = head_crc16_l + (head_crc16_h << 8);
       size_t data_s = serial_.read(insgps_frame_.read_buf.read_msg, (INSGPS_LEN + 1)); //48+1
+      if (data_s != INSGPS_LEN + 1) continue;
       // if (if_debug_){
       //   for (size_t i = 0; i < (AHRS_LEN + 1); i++)
       //   {
@@ -421,6 +459,7 @@ void ahrsBringup::processLoop()  // 数据处理过程
       uint16_t head_crc16_h = Geodetic_Position_frame_.frame.header.header_crc16_h;
       uint16_t head_crc16 = head_crc16_l + (head_crc16_h << 8);
       size_t data_s = serial_.read(Geodetic_Position_frame_.read_buf.read_msg, (GEODETIC_POS_LEN + 1)); //24+1
+      if (data_s != GEODETIC_POS_LEN + 1) continue;
       // if (if_debug_){
       //   for (size_t i = 0; i < (AHRS_LEN + 1); i++)
       //   {
@@ -453,14 +492,18 @@ void ahrsBringup::processLoop()  // 数据处理过程
 
     if (head_type[0] == TYPE_IMU)
     {
+      const double orientation_age = std::chrono::duration<double>(
+          std::chrono::steady_clock::now() - orientation_received).count();
+      if (!have_orientation || orientation_age > orientation_timeout) {
+        // Do not turn fresh gyro packets plus stale attitude into apparently
+        // fresh IMU messages. Downstream controllers must see their watchdog expire.
+        continue;
+      }
       // IMU 消息是整个四足控制链最关键的输入。
       sensor_msgs::msg::Imu imu_data;
       imu_data.header.stamp = rclcpp::Node::now();
       imu_data.header.frame_id = imu_frame_id_.c_str();
-      Eigen::Quaterniond q_ahrs(ahrs_frame_.frame.data.data_pack.Qw,
-                                ahrs_frame_.frame.data.data_pack.Qx,
-                                ahrs_frame_.frame.data.data_pack.Qy,
-                                ahrs_frame_.frame.data.data_pack.Qz);
+      const Eigen::Quaterniond& q_ahrs = valid_orientation;
       Eigen::Quaterniond q_r =                          
           Eigen::AngleAxisd( PI, Eigen::Vector3d::UnitZ()) * 
           Eigen::AngleAxisd( PI, Eigen::Vector3d::UnitY()) * 
@@ -475,10 +518,10 @@ void ahrsBringup::processLoop()  // 数据处理过程
           Eigen::AngleAxisd( PI, Eigen::Vector3d::UnitX());
       if (device_type_ == 0)         //未经变换的原始数据
       {
-        imu_data.orientation.w = ahrs_frame_.frame.data.data_pack.Qw;
-        imu_data.orientation.x = ahrs_frame_.frame.data.data_pack.Qx;
-        imu_data.orientation.y = ahrs_frame_.frame.data.data_pack.Qy;
-        imu_data.orientation.z = ahrs_frame_.frame.data.data_pack.Qz;
+        imu_data.orientation.w = q_ahrs.w();
+        imu_data.orientation.x = q_ahrs.x();
+        imu_data.orientation.y = q_ahrs.y();
+        imu_data.orientation.z = q_ahrs.z();
         imu_data.angular_velocity.x = imu_frame_.frame.data.data_pack.gyroscope_x;
         imu_data.angular_velocity.y = imu_frame_.frame.data.data_pack.gyroscope_y;
         imu_data.angular_velocity.z = imu_frame_.frame.data.data_pack.gyroscope_z;

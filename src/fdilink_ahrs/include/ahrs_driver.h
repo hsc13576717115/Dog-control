@@ -66,14 +66,14 @@ private:
   int sn_lost_ = 0;
   int crc_error_ = 0;
   uint8_t read_sn_ = 0;
-  bool frist_sn_;
+  bool frist_sn_ = false;
   int device_type_ = 1;
 
   // 串口参数。
   serial::Serial serial_; //声明串口对象
   std::string serial_port_;
   int serial_baud_;
-  int serial_timeout_;
+  int serial_timeout_ = 20;
   // 最近一次解析到的数据帧缓存。
   FDILink::imu_frame_read  imu_frame_;
   FDILink::ahrs_frame_read ahrs_frame_;

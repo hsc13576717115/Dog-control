@@ -13,16 +13,23 @@ endif()
 
 option(CUSTOM_DOG_CONTROL_BUILD_REAL_HARDWARE "Build the GO-M8010-6 ros2_control hardware plugin"
        ${CUSTOM_DOG_CONTROL_REAL_HARDWARE_DEFAULT})
+option(CUSTOM_DOG_CONTROL_BUILD_NMPC "Build NMPC/WBC controller and OCS2 dependencies" ON)
 option(CUSTOM_DOG_CONTROL_BUILD_TESTING "Build custom_dog_control unit tests" ON)
 
 find_package(ament_cmake REQUIRED)
+find_package(hardware_interface REQUIRED)
+find_package(pluginlib REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(rclcpp_lifecycle REQUIRED)
+
+# RL-only Jetson deployment can reuse the actuator driver without OCS2/Pinocchio.
+if(CUSTOM_DOG_CONTROL_BUILD_NMPC)
 find_package(ament_index_cpp REQUIRED)
 find_package(Boost REQUIRED COMPONENTS chrono filesystem log log_setup regex system thread)
 find_package(controller_interface REQUIRED)
 find_package(diagnostic_msgs REQUIRED)
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 find_package(geometry_msgs REQUIRED)
-find_package(hardware_interface REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(ocs2_centroidal_model REQUIRED)
 find_package(ocs2_core REQUIRED)
@@ -34,9 +41,6 @@ find_package(ocs2_robotic_tools REQUIRED)
 find_package(ocs2_self_collision REQUIRED)
 find_package(ocs2_sqp REQUIRED)
 find_package(pinocchio REQUIRED)
-find_package(pluginlib REQUIRED)
-find_package(rclcpp REQUIRED)
-find_package(rclcpp_lifecycle REQUIRED)
 find_package(realtime_tools REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
@@ -207,6 +211,8 @@ ament_target_dependencies(custom_dog_control_nmpc_wbc_controller
 )
 target_link_libraries(custom_dog_control_nmpc_wbc_controller custom_dog_control_core)
 
+endif()  # CUSTOM_DOG_CONTROL_BUILD_NMPC
+
 if(CUSTOM_DOG_CONTROL_BUILD_REAL_HARDWARE)
   set(UNITREE_ACTUATOR_SDK_ROOT "$ENV{UNITREE_ACTUATOR_SDK_ROOT}" CACHE PATH
       "Root of the Unitree actuator SDK")
@@ -263,6 +269,7 @@ if(CUSTOM_DOG_CONTROL_BUILD_REAL_HARDWARE)
   install(TARGETS custom_dog_control_unitree_system LIBRARY DESTINATION lib)
 endif()
 
+if(CUSTOM_DOG_CONTROL_BUILD_NMPC)
 pluginlib_export_plugin_description_file(controller_interface custom_dog_control_controller_plugins.xml)
 
 install(TARGETS
@@ -275,6 +282,7 @@ install(TARGETS
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
+endif()
 install(DIRECTORY include/custom_dog_control DESTINATION include)
 install(DIRECTORY config/nmpc DESTINATION share/${PROJECT_NAME}/config)
 install(FILES
@@ -326,7 +334,7 @@ install(PROGRAMS
 )
 install(DIRECTORY patches repos DESTINATION share/${PROJECT_NAME})
 
-if(BUILD_TESTING AND CUSTOM_DOG_CONTROL_BUILD_TESTING)
+if(BUILD_TESTING AND CUSTOM_DOG_CONTROL_BUILD_TESTING AND CUSTOM_DOG_CONTROL_BUILD_NMPC)
   find_package(ament_cmake_gtest REQUIRED)
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
   add_test(
@@ -373,9 +381,12 @@ if(BUILD_TESTING AND CUSTOM_DOG_CONTROL_BUILD_TESTING)
 endif()
 
 ament_export_include_directories(include)
+if(CUSTOM_DOG_CONTROL_BUILD_NMPC)
 ament_export_libraries(
   custom_dog_control_core
   custom_dog_control_legged_interface
   custom_dog_control_wbc)
-ament_export_dependencies(controller_interface hardware_interface rclcpp)
+ament_export_dependencies(controller_interface)
+endif()
+ament_export_dependencies(hardware_interface rclcpp)
 ament_package()

@@ -1,0 +1,49 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 1000
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+    rl_controller:
+      type: custom_dog_rl/RlController
+
+rl_controller:
+  ros__parameters:
+    hardware_mode: mock
+    model_path: ""
+    expected_model_sha256: 10bcd8da253aba3e21dad7a417a73258a5753b30bc04ef63433ec706852fa54c
+    enable_actuation: false
+    inference_threads: 1
+    imu_topic: /imu
+    imu_frame: base
+    # q_BI rotates a vector expressed in the IMU frame into the body frame.
+    # The incoming orientation must be q_WI (IMU -> world), in ROS ENU.
+    imu_to_body_wxyz: [1.0, 0.0, 0.0, 0.0]
+    imu_timeout_s: 0.10
+    command_timeout_s: 0.30
+    policy_timeout_s: 0.06
+    inference_deadline_s: 0.02
+    max_control_period_s: 0.02
+    stand_duration_s: 3.0
+    stand_timeout_s: 8.0
+    calibration_timeout_s: 3.0
+    stand_tolerance_rad: 0.15
+    stand_velocity_rad_s: 0.5
+    kp: 25.0
+    kd: 0.5
+    # Standing gains are independent of the learned-policy gains. The default
+    # retains training values; tune only after supported hardware stand tests.
+    stand_kp: 25.0
+    stand_kd: 0.5
+    safe_damping: 1.0
+    max_tilt_rad: 0.9
+    max_temperature_c: 70.0
+    joint_limit_tolerance_rad: 0.05
+    target_limit_margin_rad: 0.03
+    # Zero retains the training action response. Enabling a rate limit changes
+    # the plant seen by the policy and needs simulation/hardware retesting.
+    target_rate_limit_rad_s: 0.0
+    # All arrays below use SDK order FR, FL, RR, RL; hip, thigh, calf per leg.
+    joint_lower_sdk: [-1.0472, -1.5708, -2.8274333882, -1.0472, -1.5708, -2.8274333882, -1.0472, -1.5708, -2.8274333882, -1.0472, -1.5708, -2.8274333882]
+    joint_upper_sdk: [1.0472, 3.4907, -0.83775804096, 1.0472, 3.4907, -0.83775804096, 1.0472, 3.4907, -0.83775804096, 1.0472, 3.4907, -0.83775804096]
+    effort_limits_sdk: [23.7, 23.7, 45.0, 23.7, 23.7, 45.0, 23.7, 23.7, 45.0, 23.7, 23.7, 45.0]
+    velocity_limits_sdk: [30.0, 30.0, 15.0, 30.0, 30.0, 15.0, 30.0, 30.0, 15.0, 30.0, 30.0, 15.0]
