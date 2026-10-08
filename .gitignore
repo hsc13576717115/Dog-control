@@ -1,6 +1,10 @@
 # colcon / CMake build artifacts
 build/
 install/
+build_rl/
+install_rl/
+log_rl/
+artifacts/
 log/
 devel/
 symlink_install_manifest.txt
