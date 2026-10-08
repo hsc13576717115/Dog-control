@@ -1,0 +1,5 @@
+<library path="custom_dog_rl_controller">
+  <class name="custom_dog_rl/RlController" type="custom_dog_rl::RlController" base_class_type="controller_interface::ControllerInterface">
+    <description>50 Hz ONNX HIM policy with a separate inference worker and guarded hybrid joint control.</description>
+  </class>
+</library>
