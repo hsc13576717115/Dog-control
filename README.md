@@ -1,5 +1,7 @@
 # Dog-control · 传统 NMPC / WBC 运控
 
+**简体中文** | [English](README_EN.md)
+
 自制 12 自由度四足机器人的传统运动控制工作区：**ROS 2 Humble + OCS2 NMPC + weighted WBC + Pinocchio**。
 仿真与真机共用控制器，目标系统为 Ubuntu 22.04，开发机支持 x86_64，真机目标为 ARM64 香橙派 5 Plus。
 
@@ -13,7 +15,7 @@
 | --- | --- | --- |
 | 传统运控：状态估计、NMPC、WBC、步态状态机 | **本仓库** `src/custom_dog_control` | [控制包架构](src/custom_dog_control/README.md) |
 | 传统控制仿真、串口和 IMU 接入 | **本仓库** 的 launch、hardware、`fdilink_ahrs` / `serial_ros2` | [安装](docs/setup.md) · [硬件接入](docs/hardware.md) |
-| RL 训练、续训、模型评测与导出 | [himloco_custom_dog](https://github.com/hsc13576717115/himloco_custom_dog) | [训练 README](https://github.com/hsc13576717115/himloco_custom_dog/blob/master/README_CN.md) |
+| RL 训练、续训、模型评测与导出 | [himloco_custom_dog](https://github.com/hsc13576717115/himloco_custom_dog) | [训练 README](https://github.com/hsc13576717115/himloco_custom_dog/blob/master/README.md) |
 | RL 真机控制与 Jetson Orin NX 移植 | `himloco_custom_dog/deployment/ros2_ws` | [部署 README](https://github.com/hsc13576717115/himloco_custom_dog/blob/master/deployment/README.md) |
 
 此前放入本仓库的 `src/custom_dog_rl` 已迁出，RL 专用构建开关也已移除。
