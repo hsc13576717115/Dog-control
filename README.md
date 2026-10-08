@@ -1,12 +1,27 @@
-# Custom Dog Control
+# Dog-control · 传统 NMPC / WBC 运控
 
 自制 12 自由度四足机器人的传统运动控制工作区：**ROS 2 Humble + OCS2 NMPC + weighted WBC + Pinocchio**。
 仿真与真机共用控制器，目标系统为 Ubuntu 22.04，开发机支持 x86_64，真机目标为 ARM64 香橙派 5 Plus。
 
-新增独立的 **HIM RL / ONNX Runtime 控制器**，复用现有电机驱动，支持不构建 OCS2 的
-Jetson Orin NX 部署路线。模型接口、构建、离线验证、状态机及实机待验收项见
-[RL 部署与 NX 移植说明](src/custom_dog_rl/README.md)。默认启动不使能运动，
-新控制器不能与 NMPC 控制器同时占用同一组关节命令接口。
+本仓库只维护传统 NMPC/WBC 控制。RL 模型、真机控制器及 NX 部署工具统一维护在
+[himloco_custom_dog/deployment](https://github.com/hsc13576717115/himloco_custom_dog/tree/master/deployment)。
+该部署工作区包含独立硬件插件，不依赖本仓库。
+
+## 仓库分工与入口
+
+| 开发目标 | 对应仓库 / 目录 | 文档 |
+| --- | --- | --- |
+| 传统运控：状态估计、NMPC、WBC、步态状态机 | **本仓库** `src/custom_dog_control` | [控制包架构](src/custom_dog_control/README.md) |
+| 传统控制仿真、串口和 IMU 接入 | **本仓库** 的 launch、hardware、`fdilink_ahrs` / `serial_ros2` | [安装](docs/setup.md) · [硬件接入](docs/hardware.md) |
+| RL 训练、续训、模型评测与导出 | [himloco_custom_dog](https://github.com/hsc13576717115/himloco_custom_dog) | [训练 README](https://github.com/hsc13576717115/himloco_custom_dog/blob/master/README_CN.md) |
+| RL 真机控制与 Jetson Orin NX 移植 | `himloco_custom_dog/deployment/ros2_ws` | [部署 README](https://github.com/hsc13576717115/himloco_custom_dog/blob/master/deployment/README.md) |
+
+此前放入本仓库的 `src/custom_dog_rl` 已迁出，RL 专用构建开关也已移除。
+传统控制仍保留自己的电机插件和 IMU 驱动；AHRS 姿态新鲜度检查等共用修复继续保留。
+两套控制器不共用安装目录，也不能同时接管同一组电机。机器人 URDF/网格来源可以相同，
+这不要求传统控制加载 RL 模型或训练环境。
+
+## 当前验证状态
 
 [![自制四足实机平台演示](docs/media/custom-dog-platform-preview.gif)](docs/media/custom-dog-platform-demo.mp4)
 
@@ -14,6 +29,8 @@ Jetson Orin NX 部署路线。模型接口、构建、离线验证、状态机�
 历史高速包线与地形数据见 [验收基线](docs/validation-baselines.md)，
 最近的平地基础回归见 [2026-09-29 验证记录](docs/simulation-validation-20260929.md)；
 结构重构与依赖迁移记录见 [2026-09-23 验证记录](docs/simulation-validation-20260923.md)。
+2026-10-08 移出 RL 模块后，传统控制包重新构建成功，6 组 CTest 全部通过；
+本次迁移未重新运行整套 Gazebo 运动验收，也未增加真机验收结论。
 
 ## 快速开始
 
@@ -29,6 +46,19 @@ Dog/
 │   ├── docs/
 │   └── build/、install/、log/                    # 主工作区生成产物
 └── himloco_custom_dog/                          # RL 工程与原始模型来源
+```
+
+新工作区可按上述同级布局克隆；若已有机器人模型包，也可只克隆本仓库并设置
+`CUSTOM_DOG_DESCRIPTION_DIR`：
+
+```bash
+mkdir -p Dog
+cd Dog
+git clone https://github.com/hsc13576717115/Dog-control.git
+git clone https://github.com/hsc13576717115/himloco_custom_dog.git
+git -C himloco_custom_dog lfs install --local
+git -C himloco_custom_dog lfs pull --include='assets/custom_dog_description/**'
+cd Dog-control
 ```
 
 首次使用先按 [依赖安装说明](docs/setup.md) 安装系统依赖并构建 OCS2。
@@ -200,7 +230,7 @@ ros2_control 状态接口；里程计、基座 TF、控制模式、接触计划�
 
 | 环境变量 | 默认值 / 含义 |
 | --- | --- |
-| `CUSTOM_DOG_DESCRIPTION_DIR` | 同级 RL 仓库中的模型源码包 |
+| `CUSTOM_DOG_DESCRIPTION_DIR` | 同级 `himloco_custom_dog/assets/custom_dog_description` 模型源码包 |
 | `CUSTOM_DOG_MODEL_WS` | 本仓库 `external/model_ws` |
 | `CUSTOM_DOG_CONTROL_DEPS_WS` | 本仓库 `external/ocs2_ws`，也支持直接指向安装前缀 |
 | `CUSTOM_DOG_BUILD_ONLY` | `1` 表示构建后退出 |
