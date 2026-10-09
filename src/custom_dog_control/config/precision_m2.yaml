@@ -1,7 +1,8 @@
+# M2 finite walking: body follows the mean displacement of four feet.
 # Units: m, s, N, rad unless the key specifies otherwise. Versioned startup-only settings.
 control:
-  sole_rolling_model: 0.0
-  body_follow_ratio: 0.0
+  sole_rolling_model: 1.0
+  body_follow_ratio: 0.25
   edge_margin_m: 0.02
   support_margin_m: 0.03
   target_tolerance_m: 0.02

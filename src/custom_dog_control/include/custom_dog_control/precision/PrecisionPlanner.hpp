@@ -26,6 +26,11 @@ struct PlanningResult {
   PrecisionStep step;
   std::vector<SurfacePoint> safe_region;
 };
+struct SequencePreview {
+  bool accepted = false;
+  PrecisionError error = PrecisionError::NONE;
+  size_t failed_step = 0;
+};
 // Non-RT, serial calls; owns independent preflight model and QP data.
 class PrecisionPlanner {
 public:
@@ -35,6 +40,10 @@ public:
   ~PrecisionPlanner();
   PlanningResult Plan(const PlanningRequest &, const PrecisionSnapshot &,
                       const std::vector<PlanningSurface> &, double now);
+
+  SequencePreview Preview(const std::vector<PlanningRequest> &,
+                          const PrecisionSnapshot &,
+                          const std::vector<PlanningSurface> &, double now);
 
 private:
   struct Impl;

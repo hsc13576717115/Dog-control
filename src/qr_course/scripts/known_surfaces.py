@@ -14,13 +14,7 @@ from course import fixture
 class Surfaces(Node):
     def __init__(self, height, mode="pads"):
         super().__init__("qr_known_surfaces")
-        self.spec = fixture(height)
-        if mode == "ground":
-            if height != 0:
-                raise ValueError("ground sequence fixture must be flat")
-            self.spec["pads"] = [{"id": 0, "center": [0.0, 0.0], "size": [4.0, 4.0]}]
-        elif mode != "pads":
-            raise ValueError("unknown support fixture mode")
+        self.spec = fixture(height, mode)
         qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.pub = self.create_publisher(SupportRegionArray, "/qr/support_regions", qos)
         self.markers = self.create_publisher(MarkerArray, "/qr/support_markers", qos)
@@ -40,7 +34,7 @@ class Surfaces(Node):
             region.normal.z = 1.0
             region.observed_at = msg.header.stamp
             x, y = p["center"]
-            z = self.spec["height"]
+            z = p.get("height", self.spec["height"])
             half_x, half_y = [v / 2 for v in p["size"]]
             region.polygon.points = [
                 Point32(x=x + dx, y=y + dy, z=z)
@@ -75,7 +69,7 @@ class Surfaces(Node):
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
-    p.add_argument("--mode", choices=["pads", "ground"], default="pads")
+    p.add_argument("--mode", choices=["pads", "ground", "platform"], default="pads")
     p.add_argument("--height", type=float, default=0.0)
     a, rest = p.parse_known_args()
     rclpy.init(args=rest)

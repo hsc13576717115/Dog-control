@@ -143,3 +143,34 @@ TEST(Executor, IdleSupportLossIsNotIgnored) {
   ex.Update(1., c, Stance().foot);
   EXPECT_EQ(ex.error_code(), PrecisionError::SUPPORT_UNCONFIRMED);
 }
+
+TEST(Executor,
+     CompletedStepRetainsValidatedTerminalBodyWithoutSkippingContact) {
+  FootstepExecutor ex;
+  auto r = Stance();
+  ex.Reset(r);
+  PrecisionStep s;
+  s.target = r.foot[0] + Eigen::Vector3d(.025, 0, 0);
+  s.body = r.body + Eigen::Vector3d(-.03, .04, 0);
+  s.has_body_finish = true;
+  s.body_finish = r.body + Eigen::Vector3d(.00625, 0, 0);
+  s.shift = .2;
+  s.swing = .4;
+  ex.Start(s, 0);
+  std::array<ContactEstimate, 4> contact;
+  for (auto &v : contact)
+    v.valid = v.loaded = true;
+  bool saw_confirm = false;
+  for (double t = 0; t < 2.; t += .001) {
+    contact[0].loaded = ex.phase() != StepPhase::SWING;
+    contact[0].estimated_force.z() = contact[0].loaded ? 30. : 0.;
+    const auto feet = ex.reference().foot;
+    ex.Update(t, contact, feet);
+    saw_confirm |= ex.phase() == StepPhase::CONFIRM;
+  }
+  ASSERT_TRUE(saw_confirm);
+  ASSERT_EQ(ex.phase(), StepPhase::DONE) << ex.error();
+  EXPECT_NEAR((ex.reference().body - s.body_finish).norm(), 0., 1e-12);
+  EXPECT_NEAR(ex.reference().body_velocity.norm(), 0., 1e-12);
+  EXPECT_NEAR(ex.reference().body_acceleration.norm(), 0., 1e-12);
+}

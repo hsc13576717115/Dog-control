@@ -23,6 +23,9 @@ TEST(PrecisionConfig, RejectsNonfiniteAndContradictoryThresholds) {
   c = {};
   c.early_contact_delay_s = c.swing_s;
   EXPECT_THROW(c.Validate(), std::invalid_argument);
+  c = {};
+  c.sole_rolling_model = .5;
+  EXPECT_THROW(c.Validate(), std::invalid_argument);
 }
 TEST(PrecisionConfig, FilesAreCompleteAndTyposRejected) {
   const auto root = std::string(CUSTOM_DOG_CONTROL_SOURCE_DIR);
@@ -30,6 +33,7 @@ TEST(PrecisionConfig, FilesAreCompleteAndTyposRejected) {
       PrecisionConfig::Load(root + "/config/precision_control.yaml"));
   EXPECT_NO_THROW(
       RobotModelConfig::Load(root + "/config/precision_model.yaml"));
+  EXPECT_NO_THROW(PrecisionConfig::Load(root + "/config/precision_m2.yaml"));
   const auto p = std::filesystem::temp_directory_path() /
                  ("qr-bad-config-" + std::to_string(getpid()) + ".yaml");
   {
@@ -61,6 +65,12 @@ TEST(PrecisionPlanner, RefusesUnreadyAndUnknownSurfaceWithoutRos) {
   request.target.setZero();
   EXPECT_EQ(planner.Plan(request, state, {}, 1.).error,
             PrecisionError::STATE_NOT_READY);
+  EXPECT_EQ(planner.Preview({}, state, {}, 1.).error,
+            PrecisionError::INVALID_REQUEST);
+  request.foot = 4;
+  EXPECT_EQ(planner.Plan(request, state, {}, 1.).error,
+            PrecisionError::INVALID_FOOT_OR_FRAME);
+  request.foot = 0;
   state.ready = true;
   state.now = 1.;
   state.steady_stamp = PrecisionSteadyNow();

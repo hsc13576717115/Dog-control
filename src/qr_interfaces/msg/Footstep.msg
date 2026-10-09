@@ -2,6 +2,7 @@ uint8 foot
 uint32 surface_id
 geometry_msgs/Point target
 geometry_msgs/Polygon safe_region
+geometry_msgs/Point body_finish
 geometry_msgs/Point body_target
 float64 shift_duration
 float64 swing_duration

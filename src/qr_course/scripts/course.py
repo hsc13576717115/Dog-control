@@ -9,10 +9,10 @@ import xml.etree.ElementTree as ET
 import yaml
 
 
-def fixture(height):
+def fixture(height, mode="pads"):
     if height not in (0.0, 0.03, 0.05):
         raise ValueError("M1 pad height must be 0/0.03/0.05 m")
-    return {
+    spec = {
         "version": "qr-m1-v1",
         "height": height,
         "foot_radius": 0.026,
@@ -22,9 +22,28 @@ def fixture(height):
         ],
     }
 
+    if mode == "ground":
+        if height != 0:
+            raise ValueError("ground fixture height must be zero")
+        spec["pads"] = [
+            {"id": 0, "center": [0.0, 0.0], "size": [4.0, 4.0], "height": 0.0}
+        ]
+    elif mode == "platform":
+        if height not in (0.03, 0.05):
+            raise ValueError("M2 local platform height must be 30/50 mm")
+        spec["version"] = "qr-m2-platform-v1"
+        spec["scope"] = "low platform transfer, not a rule obstacle"
+        spec["pads"] = [
+            {"id": 0, "center": [-0.85, 0.0], "size": [2.3, 4.0], "height": 0.0},
+            {"id": 1, "center": [0.7, 0.0], "size": [0.8, 0.8], "height": height},
+        ]
+    elif mode != "pads":
+        raise ValueError("unknown fixture mode")
+    return spec
 
-def generate(height, output):
-    spec = fixture(height)
+
+def generate(height, output, mode="pads"):
+    spec = fixture(height, mode)
     root = ET.Element("sdf", version="1.6")
     world = ET.SubElement(root, "world", name="qr_m1")
     for uri in ["model://sun", "model://ground_plane"]:
@@ -39,18 +58,21 @@ def generate(height, output):
     ET.SubElement(ros, "namespace").text = "/evaluation"
     ET.SubElement(plugin, "update_rate").text = "100"
     for pad in spec["pads"]:
-        if height == 0:
+        pad_height = pad.get("height", height)
+        if pad_height == 0:
             continue
         model = ET.SubElement(world, "model", name=f"pad_{pad['id']}")
         ET.SubElement(model, "static").text = "true"
         ET.SubElement(model, "pose").text = (
-            f"{pad['center'][0]} {pad['center'][1]} {height/2} 0 0 0"
+            f"{pad['center'][0]} {pad['center'][1]} {pad_height/2} 0 0 0"
         )
         link = ET.SubElement(model, "link", name="support")
         for kind in ["collision", "visual"]:
             item = ET.SubElement(link, kind, name=kind)
             box = ET.SubElement(ET.SubElement(item, "geometry"), "box")
-            ET.SubElement(box, "size").text = f".2 .2 {height}"
+            ET.SubElement(box, "size").text = (
+                f"{pad['size'][0]} {pad['size'][1]} {pad_height}"
+            )
     ET.indent(root)
     Path(output).write_text(ET.tostring(root, encoding="unicode"))
     Path(str(output) + ".json").write_text(json.dumps(spec, indent=2))

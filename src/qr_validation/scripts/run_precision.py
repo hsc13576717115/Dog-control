@@ -160,6 +160,14 @@ class Probe(Node):
                         self.state.pose.orientation.z,
                         self.state.pose.orientation.w,
                     ],
+                    "truth_body_position": next(
+                        (
+                            [p.position.x, p.position.y, p.position.z]
+                            for n, p in self.truth.items()
+                            if n == "custom_dog::base"
+                        ),
+                        None,
+                    ),
                     "truth_body_quaternion": next(
                         (
                             [

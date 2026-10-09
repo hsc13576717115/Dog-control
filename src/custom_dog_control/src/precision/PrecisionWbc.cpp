@@ -1,7 +1,32 @@
 #include "custom_dog_control/precision/PrecisionWbc.hpp"
 #include <pinocchio/algorithm/frames.hpp>
+#include <pinocchio/algorithm/jacobian.hpp>
 namespace custom_dog_control {
 legged::Task PrecisionWbc::formulateConstraints() {
+  if (config_.sole_rolling_model > .5) {
+    const auto &m = pinocchioInterfaceMeasured_.getModel();
+    auto &d = pinocchioInterfaceMeasured_.getData();
+    Eigen::Matrix3d cross_normal;
+    cross_normal << 0, -1, 0, 1, 0, 0, 0, 0, 0;
+    for (size_t f = 0; f < 4; ++f)
+      if (contactFlag_[f]) {
+        Eigen::Matrix<double, 6, Eigen::Dynamic> jac(6, m.nv),
+            derivative(6, m.nv);
+        jac.setZero();
+        derivative.setZero();
+        pinocchio::getFrameJacobian(m, d, info_.endEffectorFrameIndices[f],
+                                    pinocchio::LOCAL_WORLD_ALIGNED, jac);
+        pinocchio::getFrameJacobianTimeVariation(
+            m, d, info_.endEffectorFrameIndices[f],
+            pinocchio::LOCAL_WORLD_ALIGNED, derivative);
+        // v_contact = v_center + omega x (-r*n). The same Jacobian maps
+        // contact forces into generalized forces in the EoM/torque constraints.
+        j_.middleRows(3 * f, 3) +=
+            sole_radius_ * cross_normal * jac.bottomRows(3);
+        dj_.middleRows(3 * f, 3) +=
+            sole_radius_ * cross_normal * derivative.bottomRows(3);
+      }
+  }
   // Position feedback stabilizes the actual support anchors, not a flat
   // posture.
   ocs2::matrix_t a = ocs2::matrix_t::Zero(3 * numContacts_, numDecisionVars_);

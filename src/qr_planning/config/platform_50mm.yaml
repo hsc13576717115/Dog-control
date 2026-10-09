@@ -1,0 +1,20 @@
+frame: odom
+target_mode: initial_foot_offset
+max_initial_offset_m: 0.6
+steps:
+  - {foot: 0, surface_id: 1, offset: [0.17, 0, 0.05]}
+  - {foot: 3, surface_id: 0, offset: [0.17, 0, 0.00]}
+  - {foot: 1, surface_id: 1, offset: [0.17, 0, 0.05]}
+  - {foot: 2, surface_id: 0, offset: [0.17, 0, 0.00]}
+  - {foot: 0, surface_id: 1, offset: [0.34, 0, 0.05]}
+  - {foot: 3, surface_id: 0, offset: [0.34, 0, 0.00]}
+  - {foot: 1, surface_id: 1, offset: [0.34, 0, 0.05]}
+  - {foot: 2, surface_id: 0, offset: [0.34, 0, 0.00]}
+  - {foot: 0, surface_id: 1, offset: [0.42, 0, 0.05]}
+  - {foot: 3, surface_id: 0, offset: [0.42, 0, 0.00]}
+  - {foot: 1, surface_id: 1, offset: [0.42, 0, 0.05]}
+  - {foot: 2, surface_id: 0, offset: [0.42, 0, 0.00]}
+  - {foot: 0, surface_id: 1, offset: [0.56, 0, 0.05]}
+  - {foot: 3, surface_id: 1, offset: [0.56, 0, 0.05]}
+  - {foot: 1, surface_id: 1, offset: [0.56, 0, 0.05]}
+  - {foot: 2, surface_id: 1, offset: [0.56, 0, 0.05]}

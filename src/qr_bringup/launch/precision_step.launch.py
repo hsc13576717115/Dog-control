@@ -39,8 +39,22 @@ def setup(context):
 
     runtime = Path(tempfile.mkdtemp(prefix="qr_m1_"))
     atexit.register(lambda: shutil.rmtree(runtime, ignore_errors=True))
-    generate(height, runtime / "fixture.world")
+    generate(
+        height,
+        runtime / "fixture.world",
+        LaunchConfiguration("surface_mode").perform(context),
+    )
     scene = ET.parse(runtime / "fixture.world")
+    solver_iterations = LaunchConfiguration("solver_iterations").perform(context)
+    if solver_iterations != "legacy":
+        iterations = int(solver_iterations)
+        if iterations not in (50, 100, 200, 400, 800):
+            raise ValueError("solver_iterations must be legacy/50/100/200/400/800")
+        ode = ET.SubElement(scene.getroot().find("world/physics"), "ode")
+        solver = ET.SubElement(ode, "solver")
+        ET.SubElement(solver, "type").text = "quick"
+        ET.SubElement(solver, "iters").text = str(iterations)
+
     ET.SubElement(
         scene.getroot().find("world"),
         "plugin",
@@ -266,6 +280,7 @@ def setup(context):
 def generate_launch_description():
     return LaunchDescription(
         [
+            DeclareLaunchArgument("solver_iterations", default_value="legacy"),
             DeclareLaunchArgument("surface_mode", default_value="pads"),
             DeclareLaunchArgument("artifact_dir", default_value=""),
             DeclareLaunchArgument("model_config", default_value=""),

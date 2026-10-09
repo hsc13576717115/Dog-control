@@ -8,11 +8,12 @@ namespace custom_dog_control {
 StaticSupportResult CheckStaticSupport(const RobotModel &robot,
                                        const Eigen::VectorXd &q,
                                        const std::array<bool, 4> &contacts,
-                                       double friction) {
+                                       double friction, double sole_radius) {
   StaticSupportResult out;
   const auto &m = robot.pin.getModel();
   if (q.size() != m.nq || m.nv != 18 || !q.allFinite() ||
-      !std::isfinite(friction) || friction <= 0)
+      !std::isfinite(friction) || friction <= 0 ||
+      !std::isfinite(sole_radius) || sole_radius < 0)
     return out;
   auto pin = robot.pin;
   auto &d = pin.getData();
@@ -47,7 +48,13 @@ StaticSupportResult CheckStaticSupport(const RobotModel &robot,
     pinocchio::getFrameJacobian(
         m, d, m.getFrameId(std::string(kFootFrameNames[foot])),
         pinocchio::LOCAL_WORLD_ALIGNED, jac);
-    A.block(0, 3 * column, 18, 3) = jac.topRows<3>().transpose();
+    Eigen::Matrix3d cross_normal;
+    cross_normal << 0, -1, 0, 1, 0, 0, 0, 0, 0;
+    // Horizontal spherical contact: apply force at the material contact point,
+    // not at the centre of the foot. Radius zero preserves legacy point feet.
+    const Eigen::MatrixXd contact_jac =
+        jac.topRows<3>() + sole_radius * cross_normal * jac.bottomRows<3>();
+    A.block(0, 3 * column, 18, 3) = contact_jac.transpose();
     lo(3 * column + 2) = 0;
     // Inner pyramid conservatively satisfies ||Ft|| <= mu * Fn.
     for (int face = 0; face < 4; ++face) {

@@ -168,7 +168,7 @@ EstimatedState KinematicStateEstimator::Update(
     measurement_noise(24 + leg, 24 + leg) =
         scale * noise_.foot_height;
     measurement.segment<3>(3 * leg) = -foot_in_world_at_origin[leg];
-    measurement.segment<3>(12 + 3 * leg) = -foot_velocity_at_origin[leg];
+    measurement.segment<3>(12 + 3 * leg) = support.center_velocity[leg] - foot_velocity_at_origin[leg];
     measurement(24 + leg) = support.foot_center_height[leg];
     if (!planned_contacts[leg] || !support.height_valid[leg]) {
       observation.row(24 + leg).setZero();
@@ -184,7 +184,12 @@ EstimatedState KinematicStateEstimator::Update(
   const Eigen::Vector3d acceleration_world =
       rotation_world_from_body * acceleration_body + Eigen::Vector3d(0.0, 0.0, -9.81);
 
-  const StateVector predicted_state = transition * state_ + input * acceleration_world;
+  StateVector predicted_state = transition * state_ + input * acceleration_world;
+  for (size_t leg = 0; leg < kLegCount; ++leg) {
+    if (!support.center_velocity[leg].allFinite()) return output;
+    if (support.contact[leg])
+      predicted_state.segment<3>(6 + 3 * leg) += dt * support.center_velocity[leg];
+  }
   const StateMatrix predicted_covariance =
       transition * covariance_ * transition.transpose() + process_noise;
   const ObservationCovariance innovation_covariance =

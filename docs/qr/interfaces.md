@@ -15,6 +15,7 @@
 | `/imu`、ros2_control 关节状态 | 控制唯一传感输入；关节必须有有效 q/dq/effort |
 | `/qr/support_regions` | `SupportRegionArray`；当前由已知场景源发布，不是感知结果 |
 | `/qr/plan_footsteps` | `PlanFootsteps`；足序、足心目标与支撑面 ID，返回计划或失败原因 |
+| `/qr/preview_footsteps` | 1–16 步的只读后续可行性预检；不分配计划 ID，不授权执行 |
 | `/qr/execute_footsteps` | `ExecuteFootsteps` action；非实时校验后通过缓冲交给 update |
 | `/qr/state` | `RobotState`；控制估计、关节、FK 足心和接触估计，无基座真值 |
 | `/qr/contact_estimates` | `FootContactArray`；force_valid=false，estimated_force 单独标记为动力学残差估计 |
@@ -82,5 +83,15 @@ M1 单步服务包含轨迹采样 IK、关节边界、已知矩形平台与地�
 - 当前 WBC 求解预算为 20 ms 保护上限，不是承诺每个 1 ms 周期都准时。
   求解残差/耗时记录在执行状态，NX 和高负载实时性未验收。
 - 碰撞预检使用原始模型的完整腿部/机身碰撞体，对 M1 已知轴对齐矩形平台和地面检查。
-  尚未加入完整机器人自碰撞规划、网格地图、多层净空、连续碰撞检测或任意支撑法向。
+  增加了规范 CAD 非相邻连杆的离散自碰撞预检；尚未加入网格地图、多层净空、连续碰撞检测或任意支撑法向。
 - 全局定位、足端锚点重定位、真实每电机采样时刻、时钟同步与 effort 标定属于后续工作。
+
+## M2 连续换步扩展
+
+- `Footstep.body_target` 是卸载前移重心目标；`body_finish` 是确认承载后的机身结束目标。二者均为 `odom` 下米单位机身位置参考，不能由 action 客户端改写已批准内容。
+- `precision_m2.yaml` 显式启用 `body_follow_ratio=0.25`：每次将机身终点推进该足位移的四分之一；默认 M1 配置仍为 0。它只覆盖有限、缓慢、水平已知支撑面的换步，不支持任意机身姿态轨迹。
+- 整条模板先经过 `PreviewFootsteps`；内部预测状态不发布、不进入估计器。随后每步重新规划、校验计划新鲜度和地图版本，等待实际估计承载后才进入下一步。预检通过不是执行保证。
+- `PlanFootsteps` 和 `PreviewFootsteps` 在专用非实时单线程 executor 上串行运行，避免 CAD/多步预检饿死 IMU 回调。计算期间不持有发布/action 的互斥锁；批准前重新核对活动状态、忙碌状态和地图版本。模型加载/计算异常返回固定错误码 `PLANNING_EXCEPTION=36`，不会授权关节命令。
+- M2 的球足模式使用 `v_contact = v_center + omega × (-r*n)`；在已确认水平支撑上积分球心滚动，WBC 与残差估计使用接触点雅可比。没有新增足底传感器；滑移仍是模型估计，实际接触与滑移只由独立仿真评价器判定。
+- 场景碰撞仍使用完整规范碰撞体。非相邻自碰撞使用同一 URDF 原始 CAD 网格，因为规范简化机身/大腿碰撞体在站姿存在互相重叠；只排除同刚体和直接连接的连杆。此检查不等于 Gazebo 实际启用了机器人所有自碰撞，也不等于连续碰撞认证。
+- ROS 消息增加字段后，上下游必须一起重建。动作仍只接受一个已批准步骤；离线 `precision_envelope` 输出的协同位姿采样不能直接发送给当前 action。

@@ -5,6 +5,9 @@
 #include "custom_dog_control/precision/PrecisionTypes.hpp"
 #include <memory>
 namespace custom_dog_control {
+struct CollisionWitness {
+  std::string first, second;
+};
 class PrecisionModel {
 public:
   PrecisionModel(const ocs2::PinocchioInterface &,
@@ -17,11 +20,17 @@ public:
   const std::array<Eigen::Vector3d, 4> &feet() const;
   const std::array<Eigen::Vector3d, 4> &velocities() const;
   const std::array<Eigen::Vector3d, 4> &forces() const;
+  const std::array<Eigen::Vector3d, 4> &angularVelocities() const;
   bool Inverse(const WholeBodyReference &, const JointSample &,
                Eigen::VectorXd &q, Eigen::VectorXd &dq);
   Eigen::Vector3d CenterOfMass(const Eigen::VectorXd &q);
   bool CollisionFree(const Eigen::VectorXd &, const Eigen::Vector3d &pad_center,
-                     double pad_height, const Eigen::Vector2d &size);
+                     double pad_height, const Eigen::Vector2d &size,
+                     CollisionWitness *witness = nullptr);
+  // Excludes only shapes on the same rigid body or adjacent articulated bodies.
+  // This is a discrete configuration check, not swept-volume certification.
+  bool SelfCollisionFree(const Eigen::VectorXd &,
+                         CollisionWitness *witness = nullptr);
   Eigen::VectorXd Rbd(const JointSample &, const EstimatedState &) const;
   int slot(size_t i) const;
   bool ApplyProbe(int foot, double force, HybridJointCommand &command);

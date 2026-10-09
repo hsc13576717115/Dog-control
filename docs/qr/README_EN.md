@@ -84,4 +84,4 @@ fault injection is separate from execution-core timestamp/deadline tests. Added 
 profiles cover mass/inertia ±5% and sole friction 0.35; they do not constitute sensor
 noise validation or hardware calibration. See [closeout evidence](m1-closeout.md).
 
-M1 closeout reached 99/100. The new C++ finite-template client and static-force screening begin M2; full obstacle, rear-leg and dynamic validation remain open. See [M2 record](m2-entry.md).
+M1 closeout reached 99/100. M2 now includes body-following 16-step sequences, four-foot 30/50 mm platform transfers, bounded whole-sequence preview, a separate planning executor, spherical contact consistency and dense mechanical-candidate replay. The known IMU/joint-only sensor contract and hardware prohibition remain. Full nominal-obstacle dynamic execution is not certified; the wall path remains unresolved. See [current M2 record](m2-progress.md) and the [historical entry baseline](m2-entry.md).

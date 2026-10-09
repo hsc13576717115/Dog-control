@@ -251,5 +251,4 @@ The new `qr_simulation` plugin is an independent physics evaluator, never a cont
 sensor input for the controller.
 
 M1 scoped simulation closeout reached 99/100 on frozen commit `55f7dd5`.
-M2 now has a finite four-foot sequence client and offline mechanical screening;
-its full mechanical/obstacle gate remains open. See [M2 development record](docs/qr/m2-entry.md).
+M2 adds 16-step body-following sequences, complete four-foot transfers onto 30/50 mm platforms, and read-only whole-sequence preflight before fresh per-step approval. Planning runs on a dedicated non-real-time executor. A joint-limit IK convergence bug found by dense candidate replay has been corrected; repeated tests are rerun after the fix. Offline coordinated searches include rear-leg follow-up, but their trajectories are not executable action plans. The full M2 gate remains open, especially the wall path and coordinated dynamic execution. See [current M2 evidence and limits](docs/qr/m2-progress.md), or the [historical entry record](docs/qr/m2-entry.md).

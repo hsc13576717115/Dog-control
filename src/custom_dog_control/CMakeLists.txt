@@ -196,6 +196,9 @@ target_link_libraries(custom_dog_control_core coal::coal
 add_executable(precision_envelope tools/precision_envelope.cpp)
 target_link_libraries(precision_envelope custom_dog_control_core)
 install(TARGETS precision_envelope DESTINATION lib/${PROJECT_NAME})
+add_executable(precision_replay tools/precision_replay.cpp)
+target_link_libraries(precision_replay custom_dog_control_core)
+install(TARGETS precision_replay DESTINATION lib/${PROJECT_NAME})
 
 add_library(custom_dog_control_nmpc_wbc_controller SHARED
   src/precision/PrecisionRosAdapter.cpp

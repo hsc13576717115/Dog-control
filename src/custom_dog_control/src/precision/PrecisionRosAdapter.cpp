@@ -5,7 +5,10 @@
 #include <qr_interfaces/msg/robot_state.hpp>
 #include <qr_interfaces/msg/support_region_array.hpp>
 #include <qr_interfaces/srv/plan_footsteps.hpp>
+#include <qr_interfaces/srv/preview_footsteps.hpp>
+#include <rclcpp/executors/single_threaded_executor.hpp>
 #include <rclcpp_action/rclcpp_action.hpp>
+#include <thread>
 namespace custom_dog_control {
 namespace {
 using Action = qr_interfaces::action::ExecuteFootsteps;
@@ -27,6 +30,9 @@ struct PrecisionRosAdapter::Impl {
   PrecisionChannel &channel;
   PrecisionConfig config;
   std::mutex callback_mutex;
+  rclcpp::CallbackGroup::SharedPtr planning_group;
+  rclcpp::executors::SingleThreadedExecutor planning_executor;
+  std::thread planning_thread;
   qr_interfaces::msg::SupportRegionArray regions;
   qr_interfaces::msg::FootstepPlan approved;
   PrecisionStep approved_step;
@@ -35,6 +41,7 @@ struct PrecisionRosAdapter::Impl {
   WholeBodyReference approved_reference;
   std::shared_ptr<Goal> goal;
   rclcpp::Service<qr_interfaces::srv::PlanFootsteps>::SharedPtr planner;
+  rclcpp::Service<qr_interfaces::srv::PreviewFootsteps>::SharedPtr preview;
   rclcpp_action::Server<Action>::SharedPtr action;
   rclcpp::Subscription<qr_interfaces::msg::SupportRegionArray>::SharedPtr
       region_sub;
@@ -61,13 +68,73 @@ struct PrecisionRosAdapter::Impl {
               std::lock_guard<std::mutex> lock(callback_mutex);
               regions = *msg;
             });
+    // Slow CAD/sequence preflight must not occupy the controller's sensor
+    // callback group. One dedicated executor serializes only planning work.
+    planning_group = node->create_callback_group(
+        rclcpp::CallbackGroupType::MutuallyExclusive, false);
+    planning_executor.add_callback_group(planning_group,
+                                         node->get_node_base_interface());
     planner = node->create_service<qr_interfaces::srv::PlanFootsteps>(
         "/qr/plan_footsteps",
         [this](qr_interfaces::srv::PlanFootsteps::Request::SharedPtr req,
                qr_interfaces::srv::PlanFootsteps::Response::SharedPtr res) {
-          std::lock_guard<std::mutex> lock(callback_mutex);
-          Plan(*req, *res);
-        });
+          try {
+            Plan(*req, *res);
+          } catch (const std::exception &e) {
+            res->accepted = false;
+            res->error_code =
+                static_cast<uint16_t>(PrecisionError::PLANNING_EXCEPTION);
+            res->reason = e.what();
+            RCLCPP_ERROR(node->get_logger(), "Plan preflight failed: %s",
+                         e.what());
+          }
+        },
+        rmw_qos_profile_services_default, planning_group);
+    preview = node->create_service<qr_interfaces::srv::PreviewFootsteps>(
+        "/qr/preview_footsteps",
+        [this](qr_interfaces::srv::PreviewFootsteps::Request::SharedPtr req,
+               qr_interfaces::srv::PreviewFootsteps::Response::SharedPtr res) {
+          std::unique_lock<std::mutex> lock(callback_mutex);
+          res->map_revision = regions.revision;
+          res->error_code =
+              static_cast<uint16_t>(PrecisionError::STATE_NOT_READY);
+          res->reason = "state_not_ready";
+          if (!channel.active || busy || regions.header.frame_id != "odom")
+            return;
+          std::vector<PlanningRequest> requests;
+          if (req->steps.empty() || req->steps.size() > 16) {
+            res->error_code =
+                static_cast<uint16_t>(PrecisionError::INVALID_REQUEST);
+            res->reason = "preview_requires_1_to_16_steps";
+            return;
+          }
+          for (const auto &step : req->steps)
+            requests.push_back({step.foot, step.surface_id, Vec(step.target)});
+          const auto state = channel.snapshot.Read();
+          const auto surfaces = Surfaces();
+          const double now = node->now().seconds();
+          lock.unlock();
+          SequencePreview result;
+          try {
+            result = preflight.Preview(requests, state, surfaces, now);
+          } catch (const std::exception &e) {
+            res->accepted = false;
+            res->error_code =
+                static_cast<uint16_t>(PrecisionError::PLANNING_EXCEPTION);
+            res->reason = e.what();
+            RCLCPP_ERROR(node->get_logger(), "Sequence preflight failed: %s",
+                         e.what());
+            return;
+          }
+          res->accepted = result.accepted;
+          res->error_code = static_cast<uint16_t>(result.error);
+          res->failed_step = result.failed_step;
+          res->reason =
+              result.accepted
+                  ? "predicted_sequence_feasible_not_execution_approval"
+                  : ErrorName(result.error);
+        },
+        rmw_qos_profile_services_default, planning_group);
     action = rclcpp_action::create_server<Action>(
         node, "/qr/execute_footsteps",
         [this](const rclcpp_action::GoalUUID &,
@@ -124,9 +191,32 @@ struct PrecisionRosAdapter::Impl {
     timer = node->create_wall_timer(
         std::chrono::duration<double>(config.status_period_s),
         [this] { Publish(); });
+    planning_thread = std::thread([this] { planning_executor.spin(); });
+  }
+  ~Impl() {
+    planning_executor.cancel();
+    if (planning_thread.joinable())
+      planning_thread.join();
+  }
+  std::vector<PlanningSurface> Surfaces() const {
+    std::vector<PlanningSurface> surfaces;
+    for (const auto &source : regions.regions) {
+      PlanningSurface surface;
+      surface.id = source.id;
+      surface.known = source.known;
+      surface.forbidden = source.forbidden;
+      surface.confidence = source.confidence;
+      surface.observed_at = rclcpp::Time(source.observed_at).seconds();
+      surface.normal = {source.normal.x, source.normal.y, source.normal.z};
+      for (const auto &p : source.polygon.points)
+        surface.points.push_back({p.x, p.y, p.z});
+      surfaces.push_back(std::move(surface));
+    }
+    return surfaces;
   }
   void Plan(const qr_interfaces::srv::PlanFootsteps::Request &req,
             qr_interfaces::srv::PlanFootsteps::Response &res) {
+    std::unique_lock<std::mutex> lock(callback_mutex);
     const auto s = channel.snapshot.Read();
     const double now = node->now().seconds();
     if (!channel.active || busy || !s.ready ||
@@ -141,19 +231,9 @@ struct PrecisionRosAdapter::Impl {
       res.reason = ErrorName(PrecisionError::INVALID_FOOT_OR_FRAME);
       return;
     }
-    std::vector<PlanningSurface> surfaces;
-    for (const auto &source : regions.regions) {
-      PlanningSurface surface;
-      surface.id = source.id;
-      surface.known = source.known;
-      surface.forbidden = source.forbidden;
-      surface.confidence = source.confidence;
-      surface.observed_at = rclcpp::Time(source.observed_at).seconds();
-      surface.normal = {source.normal.x, source.normal.y, source.normal.z};
-      for (const auto &p : source.polygon.points)
-        surface.points.push_back({p.x, p.y, p.z});
-      surfaces.push_back(std::move(surface));
-    }
+    const auto surfaces = Surfaces();
+    const auto revision = regions.revision;
+    lock.unlock();
     const auto result = preflight.Plan(
         {req.foot, req.surface_id, Vec(req.target)}, s, surfaces, now);
     res.accepted = result.accepted;
@@ -162,6 +242,14 @@ struct PrecisionRosAdapter::Impl {
         result.accepted ? "validated_single_step" : ErrorName(result.error);
     if (!result.accepted)
       return;
+    lock.lock();
+    if (!channel.active || busy || regions.revision != revision ||
+        !channel.snapshot.Read().ready) {
+      res.accepted = false;
+      res.error_code = static_cast<uint16_t>(PrecisionError::STATE_NOT_READY);
+      res.reason = "state_or_map_changed_during_planning";
+      return;
+    }
     approved_step = result.step;
     approved_step.id = next_id++;
     qr_interfaces::msg::Footstep out;
@@ -176,6 +264,7 @@ struct PrecisionRosAdapter::Impl {
       out.safe_region.points.push_back(point);
     }
     out.body_target = Point(approved_step.body);
+    out.body_finish = Point(approved_step.body_finish);
     out.shift_duration = approved_step.shift;
     out.swing_duration = approved_step.swing;
     out.clearance = approved_step.clearance;

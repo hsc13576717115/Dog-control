@@ -1,0 +1,19 @@
+frame: odom
+target_mode: initial_foot_offset
+steps:
+  - {foot: 0, surface_id: 0, offset: [0.025, 0, 0]}
+  - {foot: 3, surface_id: 0, offset: [0.025, 0, 0]}
+  - {foot: 1, surface_id: 0, offset: [0.025, 0, 0]}
+  - {foot: 2, surface_id: 0, offset: [0.025, 0, 0]}
+  - {foot: 0, surface_id: 0, offset: [0.050, 0, 0]}
+  - {foot: 3, surface_id: 0, offset: [0.050, 0, 0]}
+  - {foot: 1, surface_id: 0, offset: [0.050, 0, 0]}
+  - {foot: 2, surface_id: 0, offset: [0.050, 0, 0]}
+  - {foot: 0, surface_id: 0, offset: [0.075, 0, 0]}
+  - {foot: 3, surface_id: 0, offset: [0.075, 0, 0]}
+  - {foot: 1, surface_id: 0, offset: [0.075, 0, 0]}
+  - {foot: 2, surface_id: 0, offset: [0.075, 0, 0]}
+  - {foot: 0, surface_id: 0, offset: [0.100, 0, 0]}
+  - {foot: 3, surface_id: 0, offset: [0.100, 0, 0]}
+  - {foot: 1, surface_id: 0, offset: [0.100, 0, 0]}
+  - {foot: 2, surface_id: 0, offset: [0.100, 0, 0]}

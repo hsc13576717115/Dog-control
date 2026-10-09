@@ -22,15 +22,21 @@ struct PrecisionPlanner::Impl {
     ocs2::CentroidalModelPinocchioMapping mapping(info);
     ocs2::PinocchioEndEffectorKinematics ee(robot.pin, mapping, names);
     check_wbc = std::make_unique<PrecisionWbc>(robot.pin, info, ee);
-    check_wbc->Configure(config);
+    check_wbc->Configure(config, model_config.foot_radius_m);
     check_wbc->loadTasksSetting(task, false);
   }
   PlanningResult Plan(const PlanningRequest &req, const PrecisionSnapshot &s,
-                      const std::vector<PlanningSurface> &regions, double now) {
+                      const std::vector<PlanningSurface> &regions, double now,
+                      bool predicted = false) {
     PlanningResult result;
     auto reject = [&](PrecisionError error) { result.error = error; };
-    if (req.foot >= 4 || !s.ready || !std::isfinite(now) ||
-        !SnapshotFresh(s, PrecisionSteadyNow(), config.state_timeout_s)) {
+    if (req.foot >= 4) {
+      reject(PrecisionError::INVALID_FOOT_OR_FRAME);
+      return result;
+    }
+    if (!s.ready || !std::isfinite(now) ||
+        (!predicted &&
+         !SnapshotFresh(s, PrecisionSteadyNow(), config.state_timeout_s))) {
       reject(PrecisionError::STATE_NOT_READY);
       return result;
     }
@@ -139,6 +145,9 @@ struct PrecisionPlanner::Impl {
     step.timeout = config.touchdown_timeout_s;
     step.foot = req.foot;
     step.target = target;
+    step.has_body_finish = true;
+    step.body_finish =
+        s.ref.body + config.body_follow_ratio * (target - s.ref.foot[req.foot]);
     Eigen::VectorXd initial_q, initial_dq;
     if (!preflight.Inverse(s.ref, s.joints, initial_q, initial_dq)) {
       reject(PrecisionError::INITIAL_STANCE_IK);
@@ -206,6 +215,10 @@ struct PrecisionPlanner::Impl {
           reject(PrecisionError::IK_OR_JOINT_MARGIN);
           return false;
         }
+        if (!preflight.SelfCollisionFree(q)) {
+          reject(PrecisionError::LEG_OR_BODY_COLLISION);
+          return false;
+        }
         for (const auto &box : boxes)
           if (!preflight.CollisionFree(q, box.center, box.height, box.size)) {
             reject(PrecisionError::LEG_OR_BODY_COLLISION);
@@ -264,6 +277,49 @@ struct PrecisionPlanner::Impl {
     return result;
   }
 };
+SequencePreview
+PrecisionPlanner::Preview(const std::vector<PlanningRequest> &requests,
+                          const PrecisionSnapshot &initial,
+                          const std::vector<PlanningSurface> &surfaces,
+                          double now) {
+  SequencePreview result;
+  if (requests.empty() || requests.size() > 16) {
+    result.error = PrecisionError::INVALID_REQUEST;
+    return result;
+  }
+  if (!initial.ready || !SnapshotFresh(initial, PrecisionSteadyNow(),
+                                       impl_->config.state_timeout_s)) {
+    result.error = PrecisionError::STATE_NOT_READY;
+    return result;
+  }
+  // Predicted terminal states are solely non-RT planning data. They are never
+  // published as observations or fed back to the execution contact observer.
+  auto predicted = initial;
+  for (size_t index = 0; index < requests.size(); ++index) {
+    const auto planned =
+        impl_->Plan(requests[index], predicted, surfaces, now, true);
+    result.failed_step = index;
+    result.error = planned.error;
+    if (!planned.accepted)
+      return result;
+    predicted.ref.body = planned.step.body_finish;
+    predicted.ref.foot[planned.step.foot] = planned.step.target;
+    predicted.ref.contact.fill(true);
+    Eigen::VectorXd q, dq;
+    if (!impl_->preflight.Inverse(predicted.ref, predicted.joints, q, dq)) {
+      result.error = PrecisionError::IK_OR_JOINT_MARGIN;
+      return result;
+    }
+    for (size_t k = 0; k < 12; ++k) {
+      predicted.joints.position[k] = q(6 + impl_->preflight.slot(k));
+      predicted.joints.velocity[k] = 0.;
+    }
+  }
+  result.accepted = true;
+  result.error = PrecisionError::NONE;
+  result.failed_step = requests.size();
+  return result;
+}
 PrecisionPlanner::PrecisionPlanner(const RobotModel &r, const std::string &u,
                                    const std::string &t,
                                    const RobotModelConfig &m,

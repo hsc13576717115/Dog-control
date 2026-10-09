@@ -41,7 +41,7 @@ struct PrecisionExecutionCore::Impl {
     ocs2::CentroidalModelPinocchioMapping mapping(info);
     ocs2::PinocchioEndEffectorKinematics ee(robot.pin, mapping, names);
     wbc = std::make_unique<PrecisionWbc>(robot.pin, info, ee);
-    wbc->Configure(config);
+    wbc->Configure(config, model_config.foot_radius_m);
     wbc->loadTasksSetting(task, false);
     Reset();
   }
@@ -123,15 +123,27 @@ struct PrecisionExecutionCore::Impl {
         rot * Eigen::Vector3d(imu.angular_velocity.data());
     model.Measure(joints, state, dt);
     for (size_t f = 0; f < 4; ++f) {
+      // For a sphere on a known horizontal support, v_center = r * omega x n.
+      // This uses IMU + joint kinematics only, not simulator contact witnesses.
+      const Eigen::Vector3d rolling =
+          config.sole_rolling_model > .5
+              ? (model_config.foot_radius_m *
+                 model.angularVelocities()[f].cross(Eigen::Vector3d::UnitZ()))
+                    .eval()
+              : Eigen::Vector3d::Zero();
       contacts[f] = observers[f].Update(now, model.forces()[f],
-                                        model.velocities()[f], valid);
+                                        model.velocities()[f] - rolling, valid);
       support.contact[f] = contacts[f].loaded && !contacts[f].slipping;
       if (tracking) {
         // Planned swing can exclude a foot from the estimator, but never
         // declare a planned stance to be an observed contact.
         support.contact[f] = support.contact[f] && reference.contact[f];
-        if (support.contact[f] && !support.anchor_valid[f])
-          support.anchor_position[f] = model.feet()[f];
+        if (support.contact[f]) {
+          if (!support.anchor_valid[f])
+            support.anchor_position[f] = model.feet()[f];
+          else
+            support.anchor_position[f] += dt * rolling;
+        }
         support.anchor_valid[f] = support.contact[f];
         support.height_valid[f] = reference.contact[f] && support.contact[f] &&
                                   (model.feet()[f] - reference.foot[f]).norm() <
@@ -139,6 +151,8 @@ struct PrecisionExecutionCore::Impl {
         if (support.height_valid[f])
           support.foot_center_height[f] = reference.foot[f].z();
       }
+      support.center_velocity[f] =
+          support.contact[f] ? rolling : Eigen::Vector3d::Zero();
     }
     state = estimator.Update(joints, imu, support, dt);
     model.Measure(
@@ -185,6 +199,7 @@ struct PrecisionExecutionCore::Impl {
     }
     if (cancel)
       executor.Abort(PrecisionError::CANCELED);
+    executor.RollSupports(support.center_velocity, support.contact, dt);
     reference = executor.Update(now, contacts, model.feet());
     if (executor.error_code() == PrecisionError::SUPPORT_UNCONFIRMED ||
         executor.error_code() == PrecisionError::TOUCHDOWN_LOST) {

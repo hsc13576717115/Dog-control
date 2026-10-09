@@ -19,6 +19,17 @@ public:
     phase_ = StepPhase::SHIFT;
     error_ = PrecisionError::NONE;
   }
+  // Horizontal spherical support has a moving centre even without material
+  // slip. Integrate its kinematic reference only while contact is confirmed.
+  void RollSupports(const std::array<Eigen::Vector3d, 4> &velocity,
+                    const std::array<bool, 4> &confirmed, double dt) {
+    for (size_t f = 0; f < 4; ++f)
+      if (reference_.contact[f] && confirmed[f]) {
+        reference_.foot[f] += dt * velocity[f];
+        if (phase_ == StepPhase::SHIFT)
+          start_.foot[f] += dt * velocity[f];
+      }
+  }
   void Abort(PrecisionError error) {
     // Never replace current anchors with a flat-ground standing posture.
     error_ = error;
@@ -147,7 +158,9 @@ public:
         return reference_;
       }
       auto b = qr_planning::Quintic(t, step_.shift);
-      const Eigen::Vector3d d = start_.body - step_.body;
+      const Eigen::Vector3d d =
+          (step_.has_body_finish ? step_.body_finish : start_.body) -
+          step_.body;
       reference_.body = step_.body + b.p * d;
       reference_.body_velocity = b.v * d;
       reference_.body_acceleration = b.a * d;

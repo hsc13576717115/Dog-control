@@ -1,0 +1,9 @@
+# Read-only sampled IK/collision/WBC preflight at one state/map snapshot. No plan IDs
+# or execution approval. Replan each step against fresh state before execution.
+qr_interfaces/Footstep[] steps
+---
+bool accepted
+uint16 error_code
+string reason
+uint32 failed_step
+uint64 map_revision

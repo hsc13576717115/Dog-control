@@ -11,12 +11,14 @@
 #include <qr_interfaces/msg/execution_status.hpp>
 #include <qr_interfaces/msg/robot_state.hpp>
 #include <qr_interfaces/srv/plan_footsteps.hpp>
+#include <qr_interfaces/srv/preview_footsteps.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_action/rclcpp_action.hpp>
 #include <thread>
 #include <vector>
 #include <yaml-cpp/yaml.h>
 
+using Preview = qr_interfaces::srv::PreviewFootsteps;
 using Plan = qr_interfaces::srv::PlanFootsteps;
 using Execute = qr_interfaces::action::ExecuteFootsteps;
 using Steady = std::chrono::steady_clock;
@@ -89,6 +91,36 @@ int main(int argc, char **argv) {
     if (!wait(ready, 30.))
       throw std::runtime_error("initial_state_not_ready");
     const auto initial = state.feet;
+    auto preview = node->create_client<Preview>("/qr/preview_footsteps");
+    if (!preview->wait_for_service(std::chrono::seconds(3)))
+      throw std::runtime_error("preview_unavailable");
+    auto preview_request = std::make_shared<Preview::Request>();
+    for (const auto &step : steps) {
+      qr_interfaces::msg::Footstep target;
+      target.foot = step.foot;
+      target.surface_id = step.surface;
+      target.target = initial[step.foot];
+      target.target.x += step.offset[0];
+      target.target.y += step.offset[1];
+      target.target.z += step.offset[2];
+      preview_request->steps.push_back(target);
+    }
+    auto preview_future = preview->async_send_request(preview_request);
+    if (!wait(
+            [&] {
+              return preview_future.wait_for(std::chrono::seconds(0)) ==
+                     std::future_status::ready;
+            },
+            30.))
+      throw std::runtime_error("sequence_preview_timeout");
+    const auto preview_result = preview_future.get();
+    report["preview_accepted"] = preview_result->accepted;
+    report["preview_failed_step"] = preview_result->failed_step;
+    report["preview_map_revision"] = preview_result->map_revision;
+    if (!preview_result->accepted)
+      throw std::runtime_error("sequence_preview_rejected: " +
+                               preview_result->reason);
+
     for (size_t index = 0; index < steps.size(); ++index) {
       if (!wait(ready, 3.))
         throw std::runtime_error("support_not_ready_for_next_step");
@@ -151,6 +183,12 @@ int main(int argc, char **argv) {
         throw std::runtime_error("missing_action_result");
       report["steps"][index]["foot"] = static_cast<unsigned>(step.foot);
       report["steps"][index]["plan_id"] = goal.plan.id;
+      report["steps"][index]["surface_id"] = step.surface;
+      for (const auto &p : goal.plan.steps.front().safe_region.points)
+        report["steps"][index]["safe_region"].push_back(
+            std::vector<double>{p.x, p.y, p.z});
+      report["steps"][index]["target"] = std::vector<double>{
+          request->target.x, request->target.y, request->target.z};
       report["steps"][index]["reason"] = completed.result->reason;
       if (completed.code != rclcpp_action::ResultCode::SUCCEEDED ||
           !completed.result->success)

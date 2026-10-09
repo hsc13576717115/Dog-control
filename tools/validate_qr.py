@@ -77,7 +77,16 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--suite",
-        choices=["unit", "smoke", "faults", "regression", "matrix", "robustness", "m2"],
+        choices=[
+            "unit",
+            "smoke",
+            "faults",
+            "regression",
+            "matrix",
+            "robustness",
+            "m2",
+            "m2-continuous",
+        ],
         default="unit",
     )
     parser.add_argument("--output", type=Path, required=True)
@@ -259,6 +268,84 @@ def main():
             for foot in range(4):
                 trial(f"m1-compat-{foot}", foot, 0.05)
             trial("admission-replay", 0, 0, "replay")
+        if args.suite == "m2-continuous":
+            report["stage_accepted"] = False
+            report["scope"] = (
+                "Repeated continuous walking and four-foot low-platform transfer; nominal obstacle gate evaluated separately"
+            )
+            for repeat in range(3):
+                for kind, height, advance in (
+                    ("flat_walk", 0.0, 0.09),
+                    ("platform_30mm", 0.03, 0.50),
+                    ("platform_50mm", 0.05, 0.50),
+                ):
+                    name = f"{kind}-{repeat}"
+                    cases.append(
+                        (
+                            name,
+                            [
+                                sys.executable,
+                                str(ROOT / "src/qr_validation/scripts/run_sequence.py"),
+                                "--domain",
+                                str(args.domain),
+                                "--template",
+                                str(ROOT / f"src/qr_planning/config/{kind}.yaml"),
+                                "--control-config",
+                                str(
+                                    ROOT
+                                    / "src/custom_dog_control/config/precision_m2.yaml"
+                                ),
+                                "--surface-mode",
+                                "ground" if height == 0 else "platform",
+                                "--height",
+                                str(height),
+                                "--solver-iterations",
+                                "400",
+                                "--minimum-body-advance",
+                                str(advance),
+                                "--output",
+                                str(args.output / name),
+                            ],
+                            650,
+                        )
+                    )
+            for name, template, flags in (
+                (
+                    "future-step-rejected",
+                    "reject_future_surface",
+                    ["--expect-preview-rejection"],
+                ),
+                (
+                    "sequence-midrun-abort",
+                    "flat_walk",
+                    ["--fault", "--fault-after-steps", "4"],
+                ),
+            ):
+                cases.append(
+                    (
+                        name,
+                        [
+                            sys.executable,
+                            str(ROOT / "src/qr_validation/scripts/run_sequence.py"),
+                            "--domain",
+                            str(args.domain),
+                            "--template",
+                            str(ROOT / f"src/qr_planning/config/{template}.yaml"),
+                            "--control-config",
+                            str(
+                                ROOT / "src/custom_dog_control/config/precision_m2.yaml"
+                            ),
+                            "--solver-iterations",
+                            "400",
+                            *flags,
+                            "--output",
+                            str(args.output / name),
+                        ],
+                        650,
+                    )
+                )
+            for foot in range(4):
+                trial(f"m1-compat-{foot}", foot, 0.05)
         if args.suite == "matrix":
             cases.append(
                 (

@@ -12,11 +12,17 @@ struct Step {
   std::array<double, 3> offset;
 };
 inline std::vector<Step> ParseFiniteTemplate(const YAML::Node &root) {
-  if (!root.IsMap() || root.size() != 3)
+  if (!root.IsMap() || (root.size() != 3 && root.size() != 4))
     throw std::runtime_error("invalid_template_keys");
   if (root["frame"].as<std::string>() != "odom" ||
       root["target_mode"].as<std::string>() != "initial_foot_offset")
     throw std::runtime_error("unsupported_frame_or_target_mode");
+  const double envelope = root["max_initial_offset_m"]
+                              ? root["max_initial_offset_m"].as<double>()
+                              : .1;
+  if (!std::isfinite(envelope) || envelope <= 0 || envelope > 1. ||
+      (root.size() == 4 && !root["max_initial_offset_m"]))
+    throw std::runtime_error("invalid_initial_offset_envelope");
   const auto list = root["steps"];
   if (!list.IsSequence() || list.size() == 0 || list.size() > 16)
     throw std::runtime_error("sequence_size_must_be_1_to_16");
@@ -30,7 +36,7 @@ inline std::vector<Step> ParseFiniteTemplate(const YAML::Node &root) {
     if (foot < 0 || foot > 3 || surface < 0 || offset.size() != 3)
       throw std::runtime_error("invalid_step");
     for (double x : offset)
-      if (!std::isfinite(x) || std::abs(x) > .1)
+      if (!std::isfinite(x) || std::abs(x) > envelope)
         throw std::runtime_error("template_offset_out_of_initial_m2_envelope");
     out.push_back({static_cast<uint8_t>(foot),
                    static_cast<uint32_t>(surface),

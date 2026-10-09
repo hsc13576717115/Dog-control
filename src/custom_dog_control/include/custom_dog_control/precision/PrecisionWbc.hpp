@@ -6,7 +6,10 @@ namespace custom_dog_control {
 class PrecisionWbc final : public legged::WeightedWbc {
 public:
   using legged::WeightedWbc::WeightedWbc;
-  void Configure(const PrecisionConfig &config) { config_ = config; }
+  void Configure(const PrecisionConfig &config, double sole_radius) {
+    config_ = config;
+    sole_radius_ = sole_radius;
+  }
   void Reference(const WholeBodyReference &ref) { ref_ = ref; }
 
 protected:
@@ -18,5 +21,6 @@ protected:
 private:
   WholeBodyReference ref_;
   PrecisionConfig config_;
+  double sole_radius_ = 0.;
 };
 } // namespace custom_dog_control

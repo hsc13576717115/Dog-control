@@ -35,3 +35,15 @@ TEST(FiniteTemplate, EmptyUnboundedAndMisspelledInputsAreRejected) {
   n["steps"][0]["typo"] = 1;
   EXPECT_ANY_THROW(ParseFiniteTemplate(n));
 }
+
+TEST(FiniteTemplate, ExtendedTravelRequiresExplicitBoundedEnvelope) {
+  auto n = Template();
+  n["steps"][0]["offset"][0] = .56;
+  EXPECT_ANY_THROW(ParseFiniteTemplate(n));
+  n["max_initial_offset_m"] = .6;
+  ASSERT_NO_THROW(ParseFiniteTemplate(n));
+  n["max_initial_offset_m"] = 1.01;
+  EXPECT_ANY_THROW(ParseFiniteTemplate(n));
+  n["max_initial_offset_m"] = ".nan";
+  EXPECT_ANY_THROW(ParseFiniteTemplate(n));
+}

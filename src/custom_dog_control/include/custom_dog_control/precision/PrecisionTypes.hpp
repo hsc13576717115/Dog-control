@@ -25,6 +25,9 @@ struct PrecisionStep {
   size_t foot = 0;
   Eigen::Vector3d target = Eigen::Vector3d::Zero(),
                   body = Eigen::Vector3d::Zero();
+  // Optional final body reference; absent preserves the M1 restore behavior.
+  bool has_body_finish = false;
+  Eigen::Vector3d body_finish = Eigen::Vector3d::Zero();
   double shift = 2., swing = 1.5, clearance = .06, timeout = .8;
 };
 enum class StepPhase : uint8_t {

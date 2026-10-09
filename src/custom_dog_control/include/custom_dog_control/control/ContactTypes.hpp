@@ -11,12 +11,17 @@ struct ContactEstimate {
 };
 struct ContactSupport {
   ContactSupport() {
-    for (auto &p : anchor_position)
-      p.setZero();
+    for (auto *array : {&anchor_position, &center_velocity})
+      for (auto &p : *array)
+        p.setZero();
   }
   std::array<bool, 4> contact{};
   std::array<bool, 4> anchor_valid{};
   std::array<Eigen::Vector3d, 4> anchor_position{};
+  // Expected centre velocity for an explicitly configured rolling spherical
+  // sole. Zero preserves the point-foot model; never a measured ground
+  // velocity.
+  std::array<Eigen::Vector3d, 4> center_velocity{};
   std::array<bool, 4> height_valid{};
   std::array<double, 4> foot_center_height{};
 };

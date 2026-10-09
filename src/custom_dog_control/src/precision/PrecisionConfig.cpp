@@ -14,7 +14,8 @@ void PrecisionConfig::Validate() const {
 #define QR_PARAM(name, value, lower, upper) Check(name, lower, upper, #name);
 #include "custom_dog_control/precision/PrecisionConfig.def"
 #undef QR_PARAM
-  if (load_off_n >= load_on_n || candidate_force_n >= load_on_n ||
+  if ((sole_rolling_model != 0. && sole_rolling_model != 1.) ||
+      load_off_n >= load_on_n || candidate_force_n >= load_on_n ||
       candidate_force_n >= probe_force_n ||
       startup_settle_s >= startup_timeout_s ||
       startup_grace_s >= startup_settle_s ||
