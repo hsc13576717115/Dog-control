@@ -48,7 +48,7 @@ TEST(Executor, MissedTouchdownNeverCompletes) {
   for (double t = 0; t < 1.2; t += .01)
     ex.Update(t, c, r.foot);
   EXPECT_EQ(ex.phase(), StepPhase::HOLD);
-  EXPECT_EQ(ex.error(), "touchdown_timeout");
+  EXPECT_STREQ(ex.error(), "touchdown_timeout");
 }
 TEST(Executor, SideContactDoesNotComplete) {
   FootstepExecutor ex;
@@ -67,7 +67,7 @@ TEST(Executor, SideContactDoesNotComplete) {
   for (double t = 0; t < .8; t += .01)
     ex.Update(t, c, r.foot);
   EXPECT_EQ(ex.phase(), StepPhase::HOLD);
-  EXPECT_EQ(ex.error(), "early_contact");
+  EXPECT_STREQ(ex.error(), "early_contact");
 }
 TEST(Estimator, UnknownHeightDoesNotMeanGroundZero) {
   std::vector<std::string> j, f;

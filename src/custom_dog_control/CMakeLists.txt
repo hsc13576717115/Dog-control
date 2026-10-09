@@ -153,9 +153,14 @@ endif()
 target_link_libraries(custom_dog_control_legged_interface Eigen3::Eigen)
 
 add_library(custom_dog_control_core STATIC
+  src/model/RobotModel.cpp
+  src/model/RobotModelConfig.cpp
+  src/precision/PrecisionConfig.cpp
+  src/precision/PrecisionPlanner.cpp
+  src/precision/PrecisionExecutionCore.cpp
   src/precision/PrecisionModel.cpp
   src/precision/PrecisionWbc.cpp
-  src/nmpc/ModelValidator.cpp
+  src/model/ModelValidator.cpp
   src/nmpc/KinematicStateEstimator.cpp
   src/nmpc/NmpcBackend.cpp
   src/safety/SafetyMonitor.cpp
@@ -167,6 +172,7 @@ if(CUSTOM_DOG_CONTROL_MULTIARCH_LIB_DIRS)
     ${CUSTOM_DOG_CONTROL_MULTIARCH_LIB_DIRS})
 endif()
 ament_target_dependencies(custom_dog_control_core
+  qr_planning
   ament_index_cpp
   ocs2_centroidal_model
   ocs2_core
@@ -187,6 +193,7 @@ target_link_libraries(custom_dog_control_core coal::coal
   yaml-cpp)
 
 add_library(custom_dog_control_nmpc_wbc_controller SHARED
+  src/precision/PrecisionRosAdapter.cpp
   src/precision/PrecisionRuntime.cpp
   src/controller/NmpcWbcController.cpp
   src/controller/ControllerLifecycle.cpp
@@ -288,6 +295,8 @@ install(TARGETS
 install(DIRECTORY include/custom_dog_control DESTINATION include)
 install(DIRECTORY config/nmpc DESTINATION share/${PROJECT_NAME}/config)
 install(FILES
+  config/precision_model.yaml
+  config/precision_control.yaml
   config/controllers.yaml
   config/dependencies.lock.yaml
   config/legged_control_upstream.sha256
@@ -373,6 +382,13 @@ if(BUILD_TESTING AND CUSTOM_DOG_CONTROL_BUILD_TESTING)
   ament_target_dependencies(test_precision qr_planning)
   target_link_libraries(test_precision custom_dog_control_core)
   target_compile_definitions(test_precision PRIVATE CUSTOM_DOG_CONTROL_CANONICAL_URDF="${CUSTOM_DOG_CONTROL_CANONICAL_URDF}")
+  ament_add_gtest(test_precision_config test/test_precision_config.cpp)
+  target_include_directories(test_precision_config PRIVATE include)
+  ament_target_dependencies(test_precision_config qr_planning)
+  target_link_libraries(test_precision_config custom_dog_control_core)
+  target_compile_definitions(test_precision_config PRIVATE
+    CUSTOM_DOG_CONTROL_CANONICAL_URDF="${CUSTOM_DOG_CONTROL_CANONICAL_URDF}"
+    CUSTOM_DOG_CONTROL_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
   if(EXISTS "${CUSTOM_DOG_CONTROL_CANONICAL_URDF}")
     add_test(
       NAME test_urdf_contract

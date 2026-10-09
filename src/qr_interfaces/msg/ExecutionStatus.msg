@@ -1,3 +1,14 @@
+uint16 PROTOCOL_VERSION=1
+uint16 protocol_version
+uint8 PHASE_STANCE=0
+uint8 PHASE_SHIFT=1
+uint8 PHASE_SWING=2
+uint8 PHASE_CONFIRM=3
+uint8 PHASE_RESTORE=4
+uint8 PHASE_HOLD=5
+uint8 PHASE_DONE=6
+uint8 phase_code
+uint16 error_code
 std_msgs/Header header
 uint64 plan_id
 string phase

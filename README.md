@@ -155,6 +155,8 @@ src/custom_dog_control/scripts/test_simulation.sh \
 src/custom_dog_control/
 ├── include/custom_dog_control/   # 类型、控制器接口、纯计算工具
 ├── src/controller/              # 主循环、生命周期、输入、状态机、硬件接口、诊断
+├── src/model/                   # 公共机器人模型、模型校验
+├── src/precision/               # 精确落足规划、执行核心、WBC 与 ROS 适配
 ├── src/nmpc/                    # OCS2 后端、模型验证、状态估计
 ├── src/safety/                  # 有效性/超时/限位检查和故障锁存
 ├── src/hardware/                # Unitree 电机通信与 ros2_control 实机插件
@@ -267,3 +269,7 @@ ARM64 必须在目标设备重新编译。实机状态估计、12 电机 RS485 �
 当前已获取源码，未运行雷达或定位，也未接入控制闭环。
 
 2026-10-09：已知几何单步矩阵 **100/100 通过**，落点误差 P95 3.77 mm、最大 3.80 mm；完整故障覆盖仍待补齐。条件、早期失败及未执行项目见 [验证记录](docs/qr/validation.md)。
+
+QR 精确模式现已拆分规划器、执行核心与 ROS 适配层，模型不再经由 NMPC 后端获取。
+模型/控制/验收参数分开配置；统一验证入口为 `tools/validate_qr.py`。
+详见 [修改方案](docs/qr/refactoring.md) 与 [实际验证结果](docs/qr/refactoring-results.md)。

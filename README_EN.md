@@ -139,6 +139,8 @@ Basic regression does not cover high-speed envelopes, terrain or physical hardwa
 src/custom_dog_control/
 ├── include/custom_dog_control/   # Types, controller interfaces and pure computations
 ├── src/controller/              # Main loop, lifecycle, inputs, FSM, hardware and diagnostics
+├── src/model/                   # shared robot model and validation
+├── src/precision/               # precision planning, execution core, WBC and ROS adapter
 ├── src/nmpc/                    # OCS2 backend, model validation and state estimation
 ├── src/safety/                  # Validity, timeout, limits and fault latching
 ├── src/hardware/                # Unitree motor communication and ros2_control plugin
@@ -238,3 +240,8 @@ See [provenance, build prerequisites and integration limits](docs/qr/perception-
 Sources have been retrieved; lidar operation, localization and controller integration have not been tested.
 
 2026-10-09: **100/100 known-fixture step trials passed**, with 3.77 mm P95 and 3.80 mm maximum foot-placement error. Complete fault coverage remains outstanding; see [validation conditions and retained failures](docs/qr/validation.md).
+
+QR precision mode separates planning, execution and ROS adaptation, and loads
+its model without initializing NMPC. Model/control/acceptance configurations
+are separate. Use `tools/validate_qr.py` for unified checks; see the
+[refactoring plan](docs/qr/refactoring.md) and [actual results](docs/qr/refactoring-results.md).

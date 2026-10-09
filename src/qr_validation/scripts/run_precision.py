@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Cold-start, truth-independent QR precision acceptance. No real hardware launch."""
 
+from acceptance import DEFAULT_CONFIG, load_thresholds
 import argparse
 import hashlib
 import json
@@ -182,6 +183,12 @@ def stop(p):
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--thresholds", type=Path, default=DEFAULT_CONFIG)
+    parser.add_argument(
+        "--model-config",
+        type=Path,
+        default=Path("src/custom_dog_control/config/precision_model.yaml"),
+    )
     parser.add_argument("--height", type=float, choices=[0.0, 0.03, 0.05], default=0.0)
     parser.add_argument("--foot", type=int, choices=range(4), default=0)
     parser.add_argument("--output", type=Path, required=True)
@@ -201,6 +208,13 @@ def main():
         default="normal",
     )
     a = parser.parse_args()
+    thresholds = load_thresholds(a.thresholds)
+    import yaml
+
+    model_config = yaml.safe_load(a.model_config.read_text())["model"]
+    foot_radius = float(model_config["foot_radius_m"])
+    if not math.isfinite(foot_radius) or foot_radius <= 0:
+        parser.error("invalid foot radius")
     if a.scenario == "missed_touchdown" and a.height == 0.0:
         parser.error("missed_touchdown requires --height 0.03 or 0.05")
     a.output.mkdir(parents=True, exist_ok=False)
@@ -225,12 +239,9 @@ def main():
         "using_ground_truth_for_control": False,
         "contact_input": "joint_effort_residual_and_kinematics",
         "hardware_tested": False,
-        "thresholds": {
-            "max_error_m": 0.02,
-            "p95_error_m": 0.01,
-            "max_support_slip_m": 0.01,
-            "max_tilt_deg": 5,
-        },
+        "thresholds": thresholds,
+        "thresholds_sha256": hashlib.sha256(a.thresholds.read_bytes()).hexdigest(),
+        "model_config_sha256": hashlib.sha256(a.model_config.read_bytes()).hexdigest(),
     }
     report["commit"] = subprocess.check_output(
         ["git", "rev-parse", "HEAD"], text=True
@@ -276,6 +287,7 @@ def main():
                 f"height:={0. if a.scenario == 'missed_touchdown' else a.height}",
                 f"reported_height:={a.height}",
                 f"seed:={a.seed}",
+                f"model_config:={a.model_config.resolve()}",
                 f"imu_fault_relay:={str(a.scenario == 'stale_imu').lower()}",
                 f"gui:={str(a.gui).lower()}",
             ],
@@ -303,7 +315,7 @@ def main():
         req.foot = a.foot
         req.surface_id = 1 if a.foot in (0, 2) else 2
         req.target = Point(
-            x=0.0, y=-0.18 if req.surface_id == 1 else 0.18, z=a.height + 0.026
+            x=0.0, y=-0.18 if req.surface_id == 1 else 0.18, z=a.height + foot_radius
         )
         if a.scenario == "unreachable":
             req.target.x = 2.0
@@ -315,6 +327,7 @@ def main():
         plan = f.result()
         report["plan_accepted"] = plan.accepted
         report["plan_reason"] = plan.reason
+        report["plan_error_code"] = plan.error_code
         if a.scenario == "unreachable":
             if plan.accepted or plan.reason != "outside_eroded_surface":
                 raise RuntimeError("invalid_target_not_rejected")
@@ -343,6 +356,7 @@ def main():
         if not node.wait(result.done, 20):
             raise RuntimeError("execution_timeout")
         response = result.result().result
+        report["execution_error_code"] = response.error_code
         report["execution_success"] = response.success
         report["execution_reason"] = response.reason
         if a.scenario == "stale_imu":
@@ -414,7 +428,11 @@ def main():
             for leg in ["FR", "FL", "RR", "RL"]
         ):
             raise RuntimeError("independent_final_support_unconfirmed")
-        if error > 0.02 or slip > 0.01 or tilt > 5:
+        if (
+            error > thresholds["max_error_m"]
+            or slip > thresholds["max_support_slip_m"]
+            or tilt > thresholds["max_tilt_deg"]
+        ):
             raise RuntimeError("acceptance_threshold_exceeded")
         if a.scenario == "replay":
             repeated = node.action.send_goal_async(goal)

@@ -1,23 +1,24 @@
 #pragma once
+#include "custom_dog_control/precision/PrecisionConfig.hpp"
 #include "custom_dog_control/precision/PrecisionTypes.hpp"
 #include "qr_planning/Geometry.hpp"
-#include <string>
 namespace custom_dog_control {
 class FootstepExecutor {
 public:
+  explicit FootstepExecutor(PrecisionConfig config = {}) : config_(config) {}
   void Reset(const WholeBodyReference &ref) {
     reference_ = start_ = ref;
     phase_ = StepPhase::STANCE;
-    error_.clear();
+    error_ = PrecisionError::NONE;
   }
   void Start(const PrecisionStep &step, double now) {
     step_ = step;
     start_ = reference_;
     entered_ = now;
     phase_ = StepPhase::SHIFT;
-    error_.clear();
+    error_ = PrecisionError::NONE;
   }
-  void Abort(const std::string &error) {
+  void Abort(PrecisionError error) {
     // Never replace current anchors with a flat-ground standing posture.
     error_ = error;
     phase_ = StepPhase::HOLD;
@@ -39,7 +40,7 @@ public:
     for (size_t i = 0; i < 4; ++i)
       if (i != step_.foot &&
           (!contacts[i].valid || !contacts[i].loaded || contacts[i].slipping)) {
-        Abort("support_unconfirmed");
+        Abort(PrecisionError::SUPPORT_UNCONFIRMED);
         return reference_;
       }
     const double t = now - entered_;
@@ -70,8 +71,10 @@ public:
       reference_.acceleration[f].z() += 384 * h * s * (1 - s) *
                                         (1 - 5 * s + 5 * s * s) /
                                         (step_.swing * step_.swing);
-      if (t > .15 && t < step_.swing * .8 && contacts[f].loaded) {
-        Abort("early_contact");
+      if (t > config_.early_contact_delay_s &&
+          t < step_.swing * config_.early_contact_fraction &&
+          contacts[f].loaded) {
+        Abort(PrecisionError::EARLY_CONTACT);
         return reference_;
       }
       if (t >= step_.swing) {
@@ -81,22 +84,24 @@ public:
         candidate_since_ = -1;
       }
     } else if (phase_ == StepPhase::CONFIRM) {
-      const bool on_target = (measured[f] - step_.target).norm() < .02;
+      const bool on_target =
+          (measured[f] - step_.target).norm() < config_.target_tolerance_m;
       // A bounded preload produces observable joint-effort evidence. It is not
       // a contact declaration; only persistent residual + geometry admits load
       // transfer.
       if (!reference_.contact[f]) {
         reference_.probe_foot = static_cast<int>(f);
-        reference_.probe_force = 6. * std::clamp(t / .15, 0., 1.);
-        if (measured[f].z() < step_.target.z() - .008) {
-          Abort("probe_travel_limit");
+        reference_.probe_force = config_.probe_force_n *
+                                 std::clamp(t / config_.probe_ramp_s, 0., 1.);
+        if (measured[f].z() < step_.target.z() - config_.probe_travel_m) {
+          Abort(PrecisionError::PROBE_TRAVEL_LIMIT);
           return reference_;
         }
         if (on_target && contacts[f].valid &&
-            contacts[f].estimated_force.z() > 2.) {
+            contacts[f].estimated_force.z() > config_.candidate_force_n) {
           if (candidate_since_ < 0)
             candidate_since_ = now;
-          if (now - candidate_since_ > .04) {
+          if (now - candidate_since_ > config_.candidate_dwell_s) {
             reference_.contact[f] = true;
             reference_.probe_foot = -1;
             reference_.probe_force = 0.;
@@ -108,17 +113,17 @@ public:
         if (confirmed_since_ < 0)
           confirmed_since_ = now;
         reference_.contact[f] = true;
-        if (now - confirmed_since_ > .15) {
+        if (now - confirmed_since_ > config_.confirm_dwell_s) {
           phase_ = StepPhase::RESTORE;
           entered_ = now;
         }
       } else
         confirmed_since_ = -1;
       if (t > step_.timeout)
-        Abort("touchdown_timeout");
+        Abort(PrecisionError::TOUCHDOWN_TIMEOUT);
     } else if (phase_ == StepPhase::RESTORE) {
       if (!contacts[f].loaded) {
-        Abort("touchdown_lost");
+        Abort(PrecisionError::TOUCHDOWN_LOST);
         return reference_;
       }
       auto b = qr_planning::Quintic(t, step_.shift);
@@ -132,15 +137,17 @@ public:
     return reference_;
   }
   StepPhase phase() const { return phase_; }
-  const std::string &error() const { return error_; }
+  const char *error() const { return ErrorName(error_); }
+  PrecisionError error_code() const { return error_; }
   uint64_t id() const { return step_.id; }
   const WholeBodyReference &reference() const { return reference_; }
 
 private:
+  PrecisionConfig config_;
   WholeBodyReference reference_, start_;
   PrecisionStep step_;
   StepPhase phase_ = StepPhase::STANCE;
-  std::string error_;
+  PrecisionError error_ = PrecisionError::NONE;
   double entered_ = 0, confirmed_since_ = -1, candidate_since_ = -1;
 };
 } // namespace custom_dog_control

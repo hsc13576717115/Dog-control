@@ -41,7 +41,7 @@ TEST(LatestSnapshot, ReadersReceiveCoherentOwnedCopies) {
   std::atomic<bool> done{false};
   std::thread writer([&] {
     for (unsigned i = 1; i <= 10000; ++i)
-      snapshot.TryWrite(Record{i, std::to_string(i)});
+      snapshot.Publish(Record{i, std::to_string(i)});
     done = true;
   });
   do {
@@ -53,23 +53,24 @@ TEST(LatestSnapshot, ReadersReceiveCoherentOwnedCopies) {
   EXPECT_EQ(snapshot.Read().sequence, 0u);
 }
 
-TEST(LatestSnapshot, BusyReaderMakesProducerSkipInsteadOfWaiting) {
+TEST(LatestSnapshot, BusyReaderDoesNotBlockProducer) {
   LatestSnapshot<GatedRecord> snapshot;
   CopyGate gate;
   GatedRecord value;
   value.gate = &gate;
-  ASSERT_TRUE(snapshot.TryWrite(value));
+  snapshot.Publish(value);
   std::thread reader([&] { snapshot.Read(); });
   {
     std::unique_lock<std::mutex> lock(gate.mutex);
     gate.cv.wait(lock, [&] { return gate.copying; });
   }
-  EXPECT_FALSE(snapshot.TryWrite(value));
+  for (int k = 0; k < 10000; ++k)
+    snapshot.Publish(value);
   {
     std::lock_guard<std::mutex> lock(gate.mutex);
     gate.release = true;
   }
   gate.cv.notify_all();
   reader.join();
-  EXPECT_TRUE(snapshot.TryWrite(value));
+  snapshot.Publish(value);
 }

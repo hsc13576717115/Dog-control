@@ -181,3 +181,8 @@ ros2 run custom_dog_control keyboard_teleop.py
 ## QR 精确模式
 
 `precision_enabled` 默认关闭。仅 Gazebo 下允许启用，使用 IMU、关节 q/dq/effort 推断接触，无足底传感器输入。原 NMPC 速度模式保留，精确模式使用显式参考 WBC，不启动在线 NMPC。入口和实际验证状态见 [QR 文档](../../docs/qr/README.md)。
+
+精确运控内部按职责分为 `PrecisionPlanner`（非实时预检）、`PrecisionExecutionCore`
+（估计/接触/执行/WBC）、`PrecisionRosAdapter`（服务/action/发布），`PrecisionRuntime`
+只连接组件。公共模型和接触类型位于 `model/` 与 `control/`；旧 `nmpc/ModelValidator.hpp`
+仅保留兼容 include。详见 [模块化方案](../../docs/qr/refactoring.md)。

@@ -1,6 +1,7 @@
 qr_interfaces/FootstepPlan plan
 ---
 bool success
+uint16 error_code
 string reason
 uint32 completed_steps
 ---

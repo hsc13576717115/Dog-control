@@ -1,15 +1,18 @@
 #pragma once
-#include "custom_dog_control/nmpc/NmpcBackend.hpp"
+#include "custom_dog_control/control/ControlTypes.hpp"
+#include "custom_dog_control/model/RobotModel.hpp"
+#include "custom_dog_control/precision/PrecisionConfig.hpp"
 #include <memory>
 #include <rclcpp_lifecycle/lifecycle_node.hpp>
 namespace custom_dog_control {
-// One controller, separate non-RT ROS callbacks and RT execution snapshot.
-// The first release is intentionally simulation-only until effort calibration.
+// Orchestrates independent planning, execution and ROS adapters. Simulation
+// only.
 class PrecisionRuntime {
 public:
-  PrecisionRuntime(rclcpp_lifecycle::LifecycleNode::SharedPtr node,
-                   const NmpcBackend &backend, const std::string &urdf,
-                   const std::string &task);
+  PrecisionRuntime(rclcpp_lifecycle::LifecycleNode::SharedPtr,
+                   const RobotModel &, const std::string &urdf,
+                   const std::string &task, const RobotModelConfig &,
+                   const PrecisionConfig &);
   ~PrecisionRuntime();
   void Activate();
   void Deactivate();

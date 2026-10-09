@@ -10,7 +10,7 @@
 
 #include "custom_dog_control/control/ControlTypes.hpp"
 #include "custom_dog_control/nmpc/KinematicStateEstimator.hpp"
-#include "custom_dog_control/nmpc/ModelValidator.hpp"
+#include "custom_dog_control/model/ModelValidator.hpp"
 
 namespace custom_dog_control {
 

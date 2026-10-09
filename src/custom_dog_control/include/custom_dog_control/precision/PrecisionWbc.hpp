@@ -1,10 +1,12 @@
 #pragma once
+#include "custom_dog_control/precision/PrecisionConfig.hpp"
 #include "custom_dog_control/precision/PrecisionTypes.hpp"
 #include <legged_wbc/WeightedWbc.h>
 namespace custom_dog_control {
 class PrecisionWbc final : public legged::WeightedWbc {
 public:
   using legged::WeightedWbc::WeightedWbc;
+  void Configure(const PrecisionConfig &config) { config_ = config; }
   void Reference(const WholeBodyReference &ref) { ref_ = ref; }
 
 protected:
@@ -15,5 +17,6 @@ protected:
 
 private:
   WholeBodyReference ref_;
+  PrecisionConfig config_;
 };
 } // namespace custom_dog_control

@@ -89,3 +89,26 @@ python3 src/qr_validation/scripts/run_precision.py \
 避免固定延时解暂停造成未受控下落。独立评价除足端接触外，还检查腿部及机身碰撞。
 每份结果保存源码/模型/配置哈希、场景版本、随机种子与原始 trace；旧失败记录不覆盖。
 种子变化不等于已经做了质量、摩擦、传感器噪声或地形几何的域随机化。
+
+## 模块化维护与统一验收
+
+具体方案见 [模块化改造](refactoring.md)，实测结果见 [改造验证](refactoring-results.md)。
+`PrecisionRuntime` 只组织 `PrecisionPlanner`、`PrecisionExecutionCore`、`PrecisionRosAdapter`。
+规划器和执行核心不依赖 ROS，独占各自模型缓存；精确模式直接使用公共 `RobotModel`，
+不初始化 NMPC 优化问题。公共接触类型位于 `control/ContactTypes.hpp`。
+
+三类配置分别为 `precision_model.yaml`、`precision_control.yaml`、
+`qr_validation/config/acceptance.yaml`。允许范围及迟滞/时序关系在配置时检查。
+新增数值状态码需要重新构建消息消费端，含义见 [接口契约](interfaces.md)。
+
+构建并 source 工作区后，统一使用：
+
+```bash
+python3 tools/validate_qr.py --suite unit --output artifacts/qr/unit-001
+python3 tools/validate_qr.py --suite regression --output artifacts/qr/regression-001
+```
+
+输出目录必须未存在。`unit` 包含 CTest 与 Python；`smoke` 为四足 50 mm；
+`faults` 为现有五类异常；`regression` 为四足×三高度＋五类异常＋原速度运动；
+`matrix` 单独执行 100 次矩阵。各套件先检查依赖，写统一 `summary.json` 和分项日志；
+失败非零退出。未涵盖的动态故障列在报告中，不因套件通过而宣称完整验收。

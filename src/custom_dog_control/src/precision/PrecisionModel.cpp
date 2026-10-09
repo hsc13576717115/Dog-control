@@ -12,6 +12,8 @@
 #include <pinocchio/parsers/urdf.hpp>
 namespace custom_dog_control {
 struct PrecisionModel::Impl {
+  RobotModelConfig model_config;
+  PrecisionConfig config;
   ocs2::PinocchioInterface pin;
   ocs2::CentroidalModelInfo info;
   pinocchio::GeometryModel geom;
@@ -20,8 +22,8 @@ struct PrecisionModel::Impl {
   std::array<Eigen::Vector3d, 4> feet{}, vel{}, force{};
   Eigen::VectorXd q, v, last_v, acc;
   Impl(const ocs2::PinocchioInterface &p, const ocs2::CentroidalModelInfo &i,
-       const std::string &urdf)
-      : pin(p), info(i) {
+       const std::string &urdf, RobotModelConfig mc, PrecisionConfig c)
+      : model_config(mc), config(c), pin(p), info(i) {
     const auto &m = pin.getModel();
     q = Eigen::VectorXd::Zero(m.nq);
     v = last_v = acc = Eigen::VectorXd::Zero(m.nv);
@@ -34,8 +36,9 @@ struct PrecisionModel::Impl {
 };
 PrecisionModel::PrecisionModel(const ocs2::PinocchioInterface &p,
                                const ocs2::CentroidalModelInfo &i,
-                               const std::string &u)
-    : impl_(std::make_unique<Impl>(p, i, u)) {}
+                               const std::string &u, RobotModelConfig mc,
+                               PrecisionConfig c)
+    : impl_(std::make_unique<Impl>(p, i, u, mc, c)) {}
 PrecisionModel::~PrecisionModel() = default;
 void PrecisionModel::Reset() {
   impl_->last_v.setZero();
@@ -81,10 +84,10 @@ void PrecisionModel::Measure(const JointSample &joints, const EstimatedState &s,
   }
   if (dt > 0) {
     a.acc += ((a.v - a.last_v) / std::max(dt, .0001) - a.acc) *
-             std::min(dt / .03, 1.);
+             std::min(dt / a.config.acc_filter_s, 1.);
     a.last_v = a.v;
   }
-  a.acc = a.acc.cwiseMax(-80.).cwiseMin(80.);
+  a.acc = a.acc.cwiseMax(-a.config.acc_limit).cwiseMin(a.config.acc_limit);
   const Eigen::VectorXd inverse = pinocchio::rnea(m, d, a.q, a.v, a.acc);
   pinocchio::computeJointJacobians(m, d, a.q);
   pinocchio::forwardKinematics(m, d, a.q, a.v);
@@ -145,9 +148,10 @@ bool PrecisionModel::Inverse(const WholeBodyReference &ref,
               .solve(e);
       for (int k = 0; k < 3; ++k) {
         int c = 6 + slot(3 * f + k);
-        q(c) = std::clamp(q(c) + std::clamp(delta(k), -.12, .12),
-                          m.lowerPositionLimit(c) + .05,
-                          m.upperPositionLimit(c) - .05);
+        q(c) = std::clamp(q(c) + std::clamp(delta(k), -a.config.ik_delta_rad,
+                                            a.config.ik_delta_rad),
+                          m.lowerPositionLimit(c) + a.config.joint_margin_rad,
+                          m.upperPositionLimit(c) - a.config.joint_margin_rad);
       }
       Eigen::Vector3d speed =
           j.transpose() *
@@ -157,7 +161,7 @@ bool PrecisionModel::Inverse(const WholeBodyReference &ref,
       for (int k = 0; k < 3; ++k)
         dq(6 + slot(3 * f + k)) = speed(k);
     }
-    if (error < .0005)
+    if (error < a.config.ik_tolerance_m)
       return q.allFinite() && dq.allFinite();
   }
   return false;
@@ -177,7 +181,8 @@ bool PrecisionModel::ApplyProbe(int foot, double force,
         pinocchio::LOCAL_WORLD_ALIGNED, jac);
     for (size_t k = 0; k < 3; ++k)
       command.effort[3 * foot + k] -=
-          jac(2, 6 + slot(3 * foot + k)) * std::clamp(force, 0., 6.);
+          jac(2, 6 + slot(3 * foot + k)) *
+          std::clamp(force, 0., a.config.probe_force_n);
   }
   for (size_t k = 0; k < 12; ++k)
     if (!std::isfinite(command.effort[k]) ||
@@ -208,7 +213,9 @@ bool PrecisionModel::CollisionFree(const Eigen::VectorXd &q,
                   coal::Transform3s(pose.rotation(), pose.translation()), &pad,
                   tf, req, res);
     if (res.isCollision() &&
-        (!is_foot || pose.translation().z() < height + .024))
+        (!is_foot || pose.translation().z() < height +
+                                                  a.model_config.foot_radius_m -
+                                                  a.config.plane_tolerance_m))
       return false;
   }
   return true;

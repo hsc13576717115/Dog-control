@@ -159,3 +159,25 @@ Gazebo 中看到的趴姿是碰撞和重力稳定后的生成姿态，髋关节�
 `src/unitree_guide` 为历史参考，使用 `COLCON_IGNORE` 排除。
 `external/model_ws`、`external/ocs2_ws` 为独立 underlay，不应把生成文件复制回源码。
 上游算法固定提交及本地修改由 provenance 测试校验。
+
+## QR 精确控制的内部依赖
+
+```mermaid
+flowchart LR
+  Ros["PrecisionRosAdapter：服务 / action / 发布"] --> Planner["PrecisionPlanner：有限单步预检"]
+  Ros --> Channel["PrecisionChannel：固定命令与三缓冲状态"]
+  Runtime["PrecisionRuntime：生命周期与组织"] --> Ros
+  Runtime --> Core["PrecisionExecutionCore：估计 / 接触 / 执行 / WBC"]
+  Channel <--> Core
+  Model["公共 RobotModel / ContactTypes"] --> Planner
+  Model --> Core
+  Geometry["qr_planning 几何原语"] --> Planner
+  Geometry --> Core
+```
+
+箭头表示调用或数据依赖，不代表跨进程通信。规划与执行持有独立 Pinocchio/WBC 缓存；
+精确模式不初始化 NMPC 优化问题。旧速度模式保留 NmpcBackend。当前仍复用 OCS2 的
+模型类型和 WBC 基础库，不声称已经消除 OCS2 编译依赖。公共模型校验迁到 `model/`，
+旧 `nmpc/ModelValidator.hpp` 仅转发以兼容原有引用。
+
+详见 [修改计划](qr/refactoring.md)、[接口及配置](qr/interfaces.md)。

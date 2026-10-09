@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Cold-start step matrix; retain failed and rejected trials in the denominator."""
 
+from acceptance import DEFAULT_CONFIG, load_thresholds
+import hashlib
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
@@ -13,10 +15,12 @@ import sys
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--thresholds", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--trials-per-foot", type=int, default=25)
     parser.add_argument("--jobs", type=int, choices=[1, 2], default=1)
     args = parser.parse_args()
+    thresholds = load_thresholds(args.thresholds)
     if args.trials_per_foot < 1:
         parser.error("trials-per-foot must be positive")
     args.output.mkdir(parents=True, exist_ok=False)
@@ -34,6 +38,8 @@ def main():
                     [
                         sys.executable,
                         str(Path(__file__).with_name("run_precision.py")),
+                        "--thresholds",
+                        str(args.thresholds.resolve()),
                         "--foot",
                         str(foot),
                         "--height",
@@ -85,13 +91,15 @@ def main():
         "error_m" in r for r in results if r.get("execution_success")
     )
     accepted = (
-        passed / len(results) >= 0.95
+        passed / len(results) >= thresholds["minimum_success_rate"]
         and complete_metrics
-        and len(errors) >= math.ceil(0.95 * len(results))
-        and p95 <= 0.01
-        and max(errors) <= 0.02
+        and len(errors) >= math.ceil(thresholds["minimum_success_rate"] * len(results))
+        and p95 <= thresholds["p95_error_m"]
+        and max(errors) <= thresholds["max_error_m"]
     )
     summary = {
+        "thresholds": thresholds,
+        "thresholds_sha256": hashlib.sha256(args.thresholds.read_bytes()).hexdigest(),
         "trials": len(results),
         "passed": passed,
         "jobs": args.jobs,
@@ -100,7 +108,8 @@ def main():
         "all_error_metrics_available": complete_metrics,
         "error_metrics_count": len(errors),
         "error_metrics_scope": "completed executions; all startup/rejected/aborted trials remain in success-rate denominator",
-        "step_matrix_accepted": accepted and args.trials_per_foot >= 25,
+        "step_matrix_accepted": accepted
+        and args.trials_per_foot >= thresholds["minimum_trials_per_foot"],
         "scope": "Known M1 fixtures, not terrain randomization or full fault acceptance",
         "hardware_tested": False,
         "results": sorted(results, key=lambda r: r["trial"]),

@@ -46,7 +46,32 @@ not complete fault coverage, domain randomization, or competition acceptance.
 Gazebo remains paused until controller activation has completed through bounded
 single steps. The evaluator additionally observes leg and body collisions.
 
-Control-to-callback snapshots now use locked owned copies and a try-lock producer
-that skips publication when busy. Input age checks remain mandatory; this is not
-a claim of allocation-free or hard real-time WBC execution. Development pushes
-and pull requests target `origin/RC2027`; RL runtime remains outside this repository.
+The precision runtime now orchestrates three separate components: a ROS-free
+`PrecisionPlanner`, a ROS-free `PrecisionExecutionCore`, and a `PrecisionRosAdapter`.
+Each dynamics consumer owns its mutable model caches. Precision mode loads the
+shared `RobotModel` directly without initializing an NMPC optimization problem.
+Contact types and model validation live in common headers.
+
+Control telemetry uses fixed triple buffering with one producer and serialized
+non-real-time readers; the producer does not wait on a reader mutex. Snapshot
+freshness uses monotonic acquisition time, while messages/map observations retain
+ROS timestamps. This is not a hard-real-time guarantee for the whole WBC loop.
+
+Model, control, and evaluation settings are separate YAML files; startup rejects
+invalid or contradictory values. Status/plan/action results have stable numeric
+error codes, with textual diagnostics retained. Rebuild consumers after this
+message definition change. See the [implementation plan](refactoring.md) and
+[measured refactoring results](refactoring-results.md).
+
+After building and sourcing the workspace, run:
+
+```bash
+python3 tools/validate_qr.py --suite unit --output artifacts/qr/unit-001
+python3 tools/validate_qr.py --suite regression --output artifacts/qr/regression-001
+```
+
+`regression` runs unit tests, all four feet at 0/30/50 mm, the five existing fault
+scenarios and legacy motion. `matrix` runs the separately qualified 100-trial
+matrix. A short regression does not claim full M1 fault acceptance. Development
+pushes and pull requests target `origin/RC2027`; RL runtime stays in its separate
+repository.

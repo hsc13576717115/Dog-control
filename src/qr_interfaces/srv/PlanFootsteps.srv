@@ -3,5 +3,6 @@ geometry_msgs/Point target
 uint32 surface_id
 ---
 bool accepted
+uint16 error_code
 string reason
 qr_interfaces/FootstepPlan plan

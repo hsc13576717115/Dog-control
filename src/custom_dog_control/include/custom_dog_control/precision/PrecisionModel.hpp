@@ -1,12 +1,16 @@
 #pragma once
+#include "custom_dog_control/model/RobotModelConfig.hpp"
 #include "custom_dog_control/nmpc/KinematicStateEstimator.hpp"
+#include "custom_dog_control/precision/PrecisionConfig.hpp"
 #include "custom_dog_control/precision/PrecisionTypes.hpp"
 #include <memory>
 namespace custom_dog_control {
 class PrecisionModel {
 public:
   PrecisionModel(const ocs2::PinocchioInterface &,
-                 const ocs2::CentroidalModelInfo &, const std::string &urdf);
+                 const ocs2::CentroidalModelInfo &, const std::string &urdf,
+                 RobotModelConfig model_config = {},
+                 PrecisionConfig config = {});
   ~PrecisionModel();
   void Reset();
   void Measure(const JointSample &, const EstimatedState &, double dt);

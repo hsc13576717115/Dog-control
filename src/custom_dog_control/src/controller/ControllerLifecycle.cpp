@@ -70,6 +70,8 @@ controller_interface::CallbackReturn NmpcWbcController::on_init() {
     auto_declare<std::string>("task_file", "");
     auto_declare<std::string>("reference_file", "");
     auto_declare<bool>("precision_enabled", false);
+    auto_declare<std::string>("precision_model_file", "");
+    auto_declare<std::string>("precision_control_file", "");
     auto_declare<bool>("legacy_joy_y_right", true);
     auto_declare<bool>("use_sim_ground_truth", true);
     auto_declare<double>("ground_truth_timeout_s", 0.10);
@@ -313,17 +315,30 @@ controller_interface::CallbackReturn NmpcWbcController::on_configure(
 
     // 先完成模型与求解器配置，再创建依赖相同模型布局的估计器和安全限值。
     // 配置失败直接拒绝生命周期切换，不能带着不完整映射进入 update。
-    backend_ = std::make_unique<NmpcBackend>();
-    const auto validation = backend_->Configure(backend_config);
-    if (!validation.ok) {
-      throw std::runtime_error(validation.Summary());
-    }
-    estimator_ = std::make_unique<KinematicStateEstimator>(
-        backend_->pinocchioInterface(), backend_->modelInfo());
-    estimator_->Reset(nominal_height_m_);
+    precision_.reset();
+    backend_.reset();
+    estimator_.reset();
+    std::unique_ptr<RobotModel> precision_model;
+    std::string validation_summary;
     if (precision_enabled_) {
       if (use_sim_ground_truth_) throw std::invalid_argument("QR precision control forbids ground-truth state input");
-      precision_ = std::make_unique<PrecisionRuntime>(node, *backend_, urdf_file_, task_file_);
+      const auto share = ament_index_cpp::get_package_share_directory("custom_dog_control");
+      auto model_file = node->get_parameter("precision_model_file").as_string();
+      auto control_file = node->get_parameter("precision_control_file").as_string();
+      if (model_file.empty()) model_file = share + "/config/precision_model.yaml";
+      if (control_file.empty()) control_file = share + "/config/precision_control.yaml";
+      const auto model_config = RobotModelConfig::Load(model_file);
+      const auto config = PrecisionConfig::Load(control_file);
+      precision_model = std::make_unique<RobotModel>(urdf_file_, model_config);
+      validation_summary = "validated shared model; precision WBC (NMPC not initialized)";
+      precision_ = std::make_unique<PrecisionRuntime>(node, *precision_model, urdf_file_, task_file_, model_config, config);
+    } else {
+      backend_ = std::make_unique<NmpcBackend>();
+      const auto validation = backend_->Configure(backend_config);
+      if (!validation.ok) throw std::runtime_error(validation.Summary());
+      validation_summary = validation.Summary();
+      estimator_ = std::make_unique<KinematicStateEstimator>(backend_->pinocchioInterface(), backend_->modelInfo());
+      estimator_->Reset(nominal_height_m_);
     }
 
     SafetyLimits safety_limits;
@@ -344,7 +359,7 @@ controller_interface::CallbackReturn NmpcWbcController::on_configure(
     if (safety_limits.joint_position_tolerance_rad < 0.0) {
       throw std::invalid_argument("joint_limit_tolerance_rad must be non-negative");
     }
-    const auto& model = backend_->pinocchioInterface().getModel();
+    const auto& model = precision_model ? precision_model->pin.getModel() : backend_->pinocchioInterface().getModel();
     for (std::size_t i = 0; i < kJointCount; ++i) {
       const auto joint_id = model.getJointId(joints_[i]);
       const auto q_index = model.joints[joint_id].idx_q();
@@ -402,11 +417,10 @@ controller_interface::CallbackReturn NmpcWbcController::on_configure(
     policy_buffer_.writeFromNonRT(PolicySample{});
     RCLCPP_INFO(
         node->get_logger(), "Configured custom dog model: %s",
-        validation.Summary().c_str());
-    RCLCPP_INFO(
-        node->get_logger(),
-        "Algorithm backend: legged::LeggedInterface + legged::WeightedWbc "
-        "(qiayuanl/legged_control a7f381c0367e98e31c01336e678eef47e304d40d)");
+        validation_summary.c_str());
+    RCLCPP_INFO(node->get_logger(), "Algorithm backend: %s",
+        precision_enabled_ ? "shared RobotModel + PrecisionWbc (NMPC disabled)"
+                           : "legged::LeggedInterface + legged::WeightedWbc");
     return controller_interface::CallbackReturn::SUCCESS;
   } catch (const std::exception& exception) {
     RCLCPP_ERROR(get_node()->get_logger(), "Configuration failed: %s", exception.what());

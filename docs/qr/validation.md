@@ -2,6 +2,9 @@
 
 [中文入口](README.md) | [English overview](README_EN.md)
 
+后续模块化改造、三缓冲与配置化的独立回归见 [改造验证](refactoring-results.md)。
+本页以下 100 次矩阵与发布前记录是历史批次，不代表后续版本已重跑相同矩阵。
+
 日期：2026-10-09。开发分支 `RC2027`，实现基于 `662373b`；各批次对应的代码指纹与测试范围分别记录。
 机器可读汇总：[m1-results.json](m1-results.json)。
 

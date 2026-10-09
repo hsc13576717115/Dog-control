@@ -14,6 +14,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/Footstep.msg"
   "msg/FootstepPlan.msg"
   "msg/ExecutionStatus.msg"
+  "msg/ExecutionError.msg"
   "msg/Obstacle.msg"
   "msg/ObstacleArray.msg"
   "msg/MissionStatus.msg"

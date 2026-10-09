@@ -40,9 +40,18 @@ def setup(context):
     runtime = Path(tempfile.mkdtemp(prefix="qr_m1_"))
     atexit.register(lambda: shutil.rmtree(runtime, ignore_errors=True))
     generate(height, runtime / "fixture.world")
+    model_file = LaunchConfiguration("model_config").perform(context) or str(
+        control / "config/precision_model.yaml"
+    )
+    control_file = LaunchConfiguration("control_config").perform(context) or str(
+        control / "config/precision_control.yaml"
+    )
+    model_parameters = yaml.safe_load(Path(model_file).read_text())["model"]
     cfg = yaml.safe_load((control / "config/controllers.yaml").read_text())
     cfg["nmpc_wbc_controller"]["ros__parameters"].update(
         precision_enabled=True,
+        precision_model_file=model_file,
+        precision_control_file=control_file,
         use_sim_ground_truth=False,
         simulation_passive_hold=False,
     )
@@ -153,7 +162,7 @@ def setup(context):
             "-file",
             str(runtime / "robot.urdf"),
             "-z",
-            ".29",
+            str(model_parameters["initial_height_m"]),
         ],
         output="screen",
     )
@@ -215,6 +224,8 @@ def setup(context):
 def generate_launch_description():
     return LaunchDescription(
         [
+            DeclareLaunchArgument("model_config", default_value=""),
+            DeclareLaunchArgument("control_config", default_value=""),
             DeclareLaunchArgument("height", default_value="0.0"),
             DeclareLaunchArgument("seed", default_value="0"),
             DeclareLaunchArgument(

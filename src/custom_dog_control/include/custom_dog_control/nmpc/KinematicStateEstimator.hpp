@@ -8,7 +8,7 @@
 #include <ocs2_pinocchio_interface/PinocchioInterface.h>
 
 #include "custom_dog_control/control/ControlTypes.hpp"
-#include "custom_dog_control/precision/PrecisionTypes.hpp"
+#include "custom_dog_control/control/ContactTypes.hpp"
 
 namespace custom_dog_control {
 

@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.16)
 project(qr_validation)
 find_package(ament_cmake REQUIRED)
-install(DIRECTORY scripts test DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY scripts test config DESTINATION share/${PROJECT_NAME})
+if(BUILD_TESTING)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  add_test(NAME qr_validation_python
+    COMMAND ${Python3_EXECUTABLE} -m unittest discover -s ${CMAKE_CURRENT_SOURCE_DIR}/test)
+  set_tests_properties(qr_validation_python PROPERTIES TIMEOUT 30 LABELS "unit")
+endif()
 ament_package()
