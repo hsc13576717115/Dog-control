@@ -9,7 +9,7 @@ import tempfile
 import xml.etree.ElementTree as ET
 import yaml
 import xacro
-from ament_index_python.packages import get_package_share_directory
+from ament_index_python.packages import get_package_share_directory, get_package_prefix
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
@@ -40,6 +40,23 @@ def setup(context):
     runtime = Path(tempfile.mkdtemp(prefix="qr_m1_"))
     atexit.register(lambda: shutil.rmtree(runtime, ignore_errors=True))
     generate(height, runtime / "fixture.world")
+    scene = ET.parse(runtime / "fixture.world")
+    ET.SubElement(
+        scene.getroot().find("world"),
+        "plugin",
+        name="qr_contact_metrics",
+        filename=str(
+            Path(get_package_prefix("qr_simulation")) / "lib/libqr_contact_metrics.so"
+        ),
+    )
+    properties = ET.SubElement(
+        scene.getroot().find("world"),
+        "plugin",
+        name="evaluation_properties",
+        filename="libgazebo_ros_properties.so",
+    )
+    ET.SubElement(ET.SubElement(properties, "ros"), "namespace").text = "/evaluation"
+    scene.write(runtime / "fixture.world")
     model_file = LaunchConfiguration("model_config").perform(context) or str(
         control / "config/precision_model.yaml"
     )
@@ -72,6 +89,16 @@ def setup(context):
         root.find(".//plugin[@name='base_imu_plugin']/ros/remapping").text = (
             "~/out:=/qr/raw_imu"
         )
+    profile = LaunchConfiguration("robustness_profile").perform(context)
+    if profile not in ("nominal", "mass_plus5", "mass_minus5", "friction_low"):
+        raise ValueError("unknown robustness profile")
+    # Deliberately perturb physics only; the controller retains its canonical
+    # model. These bounded simulation profiles are not hardware calibration.
+    if profile == "friction_low":
+        for leg in ("FR", "FL", "RR", "RL"):
+            ext = ET.SubElement(root, "gazebo", reference=leg + "_foot")
+            ET.SubElement(ext, "mu1").text = "0.35"
+            ET.SubElement(ext, "mu2").text = "0.35"
     # M1 starts from a standing joint configuration. Prone-to-stand is a separate test.
     nominal = cfg["nmpc_wbc_controller"]["ros__parameters"]["nominal_joint_positions"]
     for j, q in zip(root.findall("./ros2_control/joint"), nominal):
@@ -133,6 +160,19 @@ def setup(context):
         ET.SubElement(plugin, "frame_name").text = "world"
     robot = ET.tostring(root, encoding="unicode")
     (runtime / "robot.urdf").write_text(robot)
+    artifact_dir = LaunchConfiguration("artifact_dir").perform(context)
+    if artifact_dir:
+        destination = Path(artifact_dir)
+        destination.mkdir(parents=True, exist_ok=False)
+        for name in (
+            "robot.urdf",
+            "fixture.world",
+            "fixture.world.json",
+            "controllers.yaml",
+        ):
+            shutil.copyfile(runtime / name, destination / name)
+        shutil.copyfile(model_file, destination / "precision_model.yaml")
+        shutil.copyfile(control_file, destination / "precision_control.yaml")
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             str(
@@ -224,8 +264,10 @@ def setup(context):
 def generate_launch_description():
     return LaunchDescription(
         [
+            DeclareLaunchArgument("artifact_dir", default_value=""),
             DeclareLaunchArgument("model_config", default_value=""),
             DeclareLaunchArgument("control_config", default_value=""),
+            DeclareLaunchArgument("robustness_profile", default_value="nominal"),
             DeclareLaunchArgument("height", default_value="0.0"),
             DeclareLaunchArgument("seed", default_value="0"),
             DeclareLaunchArgument(

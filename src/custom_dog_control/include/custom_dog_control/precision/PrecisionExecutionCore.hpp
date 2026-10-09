@@ -7,9 +7,11 @@ namespace custom_dog_control {
 // No ROS calls, callbacks, or shared model caches. One update-thread owner.
 class PrecisionExecutionCore {
 public:
+  using Clock = double (*)();
   PrecisionExecutionCore(const RobotModel &, const std::string &,
                          const std::string &, const RobotModelConfig &,
-                         const PrecisionConfig &);
+                         const PrecisionConfig &,
+                         Clock clock = PrecisionSteadyNow);
   ~PrecisionExecutionCore();
   void Reset(); // Only while update is inactive.
   bool Update(double now, double dt, const JointSample &, const ImuSample &,

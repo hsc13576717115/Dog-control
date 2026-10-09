@@ -17,7 +17,12 @@ from rclpy.node import Node
 from rclpy.action import ActionClient
 from rclpy.qos import qos_profile_sensor_data
 from gazebo_msgs.msg import LinkStates, ContactsState
-from qr_interfaces.msg import RobotState, ExecutionStatus, FootContactArray
+from qr_interfaces.msg import (
+    RobotState,
+    ExecutionStatus,
+    FootContactArray,
+    ContactMetrics,
+)
 from qr_interfaces.srv import PlanFootsteps
 from qr_interfaces.action import ExecuteFootsteps
 from geometry_msgs.msg import Point
@@ -33,9 +38,12 @@ class Probe(Node):
         self.truth = {}
         self.contacts = {}
         self.contact_times = {}
+        self.collision_names = {}
         self.nonfoot_contacts = {}
         self.truth_received = 0.0
         self.trace = []
+        self.metrics = None
+        self.metrics_received = 0.0
         self.estimates = None
         self.scenario = scenario
         self.last_imu = None
@@ -78,8 +86,18 @@ class Probe(Node):
                 lambda m, l=link: self.nonfoot_contacts.update({l: bool(m.states)}),
                 qos_profile_sensor_data,
             )
+        self.create_subscription(
+            ContactMetrics,
+            "/evaluation/contact_metrics",
+            self.on_metrics,
+            qos_profile_sensor_data,
+        )
         self.plan = self.create_client(PlanFootsteps, "/qr/plan_footsteps")
         self.action = ActionClient(self, ExecuteFootsteps, "/qr/execute_footsteps")
+
+    def on_metrics(self, m):
+        self.metrics = m
+        self.metrics_received = time.monotonic()
 
     def on_truth(self, m):
         self.truth = {n: p for n, p in zip(m.name, m.pose)}
@@ -97,6 +115,9 @@ class Probe(Node):
         self.imu_pub.publish(self.last_imu)
 
     def on_contact(self, leg, m):
+        self.collision_names[leg] = [
+            name for s in m.states for name in (s.collision1_name, s.collision2_name)
+        ]
         self.contacts[leg] = bool(m.states)
         self.contact_times[leg] = time.monotonic()
 
@@ -110,6 +131,7 @@ class Probe(Node):
                     "ready": m.ready,
                     "error": m.error,
                     "feet": [[p.x, p.y, p.z] for p in self.state.feet],
+                    "targets": [[p.x, p.y, p.z] for p in m.targets],
                     "estimated_contacts": list(self.state.contacts),
                     "forces": (
                         [
@@ -129,6 +151,7 @@ class Probe(Node):
                         if l.endswith("_foot")
                     },
                     "truth_contacts": self.contacts.copy(),
+                    "collision_names": self.collision_names.copy(),
                     "nonfoot_contacts": self.nonfoot_contacts.copy(),
                     "body_quaternion": [
                         self.state.pose.orientation.x,
@@ -148,6 +171,17 @@ class Probe(Node):
                             if n == "custom_dog::base"
                         ),
                         None,
+                    ),
+                    "contact_slip_integral_m": (
+                        list(self.metrics.cumulative_slip_m) if self.metrics else None
+                    ),
+                    "contact_time_integral_s": (
+                        list(self.metrics.cumulative_contact_s)
+                        if self.metrics
+                        else None
+                    ),
+                    "physics_sequence": (
+                        self.metrics.physics_sequence if self.metrics else None
                     ),
                     "solve_ms": m.solve_time_ms,
                     "residual": m.equality_residual,
@@ -194,6 +228,11 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--domain", type=int, default=109)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--profile",
+        choices=["nominal", "mass_plus5", "mass_minus5", "friction_low"],
+        default="nominal",
+    )
     parser.add_argument("--gui", action="store_true")
     parser.add_argument(
         "--scenario",
@@ -204,10 +243,17 @@ def main():
             "replay",
             "missed_touchdown",
             "stale_imu",
+            "side_collision",
+            "support_loss",
+            "slip",
         ],
         default="normal",
     )
     a = parser.parse_args()
+    if a.scenario in ("side_collision", "support_loss", "slip") and (
+        a.foot != 0 or a.height != 0
+    ):
+        parser.error("physical fault fixtures require FR on flat ground")
     thresholds = load_thresholds(a.thresholds)
     import yaml
 
@@ -233,6 +279,7 @@ def main():
         "foot": a.foot,
         "scenario": a.scenario,
         "seed": a.seed,
+        "physics_profile": a.profile,
         "scene_version": "qr-m1-v1",
         "reported_height": a.height,
         "actual_height": 0.0 if a.scenario == "missed_touchdown" else a.height,
@@ -252,6 +299,7 @@ def main():
     files = list(Path("src/custom_dog_control").rglob("*.cpp")) + list(
         Path("src/custom_dog_control").rglob("*.hpp")
     )
+    files.extend(Path("src/custom_dog_control").rglob("*.def"))
     for folder in ["config", "urdf"]:
         files.extend(
             p
@@ -287,6 +335,8 @@ def main():
                 f"height:={0. if a.scenario == 'missed_touchdown' else a.height}",
                 f"reported_height:={a.height}",
                 f"seed:={a.seed}",
+                f"robustness_profile:={a.profile}",
+                f"artifact_dir:={a.output.resolve() / 'inputs'}",
                 f"model_config:={a.model_config.resolve()}",
                 f"imu_fault_relay:={str(a.scenario == 'stale_imu').lower()}",
                 f"gui:={str(a.gui).lower()}",
@@ -311,6 +361,15 @@ def main():
             )
         if node.state.using_ground_truth:
             raise RuntimeError("controller_using_ground_truth")
+        if a.profile.startswith("mass_"):
+            from physics_profiles import apply_mass_profile
+
+            report["physics_mass_changes"] = apply_mass_profile(
+                node, 1.05 if a.profile == "mass_plus5" else 0.95
+            )
+            node.wait(lambda: False, 0.5)
+            if not node.status.ready:
+                raise RuntimeError("perturbed_standing_not_ready")
         req = PlanFootsteps.Request()
         req.foot = a.foot
         req.surface_id = 1 if a.foot in (0, 2) else 2
@@ -335,6 +394,10 @@ def main():
             return 0
         if not plan.accepted:
             raise RuntimeError("plan_rejected: " + plan.reason)
+        if not node.wait(lambda: node.metrics is not None, 3):
+            raise RuntimeError("missing_contact_metrics")
+        slip_start = list(node.metrics.cumulative_slip_m)
+        contact_start = list(node.metrics.cumulative_contact_s)
         goal = ExecuteFootsteps.Goal()
         goal.plan = plan.plan
         if not node.action.wait_for_server(timeout_sec=3):
@@ -344,6 +407,10 @@ def main():
             raise RuntimeError("action_rejected")
         handle = f.result()
         result = handle.get_result_async()
+        if a.scenario in ("side_collision", "support_loss", "slip"):
+            from physical_faults import inject
+
+            report["physical_injection"] = inject(node, a.scenario, a.foot)
         if a.scenario == "cancel":
             if not node.wait(lambda: node.status.phase == "SWING", 8):
                 raise RuntimeError("swing_not_observed")
@@ -359,6 +426,45 @@ def main():
         report["execution_error_code"] = response.error_code
         report["execution_success"] = response.success
         report["execution_reason"] = response.reason
+        if a.scenario in ("side_collision", "support_loss", "slip"):
+            from physical_faults import witness
+
+            node.wait(lambda: False, 0.6)
+            observed = witness(
+                node.trace, a.scenario, report["physical_injection"]["sim_stamp"]
+            )
+            report["physical_fault_witnessed"] = observed
+            if not observed:
+                raise RuntimeError("injected_fault_not_physically_observed")
+            if (
+                response.success
+                or node.status.ready
+                or node.status.phase != "CONTROLLED_HOLD"
+            ):
+                raise RuntimeError("physical_fault_not_aborted: " + response.reason)
+            if response.reason not in [
+                "early_contact",
+                "support_unconfirmed",
+                "state_or_attitude",
+                "touchdown_lost",
+                "runtime_ik",
+                "wbc_invalid_or_timeout",
+                "total_torque_limit",
+                "swing_tracking_error",
+            ]:
+                raise RuntimeError(
+                    "unexpected_physical_fault_reason: " + response.reason
+                )
+            if a.scenario == "side_collision" and response.reason not in [
+                "early_contact",
+                "swing_tracking_error",
+            ]:
+                raise RuntimeError("side_collision_detection_late: " + response.reason)
+            report["verified_scope"] = (
+                "physical fault witnessed and execution aborted; stable recovery not certified"
+            )
+            report["status"] = "passed"
+            return 0
         if a.scenario == "stale_imu":
             if response.success or response.reason != "invalid_state":
                 raise RuntimeError("stale_imu_not_handled: " + response.reason)
@@ -417,7 +523,22 @@ def main():
             roll = math.atan2(2 * (w * x + y * z), 1 - 2 * (x * x + y * y))
             pitch = math.asin(max(-1.0, min(1.0, 2 * (w * y - z * x))))
             tilt = max(tilt, abs(roll) * 180 / math.pi, abs(pitch) * 180 / math.pi)
+        if time.monotonic() - node.metrics_received > 0.2:
+            raise RuntimeError("stale_contact_metrics")
+        support_indices = [i for i in range(4) if i != a.foot]
+        contact_slip = [
+            node.metrics.cumulative_slip_m[i] - slip_start[i] for i in range(4)
+        ]
+        contact_duration = [
+            node.metrics.cumulative_contact_s[i] - contact_start[i] for i in range(4)
+        ]
+        if any(contact_duration[i] <= 0 for i in support_indices):
+            raise RuntimeError("contact_metrics_missing_support_manifold")
         report.update(
+            support_contact_slip_m=max(contact_slip[i] for i in support_indices),
+            contact_slip_per_foot_m=contact_slip,
+            contact_duration_per_foot_s=contact_duration,
+            support_foot_center_displacement_m=slip,
             support_slip_m=slip,
             max_tilt_deg=tilt,
             truth_contact_available=bool(node.contacts),
@@ -431,6 +552,7 @@ def main():
         if (
             error > thresholds["max_error_m"]
             or slip > thresholds["max_support_slip_m"]
+            or report["support_contact_slip_m"] > thresholds["max_contact_slip_m"]
             or tilt > thresholds["max_tilt_deg"]
         ):
             raise RuntimeError("acceptance_threshold_exceeded")
@@ -450,6 +572,11 @@ def main():
             rclpy.shutdown()
         if launch:
             stop(launch)
+        report["generated_input_hashes"] = {
+            p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in sorted((a.output / "inputs").glob("*"))
+            if p.is_file()
+        }
         (a.output / "result.json").write_text(json.dumps(report, indent=2))
         print(
             json.dumps(

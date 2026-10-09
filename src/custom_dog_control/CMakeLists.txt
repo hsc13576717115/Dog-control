@@ -361,6 +361,9 @@ if(BUILD_TESTING AND CUSTOM_DOG_CONTROL_BUILD_TESTING)
   ament_add_gtest(test_joint_command_utils test/test_joint_command_utils.cpp)
   target_include_directories(test_joint_command_utils PRIVATE include)
 
+  ament_add_gtest(test_sample_freshness test/test_sample_freshness.cpp)
+  target_include_directories(test_sample_freshness PRIVATE include)
+
   ament_add_gtest(test_latest_snapshot test/test_latest_snapshot.cpp TIMEOUT 15)
   target_include_directories(test_latest_snapshot PRIVATE include)
   target_link_libraries(test_latest_snapshot pthread)
@@ -389,6 +392,13 @@ if(BUILD_TESTING AND CUSTOM_DOG_CONTROL_BUILD_TESTING)
   target_compile_definitions(test_precision_config PRIVATE
     CUSTOM_DOG_CONTROL_CANONICAL_URDF="${CUSTOM_DOG_CONTROL_CANONICAL_URDF}"
     CUSTOM_DOG_CONTROL_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+  ament_add_gtest(test_execution_faults test/test_execution_faults.cpp)
+  target_include_directories(test_execution_faults PRIVATE include)
+  target_link_libraries(test_execution_faults custom_dog_control_core)
+  target_compile_definitions(test_execution_faults PRIVATE
+    CUSTOM_DOG_CONTROL_CANONICAL_URDF="${CUSTOM_DOG_CONTROL_CANONICAL_URDF}"
+    CUSTOM_DOG_CONTROL_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+
   if(EXISTS "${CUSTOM_DOG_CONTROL_CANONICAL_URDF}")
     add_test(
       NAME test_urdf_contract

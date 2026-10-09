@@ -6,6 +6,7 @@ find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/ContactMetrics.msg"
   "msg/FootContact.msg"
   "msg/FootContactArray.msg"
   "msg/RobotState.msg"

@@ -1,13 +1,15 @@
 #include "custom_dog_control/precision/PrecisionExecutionCore.hpp"
+#include "custom_dog_control/control/SampleFreshness.hpp"
 #include "custom_dog_control/precision/ContactObserver.hpp"
 #include "custom_dog_control/precision/FootstepExecutor.hpp"
 #include "custom_dog_control/precision/PrecisionModel.hpp"
 #include "custom_dog_control/precision/PrecisionWbc.hpp"
-#include <chrono>
 #include <ocs2_centroidal_model/CentroidalModelPinocchioMapping.h>
 #include <ocs2_pinocchio_interface/PinocchioEndEffectorKinematics.h>
 namespace custom_dog_control {
 struct PrecisionExecutionCore::Impl {
+  PrecisionExecutionCore::Clock clock;
+  SampleFreshness joint_freshness, imu_freshness;
   RobotModelConfig model_config;
   PrecisionConfig config;
   ocs2::CentroidalModelInfo info;
@@ -27,10 +29,12 @@ struct PrecisionExecutionCore::Impl {
   uint64_t consumed = 0;
   Impl(const RobotModel &robot, const std::string &urdf,
        const std::string &task, const RobotModelConfig &m,
-       const PrecisionConfig &c)
-      : model_config(m), config(c), info(robot.info),
+       const PrecisionConfig &c, PrecisionExecutionCore::Clock clock_fn)
+      : clock(clock_fn), model_config(m), config(c), info(robot.info),
         model(robot.pin, robot.info, urdf, m, c),
         estimator(robot.pin, robot.info), executor(c) {
+    if (!clock)
+      throw std::invalid_argument("missing monotonic clock");
     std::vector<std::string> names;
     for (auto s : kFootFrameNames)
       names.emplace_back(s);
@@ -42,6 +46,8 @@ struct PrecisionExecutionCore::Impl {
     Reset();
   }
   void Reset() {
+    joint_freshness = {};
+    imu_freshness = {};
     initialized = tracking = fault = false;
     activated = -1;
     consumed = 0;
@@ -67,15 +73,19 @@ struct PrecisionExecutionCore::Impl {
       activated = now;
       initialized = true;
     }
-    bool joints_valid = true;
+    bool joints_valid = joint_freshness.Accept(
+        now, joints.stamp_seconds, joints.stamp_valid, config.state_timeout_s);
     for (size_t k = 0; k < 12; ++k)
       joints_valid = joints_valid && joints.valid[k] > .5 &&
                      std::isfinite(joints.position[k]) &&
                      std::isfinite(joints.velocity[k]) &&
                      std::isfinite(joints.effort[k]);
-    bool valid = joints_valid && imu.valid &&
-                 now - imu.stamp_seconds < config.state_timeout_s &&
-                 now >= imu.stamp_seconds;
+    bool valid =
+        joints_valid && imu_freshness.Accept(now, imu.stamp_seconds, imu.valid,
+                                             config.state_timeout_s);
+    for (size_t k = 0; k < 3; ++k)
+      valid = valid && std::isfinite(imu.angular_velocity[k]) &&
+              std::isfinite(imu.linear_acceleration[k]);
     if (!valid && joints_valid && !fault && !estop &&
         now - activated < config.startup_grace_s) {
       // Simulation starts in a standing pose. Hold it while the first IMU
@@ -176,6 +186,13 @@ struct PrecisionExecutionCore::Impl {
     if (cancel)
       executor.Abort(PrecisionError::CANCELED);
     reference = executor.Update(now, contacts, model.feet());
+    if (executor.error_code() == PrecisionError::SUPPORT_UNCONFIRMED ||
+        executor.error_code() == PrecisionError::TOUCHDOWN_LOST) {
+      // An unsupported HOLD cannot safely reuse the previous contact-force QP.
+      fault = true;
+      Save(now, joints, 0, 0);
+      return false;
+    }
     for (size_t f = 0; f < 4; ++f)
       if (reference.contact[f] && contacts[f].loaded &&
           (model.feet()[f] - reference.foot[f]).norm() <
@@ -200,13 +217,11 @@ struct PrecisionExecutionCore::Impl {
       if (reference.contact[f])
         input(3 * f + 2) = info.robotMass * 9.81 / std::max(nc, 1);
     wbc->Reference(reference);
-    auto begin = std::chrono::steady_clock::now();
+    const double begin = clock();
     auto result = wbc->update(desired, input, model.Rbd(joints, state),
                               ContactMode(reference.contact), dt);
-    const double ms = std::chrono::duration<double, std::milli>(
-                          std::chrono::steady_clock::now() - begin)
-                          .count();
-    if (!wbc->lastSolverSucceeded() ||
+    const double ms = 1000. * (clock() - begin);
+    if (!std::isfinite(ms) || ms < 0 || !wbc->lastSolverSucceeded() ||
         wbc->lastEqualityResidual() > config.residual_limit ||
         wbc->lastInequalityViolation() > config.residual_limit ||
         ms > config.solve_timeout_ms) {
@@ -254,12 +269,10 @@ struct PrecisionExecutionCore::Impl {
     latest = s;
   }
 };
-PrecisionExecutionCore::PrecisionExecutionCore(const RobotModel &r,
-                                               const std::string &u,
-                                               const std::string &t,
-                                               const RobotModelConfig &m,
-                                               const PrecisionConfig &c)
-    : impl_(std::make_unique<Impl>(r, u, t, m, c)) {}
+PrecisionExecutionCore::PrecisionExecutionCore(
+    const RobotModel &r, const std::string &u, const std::string &t,
+    const RobotModelConfig &m, const PrecisionConfig &c, Clock clock)
+    : impl_(std::make_unique<Impl>(r, u, t, m, c, clock)) {}
 PrecisionExecutionCore::~PrecisionExecutionCore() = default;
 void PrecisionExecutionCore::Reset() { impl_->Reset(); }
 bool PrecisionExecutionCore::Update(double n, double dt, const JointSample &j,

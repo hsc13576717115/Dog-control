@@ -1,7 +1,8 @@
 # Evaluation-only gates. Never loaded by the controller; save exact values/hash per run.
 max_error_m: 0.02
 p95_error_m: 0.01
-max_support_slip_m: 0.01
+max_support_slip_m: 0.01  # legacy foot-centre displacement gate, retained
+max_contact_slip_m: 0.01  # integrated contact-point tangential relative speed
 max_tilt_deg: 5.0
 minimum_success_rate: 0.95
 minimum_trials_per_foot: 25

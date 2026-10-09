@@ -30,6 +30,8 @@ controller_interface::return_type NmpcWbcController::update(
   control_period_ms_ = period.seconds() * 1000.0;
   control_timing_.Add(control_period_ms_);
   ReadHardwareState();
+  joints_state_.stamp_valid = !IsRealHardware();
+  if (joints_state_.stamp_valid) joints_state_.stamp_seconds = now_seconds;
   if (IsRealHardware()) {
     io_timing_.Add(io_period_ms_);
   }
@@ -42,6 +44,8 @@ controller_interface::return_type NmpcWbcController::update(
     if (precision_->Update(now_seconds, dt, joints_state_, imu_sample_, stop, output)) {
       WriteHybridCommand(output);
     } else {
+      output = HybridJointCommand{};
+      // Discard a partially computed torque before entering damping fallback.
       // Do not command the flat stand-up pose after a precision fault.
       for (std::size_t i = 0; i < kJointCount; ++i) {
         output.position[i] = std::isfinite(joints_state_.position[i])

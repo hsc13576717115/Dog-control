@@ -9,6 +9,7 @@ KEYS = {
     "max_error_m",
     "p95_error_m",
     "max_support_slip_m",
+    "max_contact_slip_m",
     "max_tilt_deg",
     "minimum_success_rate",
     "minimum_trials_per_foot",

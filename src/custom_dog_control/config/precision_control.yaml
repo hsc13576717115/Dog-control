@@ -58,3 +58,5 @@ control:
   ik_delta_rad: 0.12
   acc_filter_s: 0.03
   acc_limit: 80.0
+  swing_error_m: 0.025
+  swing_error_dwell_s: 0.08

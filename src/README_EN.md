@@ -16,3 +16,5 @@ MID360 and FAST-LIO sources are isolated in `external/perception_ws`; see
 [source provenance and integration limits](../docs/qr/perception-source.md).
 RL deployment remains in the independent `himloco_custom_dog/deployment` repository.
 Historical `unitree_guide` code is excluded from colcon discovery.
+
+- `qr_simulation`: independent contact-slip integration at each physics step; never a controller input.

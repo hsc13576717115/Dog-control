@@ -10,6 +10,7 @@
   <exec_depend>custom_dog_control</exec_depend>
   <exec_depend>qr_course</exec_depend>
   <exec_depend>launch_ros</exec_depend>
+  <exec_depend>qr_simulation</exec_depend>
   <export>
     <build_type>ament_cmake</build_type>
   </export>

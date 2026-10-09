@@ -135,6 +135,10 @@ inline VelocityCommand SlewVelocity(
 // 关节输出侧、URDF 正方向下的反馈：rad、rad/s、N·m、°C。
 // valid 使用 double 以适配 ros2_control 状态接口，>=0.5 视为有效。
 struct JointSample {
+  // Acquisition metadata. Simulation uses the synchronous physics update;
+  // real hardware must provide its own timestamp rather than the read time.
+  double stamp_seconds = 0.0;
+  bool stamp_valid = false;
   std::array<double, kJointCount> position{};
   std::array<double, kJointCount> velocity{};
   std::array<double, kJointCount> effort{};

@@ -75,3 +75,11 @@ scenarios and legacy motion. `matrix` runs the separately qualified 100-trial
 matrix. A short regression does not claim full M1 fault acceptance. Development
 pushes and pull requests target `origin/RC2027`; RL runtime stays in its separate
 repository.
+
+## M1 closeout
+
+The closeout adds acquisition-time guards, sustained swing-error detection, support-loss
+fallback, and independent contact-point slip integration (`qr_simulation`). Physical
+fault injection is separate from execution-core timestamp/deadline tests. Added physics
+profiles cover mass/inertia ±5% and sole friction 0.35; they do not constitute sensor
+noise validation or hardware calibration. See [closeout evidence](m1-closeout.md).

@@ -194,8 +194,9 @@ struct PrecisionPlanner::Impl {
                               4 * config.preflight_period_s;
       for (double t = 0; t < duration; t += config.preflight_period_s) {
         cs[step.foot].loaded = t >= step.shift + step.swing;
-        auto feet = s.ref.foot;
-        feet[step.foot] = target;
+        // Offline feasibility assumes ideal tracking of the preceding sample;
+        // it must not masquerade as a foot already located at the final target.
+        auto feet = trial.reference().foot;
         const auto ref = trial.Update(t, cs, feet);
         if (trial.phase() == StepPhase::HOLD) {
           reject(PrecisionError::REFERENCE_GENERATION_FAILED);

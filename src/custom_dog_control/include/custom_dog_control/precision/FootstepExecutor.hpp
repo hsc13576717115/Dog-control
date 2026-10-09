@@ -12,6 +12,7 @@ public:
     error_ = PrecisionError::NONE;
   }
   void Start(const PrecisionStep &step, double now) {
+    tracking_error_since_ = -1;
     step_ = step;
     start_ = reference_;
     entered_ = now;
@@ -35,8 +36,16 @@ public:
   Update(double now, const std::array<ContactEstimate, 4> &contacts,
          const std::array<Eigen::Vector3d, 4> &measured) {
     if (phase_ == StepPhase::STANCE || phase_ == StepPhase::DONE ||
-        phase_ == StepPhase::HOLD)
+        phase_ == StepPhase::HOLD) {
+      for (size_t i = 0; i < 4; ++i)
+        if (reference_.contact[i] &&
+            (!contacts[i].valid || !contacts[i].loaded ||
+             contacts[i].slipping)) {
+          Abort(PrecisionError::SUPPORT_UNCONFIRMED);
+          break;
+        }
       return reference_;
+    }
     for (size_t i = 0; i < 4; ++i)
       if (i != step_.foot &&
           (!contacts[i].valid || !contacts[i].loaded || contacts[i].slipping)) {
@@ -77,6 +86,17 @@ public:
         Abort(PrecisionError::EARLY_CONTACT);
         return reference_;
       }
+      // IMU + joint FK can detect a sustained blocked swing without pretending
+      // that its cause or a ground-support contact has been measured.
+      if ((measured[f] - reference_.foot[f]).norm() > config_.swing_error_m) {
+        if (tracking_error_since_ < 0)
+          tracking_error_since_ = now;
+        if (now - tracking_error_since_ >= config_.swing_error_dwell_s) {
+          Abort(PrecisionError::SWING_TRACKING_ERROR);
+          return reference_;
+        }
+      } else
+        tracking_error_since_ = -1;
       if (t >= step_.swing) {
         phase_ = StepPhase::CONFIRM;
         entered_ = now;
@@ -149,5 +169,6 @@ private:
   StepPhase phase_ = StepPhase::STANCE;
   PrecisionError error_ = PrecisionError::NONE;
   double entered_ = 0, confirmed_since_ = -1, candidate_since_ = -1;
+  double tracking_error_since_ = -1;
 };
 } // namespace custom_dog_control

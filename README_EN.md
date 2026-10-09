@@ -245,3 +245,7 @@ QR precision mode separates planning, execution and ROS adaptation, and loads
 its model without initializing NMPC. Model/control/acceptance configurations
 are separate. Use `tools/validate_qr.py` for unified checks; see the
 [refactoring plan](docs/qr/refactoring.md) and [actual results](docs/qr/refactoring-results.md).
+
+See [M1 closeout evidence](docs/qr/m1-closeout.md) for the latest fault-handling work.
+The new `qr_simulation` plugin is an independent physics evaluator, never a contact
+sensor input for the controller.

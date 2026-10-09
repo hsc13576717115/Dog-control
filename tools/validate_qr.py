@@ -77,7 +77,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--suite",
-        choices=["unit", "smoke", "faults", "regression", "matrix"],
+        choices=["unit", "smoke", "faults", "regression", "matrix", "robustness"],
         default="unit",
     )
     parser.add_argument("--output", type=Path, required=True)
@@ -91,12 +91,11 @@ def main():
         "schema_version": 1,
         "suite": args.suite,
         "hardware_tested": False,
-        "status": "failed",
+        "status": "running",
         "results": [],
         "not_covered": [
-            "dynamic side collision/slip/support loss",
-            "joint sample timestamp injection",
-            "solver timeout injection",
+            "hardware acquisition timestamps and real solver WCET",
+            "sensor noise, delays and full self-collision coverage",
             "NX and real motors",
             "full competition",
         ],
@@ -129,7 +128,7 @@ def main():
         ]
         script = str(ROOT / "src/qr_validation/scripts/run_precision.py")
 
-        def trial(name, foot, height, scenario="normal"):
+        def trial(name, foot, height, scenario="normal", profile="nominal"):
             cases.append(
                 (
                     name,
@@ -142,6 +141,8 @@ def main():
                         str(height),
                         "--scenario",
                         scenario,
+                        "--profile",
+                        profile,
                         "--domain",
                         str(args.domain),
                         "--output",
@@ -164,6 +165,9 @@ def main():
                 "replay",
                 "missed_touchdown",
                 "stale_imu",
+                "side_collision",
+                "support_loss",
+                "slip",
             ]:
                 trial(
                     f"fault-{scenario}",
@@ -171,6 +175,10 @@ def main():
                     0.03 if scenario == "missed_touchdown" else 0,
                     scenario,
                 )
+        if args.suite == "robustness":
+            for profile in ("mass_plus5", "mass_minus5", "friction_low"):
+                for foot in range(4):
+                    trial(f"{profile}-{foot}", foot, 0.05, profile=profile)
         if args.suite == "regression":
             cases.append(
                 (
@@ -211,6 +219,7 @@ def main():
             save()
             print(f"{name}: {result['status']}", flush=True)
             if name.startswith("unit-") and result["status"] != "passed":
+                report["status"] = "failed"
                 report["error"] = "unit tests failed; simulation not started"
                 return 1
         report["status"] = (
@@ -224,6 +233,7 @@ def main():
         report["error"] = "user interrupted test suite; no further cases scheduled"
         return 130
     except Exception as exc:
+        report["status"] = "failed"
         report["error"] = str(exc)
         return 1
     finally:

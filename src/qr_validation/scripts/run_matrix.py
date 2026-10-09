@@ -88,7 +88,16 @@ def main():
     p95 = errors[max(0, math.ceil(0.95 * len(errors)) - 1)] if errors else None
     passed = sum(r["status"] == "passed" for r in results)
     complete_metrics = all(
-        "error_m" in r for r in results if r.get("execution_success")
+        all(
+            k in r
+            for k in [
+                "error_m",
+                "support_contact_slip_m",
+                "support_foot_center_displacement_m",
+            ]
+        )
+        for r in results
+        if r.get("execution_success")
     )
     accepted = (
         passed / len(results) >= thresholds["minimum_success_rate"]

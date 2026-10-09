@@ -273,3 +273,6 @@ ARM64 必须在目标设备重新编译。实机状态估计、12 电机 RS485 �
 QR 精确模式现已拆分规划器、执行核心与 ROS 适配层，模型不再经由 NMPC 后端获取。
 模型/控制/验收参数分开配置；统一验证入口为 `tools/validate_qr.py`。
 详见 [修改方案](docs/qr/refactoring.md) 与 [实际验证结果](docs/qr/refactoring-results.md)。
+
+M1 收尾进展及异常测试见 [精确换步收尾记录](docs/qr/m1-closeout.md)。
+新增的 `qr_simulation` 只承担独立物理评价；接触真值不会进入控制器。

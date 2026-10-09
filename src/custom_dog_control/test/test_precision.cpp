@@ -46,7 +46,7 @@ TEST(Executor, MissedTouchdownNeverCompletes) {
   }
   c[0].loaded = false;
   for (double t = 0; t < 1.2; t += .01)
-    ex.Update(t, c, r.foot);
+    ex.Update(t, c, ex.reference().foot);
   EXPECT_EQ(ex.phase(), StepPhase::HOLD);
   EXPECT_STREQ(ex.error(), "touchdown_timeout");
 }
@@ -111,4 +111,35 @@ TEST(Estimator, UnknownHeightDoesNotMeanGroundZero) {
   for (int k = 0; k < 100; ++k)
     y = raised.Update(joints, imu, b, .004);
   EXPECT_NEAR(y.position.z(), before, .002);
+}
+
+TEST(Executor, BlockedSwingWithoutVerticalContactCannotReachConfirm) {
+  FootstepExecutor ex;
+  auto r = Stance();
+  ex.Reset(r);
+  PrecisionStep s;
+  s.target = r.foot[0] + Eigen::Vector3d(.1, 0, 0);
+  s.body = r.body;
+  s.shift = .2;
+  s.swing = 1.;
+  ex.Start(s, 0);
+  std::array<ContactEstimate, 4> c;
+  for (auto &v : c)
+    v.valid = v.loaded = true;
+  c[0].loaded = false;
+  for (double t = 0; t < 1.; t += .001)
+    ex.Update(t, c, r.foot);
+  EXPECT_EQ(ex.error_code(), PrecisionError::SWING_TRACKING_ERROR);
+  EXPECT_FALSE(ex.reference().contact[0]);
+}
+
+TEST(Executor, IdleSupportLossIsNotIgnored) {
+  FootstepExecutor ex;
+  ex.Reset(Stance());
+  std::array<ContactEstimate, 4> c;
+  for (auto &v : c)
+    v.valid = v.loaded = true;
+  c[2].loaded = false;
+  ex.Update(1., c, Stance().foot);
+  EXPECT_EQ(ex.error_code(), PrecisionError::SUPPORT_UNCONFIRMED);
 }
