@@ -1,0 +1,382 @@
+{
+  "commit": "18d1812ab1c5003c52cbb7cda8297c5f8108e414",
+  "entry_suite_status": "passed",
+  "entry_count": 14,
+  "m2_stage_accepted": false,
+  "hardware_tested": false,
+  "sequence_trials": 3,
+  "completed_steps": 12,
+  "max_foot_error_m": 0.009296891097183516,
+  "max_support_contact_slip_m": 0.004718185988936678,
+  "max_support_foot_center_displacement_m": 0.009577148110109445,
+  "max_tilt_deg": 1.9147127316921988,
+  "abort_test_status": "passed",
+  "abort_completed_steps": 0,
+  "source_fingerprint_variants": 1,
+  "binary_fingerprint_variants": 1,
+  "binaries": {
+    "install/custom_dog_control/lib/libcustom_dog_control_nmpc_wbc_controller.so": "b55f9f3152915e7ae8fd81f16b3d720c5e4f13e9c046f2013e203ded8becf450",
+    "install/qr_planning/lib/qr_planning/finite_sequence": "00442d05e2591a7ab2bf9c622d5469f2c32e52468bfa76962b2998096c8b459a"
+  },
+  "mechanical_screen": {
+    "scope": "FR-only fixed-body path screening; no complete obstacle, rear-leg transfer or dynamic execution certification",
+    "hardware_tested": false,
+    "self_collision_checked": false,
+    "reference_samples": 41,
+    "trajectory_templates": [
+      "arch",
+      "lift_translate_lower"
+    ],
+    "joint_initializations": 3,
+    "support_margin_m": 0.03,
+    "static_force_friction": 0.5,
+    "static_force_constraint_residual_limit": 1e-05,
+    "rules_version": "RC2027-V1.0",
+    "fixtures": {
+      "platform_to_one_stone": {
+        "candidate_body_poses": 150,
+        "screened_feasible_poses": 0,
+        "failed_seed_attempts": {
+          "body_leg_or_swing_collision": 42,
+          "initial_pose_ik_or_joint_margin": 282,
+          "static_support_margin": 372,
+          "swing_path_ik_or_joint_margin": 204
+        },
+        "failed_force_solver_codes": {},
+        "first_failure_phase_sample_histogram": {
+          "0": 696,
+          "7": 12,
+          "10": 3,
+          "16": 3,
+          "18": 3,
+          "20": 3,
+          "21": 18,
+          "22": 27,
+          "23": 33,
+          "24": 18,
+          "25": 9,
+          "26": 9,
+          "27": 3,
+          "28": 15,
+          "29": 6,
+          "30": 9,
+          "31": 6,
+          "32": 3,
+          "33": 12,
+          "34": 3,
+          "35": 6,
+          "36": 3
+        },
+        "first_candidate": null,
+        "initial_feet": [
+          [
+            -0.05,
+            -0.2,
+            0.226
+          ],
+          [
+            -0.05,
+            0.2,
+            0.226
+          ],
+          [
+            -0.4,
+            -0.2,
+            0.226
+          ],
+          [
+            -0.4,
+            0.2,
+            0.226
+          ]
+        ],
+        "target": [
+          0.3,
+          -0.2,
+          0.226
+        ],
+        "apex_z": 0.30600000000000005,
+        "body_x_samples": [
+          -0.3,
+          -0.25,
+          -0.2,
+          -0.15,
+          -0.1,
+          -0.05
+        ],
+        "body_y_samples": [
+          0,
+          0.05,
+          0.1,
+          0.15,
+          0.2
+        ],
+        "body_z_samples": [
+          0.36,
+          0.4,
+          0.44,
+          0.48,
+          0.52
+        ],
+        "mechanical_impossibility_proven": false,
+        "interpretation": "bounded fixed-body template failed; not proof of mechanical impossibility"
+      },
+      "wall_front_leg": {
+        "candidate_body_poses": 60,
+        "screened_feasible_poses": 0,
+        "failed_seed_attempts": {
+          "body_leg_or_swing_collision": 45,
+          "initial_pose_ik_or_joint_margin": 174,
+          "static_support_margin": 114,
+          "swing_path_ik_or_joint_margin": 27
+        },
+        "failed_force_solver_codes": {},
+        "first_failure_phase_sample_histogram": {
+          "0": 294,
+          "7": 33,
+          "8": 6,
+          "9": 12,
+          "10": 9,
+          "21": 3,
+          "22": 3
+        },
+        "first_candidate": null,
+        "initial_feet": [
+          [
+            -0.1,
+            -0.18,
+            0.026
+          ],
+          [
+            -0.1,
+            0.18,
+            0.026
+          ],
+          [
+            -0.46,
+            -0.18,
+            0.026
+          ],
+          [
+            -0.46,
+            0.18,
+            0.026
+          ]
+        ],
+        "target": [
+          0.1,
+          -0.18,
+          0.026
+        ],
+        "apex_z": 0.34600000000000003,
+        "body_x_samples": [
+          -0.35,
+          -0.3,
+          -0.25,
+          -0.2,
+          -0.15
+        ],
+        "body_y_samples": [
+          0,
+          0.05,
+          0.1
+        ],
+        "body_z_samples": [
+          0.3,
+          0.34,
+          0.38,
+          0.42
+        ],
+        "mechanical_impossibility_proven": false,
+        "interpretation": "bounded fixed-body template failed; not proof of mechanical impossibility"
+      },
+      "gap_front_leg": {
+        "candidate_body_poses": 80,
+        "screened_feasible_poses": 0,
+        "failed_seed_attempts": {
+          "initial_pose_ik_or_joint_margin": 52,
+          "static_support_margin": 296,
+          "swing_path_ik_or_joint_margin": 132
+        },
+        "failed_force_solver_codes": {},
+        "first_failure_phase_sample_histogram": {
+          "0": 348,
+          "18": 3,
+          "20": 3,
+          "21": 15,
+          "22": 27,
+          "23": 27,
+          "24": 3,
+          "25": 9,
+          "26": 3,
+          "27": 9,
+          "28": 6,
+          "29": 9,
+          "30": 3,
+          "31": 9,
+          "32": 3,
+          "33": 3
+        },
+        "first_candidate": null,
+        "initial_feet": [
+          [
+            -0.22599999999999998,
+            -0.18,
+            0.386
+          ],
+          [
+            -0.22599999999999998,
+            0.18,
+            0.386
+          ],
+          [
+            -0.596,
+            -0.18,
+            0.386
+          ],
+          [
+            -0.596,
+            0.18,
+            0.386
+          ]
+        ],
+        "target": [
+          0.22599999999999998,
+          -0.18,
+          0.386
+        ],
+        "apex_z": 0.456,
+        "body_x_samples": [
+          -0.4,
+          -0.35,
+          -0.3,
+          -0.25,
+          -0.2
+        ],
+        "body_y_samples": [
+          0,
+          0.05,
+          0.1,
+          0.15
+        ],
+        "body_z_samples": [
+          0.54,
+          0.58,
+          0.62,
+          0.66
+        ],
+        "mechanical_impossibility_proven": false,
+        "interpretation": "bounded fixed-body template failed; not proof of mechanical impossibility"
+      }
+    }
+  },
+  "steps": [
+    {
+      "foot": 0,
+      "plan_id": 1,
+      "error_m": 0.00138850906280198,
+      "support_contact_slip_m": 0.004142012387458716,
+      "support_foot_center_displacement_m": 0.004087316749044236,
+      "max_tilt_deg": 1.6808766553740802
+    },
+    {
+      "foot": 3,
+      "plan_id": 2,
+      "error_m": 0.0037829715597352304,
+      "support_contact_slip_m": 0.0037049200849264274,
+      "support_foot_center_displacement_m": 0.00789813883555574,
+      "max_tilt_deg": 1.783453873682281
+    },
+    {
+      "foot": 1,
+      "plan_id": 3,
+      "error_m": 0.007668804470523678,
+      "support_contact_slip_m": 0.00470239216412642,
+      "support_foot_center_displacement_m": 0.004665013057137081,
+      "max_tilt_deg": 1.5917879957966419
+    },
+    {
+      "foot": 2,
+      "plan_id": 4,
+      "error_m": 0.00916904742349336,
+      "support_contact_slip_m": 0.004012484950994828,
+      "support_foot_center_displacement_m": 0.009575963086978532,
+      "max_tilt_deg": 1.9147127316921988
+    },
+    {
+      "foot": 0,
+      "plan_id": 1,
+      "error_m": 0.0014781431327522707,
+      "support_contact_slip_m": 0.004141367289968308,
+      "support_foot_center_displacement_m": 0.004087382424357285,
+      "max_tilt_deg": 1.6749718675304357
+    },
+    {
+      "foot": 3,
+      "plan_id": 2,
+      "error_m": 0.003913151434135259,
+      "support_contact_slip_m": 0.0037123008253372204,
+      "support_foot_center_displacement_m": 0.007894508423032381,
+      "max_tilt_deg": 1.8189135263997924
+    },
+    {
+      "foot": 1,
+      "plan_id": 3,
+      "error_m": 0.007804232233286891,
+      "support_contact_slip_m": 0.004718185988936678,
+      "support_foot_center_displacement_m": 0.004671245330107392,
+      "max_tilt_deg": 1.5963938657221868
+    },
+    {
+      "foot": 2,
+      "plan_id": 4,
+      "error_m": 0.009296891097183516,
+      "support_contact_slip_m": 0.00399755148954826,
+      "support_foot_center_displacement_m": 0.009572182675977491,
+      "max_tilt_deg": 1.8837227834492214
+    },
+    {
+      "foot": 0,
+      "plan_id": 1,
+      "error_m": 0.0014484214486830552,
+      "support_contact_slip_m": 0.004141365543542384,
+      "support_foot_center_displacement_m": 0.004087352594578685,
+      "max_tilt_deg": 1.6787186964530312
+    },
+    {
+      "foot": 3,
+      "plan_id": 2,
+      "error_m": 0.003868133508572435,
+      "support_contact_slip_m": 0.0037049272285612465,
+      "support_foot_center_displacement_m": 0.00789431910514138,
+      "max_tilt_deg": 1.7844667472804847
+    },
+    {
+      "foot": 1,
+      "plan_id": 3,
+      "error_m": 0.007755795573131876,
+      "support_contact_slip_m": 0.0047025034303752895,
+      "support_foot_center_displacement_m": 0.0046644546493875205,
+      "max_tilt_deg": 1.5939362623022888
+    },
+    {
+      "foot": 2,
+      "plan_id": 4,
+      "error_m": 0.009260456953415588,
+      "support_contact_slip_m": 0.004013122580087101,
+      "support_foot_center_displacement_m": 0.009577148110109445,
+      "max_tilt_deg": 1.9012137226858123
+    }
+  ],
+  "artifacts": {
+    "artifacts/rc2027/m2-entry-final/summary.json": "36991d80eb1efec802849a5d6e8ff0be4d44f5c0f43d5b767cd5081ae073cabd",
+    "artifacts/rc2027/m2-entry-final/mechanical-screen.yaml": "0aa76df4c54ccabcea9c3737831469304bab1cc4900caae02e807ed4427ea743"
+  },
+  "not_verified": [
+    "body-foot coordinated references",
+    "rear-leg and subsequent support transfer",
+    "continuous collision / self-collision planning",
+    "complete obstacle dynamics",
+    "M3-M7"
+  ]
+}
