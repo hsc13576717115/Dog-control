@@ -117,3 +117,5 @@ python3 tools/validate_qr.py --suite regression --output artifacts/qr/regression
 失败非零退出。未涵盖的动态故障列在报告中，不因套件通过而宣称完整验收。
 
 M1 收尾结果为 99/100；M2 有限连续模板与机械筛查正在推进，完整阶段尚未通过，见 [M2 记录](m2-entry.md)。
+
+M2 本轮已通过 9 次连续试验（144 步）及最终 25 项回归；高墙完整步序和名义障碍协同执行仍未通过。详见 [结果与未通过门槛](m2-progress.md)。

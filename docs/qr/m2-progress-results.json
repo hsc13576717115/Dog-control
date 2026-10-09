@@ -1,0 +1,322 @@
+{
+  "schema_version": 1,
+  "stage": "M2",
+  "stage_accepted": false,
+  "implementation_commit": "9f31f5092ca9034d056266e98f5210f06084b5c9",
+  "hardware_tested": false,
+  "control_observations": [
+    "IMU",
+    "joint q/dq/effort"
+  ],
+  "ground_truth_used_by_controller": false,
+  "evaluation_uses_gazebo_truth": true,
+  "model_sha256": "43257604c8353ffc993937e7dcf4c93f1379299e5585d28bd24c832040c03fc6",
+  "cad_mesh_hashes": {
+    "FR_thigh.STL": "b3bf00dbd8ed681cc27a3ad6a4cf8aa807cad8e1647c157c71115336c9114747",
+    "FL_hip.STL": "d3bda2776e250f4c1df0995d069c9e5a59d0c8e865627acc07f4ebab94c1a321",
+    "FR_hip.STL": "fa6b10f0e9948773866b454c2beca830e2bfb322d439688e4c6e410e324d895a",
+    "base.STL": "a03b5c84320d582cbd411fa0db2cf9c08c5cb46b44d31b60896e8290885fd474",
+    "RL_thigh.STL": "6c8130225e1db365796095f2a891b26a4c3690107a77ef73c63b8b3095e8da0f",
+    "RR_foot.STL": "e4aada8b647a46c0d11df703d6ed2f15168b8b4154d77b1df853da398d75187c",
+    "FR_foot.STL": "2687e45128d93ac801d297b5b879690cf7054720fe236f4731399eb5be3ec66f",
+    "RR_thigh.STL": "8d25dce56d3c37bffda79638f63b4d2958ccd4851e17610c992437436a00e916",
+    "FR_calf.STL": "c1f114c026d0bcc27e68c9e774ffcebdae642359428e5ea5b4f7cbeaff5930e7",
+    "FL_calf.STL": "d719959ddf5d117e54363c4fcd1ce41277d36b346868d1b8f32b8f7ae6e6a876",
+    "FL_foot.STL": "6125259157b36e0ec5d4accafb5c5ba29ad2e795b5ea3262f74dbe9f67131c96",
+    "FL_thigh.STL": "4fe41c8215edf1471e8396776a25504cfe0a7907a86c74e1aa703c01420ac2e8",
+    "RL_calf.STL": "58e34d963b1d1e4e8ec1b7e50df61617e017908ac253058793836410acfdd79c",
+    "RR_calf.STL": "9ad0bf2b7c98dbb7aa91fb39853974cbd876c4255b2f1a6ed5be0cc6ae81403b",
+    "RL_hip.STL": "89e3e14b982a6d9c4d31b1245f4a6895ce77ad4a38dbe876aa58065bc2ecbba8",
+    "RL_foot.STL": "6960046102035ab27352ca1528d763d8a5d10c6d99cb78783fb34d32688cfb63",
+    "RR_hip.STL": "c9db7e79eb9825ed9ee5083c9070589ffc8699ffe0368e8d7d24b57e2c0f4e87"
+  },
+  "thresholds": {
+    "max_error_m": 0.02,
+    "p95_error_m": 0.01,
+    "max_support_slip_m": 0.01,
+    "max_contact_slip_m": 0.01,
+    "max_tilt_deg": 5.0,
+    "minimum_success_rate": 0.95,
+    "minimum_trials_per_foot": 25
+  },
+  "scope": "Known horizontal low-platform dynamic execution and nominal local mechanical screening; not competition obstacle certification",
+  "continuous_suite": {
+    "directory": "artifacts/rc2027/m2-continuous-r2",
+    "passed_entries": 19,
+    "total_entries": 19,
+    "cases": {
+      "flat_walk": {
+        "repeats": 3,
+        "completed_steps": 48,
+        "p95_error_m": 0.00615356727229883,
+        "max_error_m": 0.006230382773888405,
+        "max_material_contact_slip_m": 2.0089912912029443e-05,
+        "max_support_center_displacement_m": 0.006015564823787765,
+        "max_tilt_deg": 1.8954709166185948,
+        "body_advance_m": [
+          0.10411802858642707,
+          0.10411077911390332,
+          0.10421200863785715
+        ]
+      },
+      "platform_30mm": {
+        "repeats": 3,
+        "completed_steps": 48,
+        "p95_error_m": 0.007483925854579649,
+        "max_error_m": 0.007608763401223548,
+        "max_material_contact_slip_m": 2.2539336591772163e-05,
+        "max_support_center_displacement_m": 0.009447974681213295,
+        "max_tilt_deg": 1.963320249872404,
+        "body_advance_m": [
+          0.53650171277307,
+          0.5365144704681202,
+          0.5365808621817838
+        ]
+      },
+      "platform_50mm": {
+        "repeats": 3,
+        "completed_steps": 48,
+        "p95_error_m": 0.007352042963364771,
+        "max_error_m": 0.0074023454518498824,
+        "max_material_contact_slip_m": 2.5940715098447158e-05,
+        "max_support_center_displacement_m": 0.009750573756399407,
+        "max_tilt_deg": 1.9502613024721014,
+        "body_advance_m": [
+          0.5355932771505133,
+          0.5357599295453809,
+          0.5356842014258343
+        ]
+      }
+    },
+    "runtime_binary_hashes": {
+      "install/custom_dog_control/lib/libcustom_dog_control_nmpc_wbc_controller.so": "479812cbb0d8ad27c302b466a5a6b974c0597348e241ec04673c15c668d76379",
+      "install/qr_planning/lib/qr_planning/finite_sequence": "4f7bd1070f7b0b7c5d61d02361f2000ddf0744d32023eb4fe3b6b323d55ebd8e"
+    },
+    "version_note": "All 9 repeated runs used identical controller and finite-sequence binaries. Final API error classification and offline diagnostics were then rebuilt and validated by the final regression and a fresh platform50 run. These are not claimed as one immutable source-tree snapshot."
+  },
+  "final_regression": {
+    "directory": "artifacts/rc2027/m2-final-regression",
+    "passed_entries": 25,
+    "total_entries": 25,
+    "case_results": [
+      {
+        "name": "unit-custom_dog_control",
+        "status": "passed"
+      },
+      {
+        "name": "unit-qr_planning",
+        "status": "passed"
+      },
+      {
+        "name": "unit-qr_course",
+        "status": "passed"
+      },
+      {
+        "name": "unit-qr_validation",
+        "status": "passed"
+      },
+      {
+        "name": "step-0-0",
+        "status": "passed"
+      },
+      {
+        "name": "step-0-0.03",
+        "status": "passed"
+      },
+      {
+        "name": "step-0-0.05",
+        "status": "passed"
+      },
+      {
+        "name": "step-1-0",
+        "status": "passed"
+      },
+      {
+        "name": "step-1-0.03",
+        "status": "passed"
+      },
+      {
+        "name": "step-1-0.05",
+        "status": "passed"
+      },
+      {
+        "name": "step-2-0",
+        "status": "passed"
+      },
+      {
+        "name": "step-2-0.03",
+        "status": "passed"
+      },
+      {
+        "name": "step-2-0.05",
+        "status": "passed"
+      },
+      {
+        "name": "step-3-0",
+        "status": "passed"
+      },
+      {
+        "name": "step-3-0.03",
+        "status": "passed"
+      },
+      {
+        "name": "step-3-0.05",
+        "status": "passed"
+      },
+      {
+        "name": "fault-unreachable",
+        "status": "passed"
+      },
+      {
+        "name": "fault-cancel",
+        "status": "passed"
+      },
+      {
+        "name": "fault-replay",
+        "status": "passed"
+      },
+      {
+        "name": "fault-missed_touchdown",
+        "status": "passed"
+      },
+      {
+        "name": "fault-stale_imu",
+        "status": "passed"
+      },
+      {
+        "name": "fault-side_collision",
+        "status": "passed"
+      },
+      {
+        "name": "fault-support_loss",
+        "status": "passed"
+      },
+      {
+        "name": "fault-slip",
+        "status": "passed"
+      },
+      {
+        "name": "legacy-motion",
+        "status": "passed"
+      }
+    ]
+  },
+  "final_platform50": {
+    "git_commit": "9f31f5092ca9034d056266e98f5210f06084b5c9",
+    "status": "passed",
+    "p95_error_m": 0.0073208956080800264,
+    "body_advance_m": 0.5356804410465917,
+    "binary_hashes": {
+      "install/custom_dog_control/lib/libcustom_dog_control_nmpc_wbc_controller.so": "8464ac734f9d847961e3b05d51502a6140eea4cb3ab89c0a6d1c5570debd7542",
+      "install/qr_planning/lib/qr_planning/finite_sequence": "4f7bd1070f7b0b7c5d61d02361f2000ddf0744d32023eb4fe3b6b323d55ebd8e"
+    },
+    "input_hashes": {
+      "fixture.world": "9aee223cffacdb03ad18111caace74b36cfe1d55759ed65121e15b765f8d57d3",
+      "fixture.world.json": "350787739188bf305b6a21e9c94f909e5ea72ff3b3b21468c75ba77ada6bc6c6",
+      "precision_model.yaml": "2e7a16844fdc541fc97942f6f51f0d1802e89deb81e0934d1e9ea089e92bbd3f",
+      "precision_control.yaml": "bbfdae70167ad76ac278bf3be02c6b9a820ddbf86bb2e0c252032cf4d2b2a209",
+      "controllers.yaml": "189aae272ec27e7391a60c2eaf574813a07a41d3c200d006433ab986399071ec",
+      "robot.urdf": "a54c4a81b4bbed0963c06da635960695d6a67054d84a447581b2ff83623ce092"
+    },
+    "directory": "artifacts/rc2027/m2-final-platform50"
+  },
+  "mechanical": {
+    "local_two_stones": {
+      "passed": true,
+      "dynamic_execution_certified": false,
+      "continuous_collision_certified": false,
+      "hardware_tested": false,
+      "source_report": "artifacts/rc2027/m2-coordinated/ikfix-stones.yaml",
+      "fixture": "platform_to_one_stone",
+      "variant": "0.240000_0.200000",
+      "subdivisions_per_edge": 10,
+      "edge": 340,
+      "subsample": 10,
+      "checked_samples": 3401,
+      "report_sha256": "e6e2e4a22d8ad7a9c0b862feb3b0435d1182830d412efc3af857a35285e9ec9d",
+      "source_report_sha256": "108207b1c9fb1a9cc4b40f5d4c81c49073221856d01a2ab567f4618974b8a9c6"
+    },
+    "gap": {
+      "passed": true,
+      "dynamic_execution_certified": false,
+      "continuous_collision_certified": false,
+      "hardware_tested": false,
+      "source_report": "artifacts/rc2027/m2-coordinated/min-shift-gap.yaml",
+      "fixture": "gap_front_leg",
+      "variant": "0.240000_0.200000",
+      "subdivisions_per_edge": 10,
+      "edge": 490,
+      "subsample": 10,
+      "checked_samples": 4901,
+      "report_sha256": "50315b6d7868becd43490f8dada22ce3be81d8f923e2f876335ab96ca5407a66",
+      "source_report_sha256": "90652f46d6d982c4131397c24027e0e84a61233456a93b2cc0b033d3a61c651a"
+    },
+    "wall_front_descent_fragment_only": {
+      "passed": true,
+      "dynamic_execution_certified": false,
+      "continuous_collision_certified": false,
+      "hardware_tested": false,
+      "source_report": "artifacts/rc2027/m2-coordinated/wall-reserve-fragment.yaml",
+      "fixture": "wall_front_descent",
+      "variant": "optimized_fragment",
+      "subdivisions_per_edge": 10,
+      "edge": 33,
+      "subsample": 10,
+      "checked_samples": 331,
+      "report_sha256": "7a588dfda8e21839fe6c1410ac645ca86cc78c53b62cacd4e3d93453aa29b4a6",
+      "source_report_sha256": "0c1b8a6ea1a84b484e7cd344904e635c92e7650cb8502175fb0f6b3872c71859",
+      "full_wall_sequence": false
+    }
+  },
+  "open_gates": [
+    {
+      "name": "wall_complete_body_and_rear_sequence",
+      "status": "not_passed",
+      "reason": "Static endpoint and a descent fragment pass; a complete approach/body/rear-leg path has not been established. Bounded-template IK/collision failures do not prove mechanical impossibility."
+    },
+    {
+      "name": "coordinated_reference_execution",
+      "status": "not_implemented",
+      "reason": "The current action supports validated single-foot steps and terminal body translation, not the offline body-position/orientation knot paths."
+    },
+    {
+      "name": "nominal_local_obstacle_dynamic_repeats",
+      "status": "not_executed",
+      "reason": "No Gazebo closed-loop acceptance for the nominal stone/gap/wall coordinated candidates."
+    }
+  ],
+  "retained_failures": [
+    {
+      "directory": "artifacts/rc2027/m2-walk-v2",
+      "reason": "Planning callback starvation caused stale state; dedicated planning executor added."
+    },
+    {
+      "directory": "artifacts/rc2027/m2-walk-v3",
+      "reason": "Default ODE long-horizon drift; solver iteration convergence investigated."
+    },
+    {
+      "directory": "artifacts/rc2027/m2-platform30-v1",
+      "reason": "Support centre displacement exceeded 10 mm; retained."
+    },
+    {
+      "directory": "artifacts/rc2027/m2-platform30-v2",
+      "reason": "Rear foot outside eroded safe region by about 0.065 mm; retained."
+    },
+    {
+      "file": "artifacts/rc2027/m2-coordinated/stones-material-contact-replay.yaml",
+      "reason": "Dense replay exposed IK convergence/returned-pose inconsistency; corrected and candidates regenerated."
+    },
+    {
+      "directory": "artifacts/rc2027/m2-continuous-r1",
+      "reason": "Interrupted after discovering IK bug; not counted as final acceptance."
+    }
+  ],
+  "not_executed": [
+    "New M1 100-cold-trial matrix",
+    "M2 parameter/noise/terrain perturbation campaign",
+    "Full six-stone contact coverage",
+    "Full nominal wall or gap dynamic traversal",
+    "Perception, mission, NX and physical motors",
+    "180-second full competition"
+  ]
+}

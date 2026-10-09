@@ -252,3 +252,5 @@ sensor input for the controller.
 
 M1 scoped simulation closeout reached 99/100 on frozen commit `55f7dd5`.
 M2 adds 16-step body-following sequences, complete four-foot transfers onto 30/50 mm platforms, and read-only whole-sequence preflight before fresh per-step approval. Planning runs on a dedicated non-real-time executor. A joint-limit IK convergence bug found by dense candidate replay has been corrected; repeated tests are rerun after the fix. Offline coordinated searches include rear-leg follow-up, but their trajectories are not executable action plans. The full M2 gate remains open, especially the wall path and coordinated dynamic execution. See [current M2 evidence and limits](docs/qr/m2-progress.md), or the [historical entry record](docs/qr/m2-entry.md).
+
+The latest M2 work passed 9 repeated closed-loop runs (144 steps) and a final 25-entry regression suite. Full M2 acceptance remains false: the complete wall sequence and nominal-obstacle coordinated execution are still missing. See [results and open gates](docs/qr/m2-progress.md).
