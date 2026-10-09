@@ -69,6 +69,7 @@ controller_interface::CallbackReturn NmpcWbcController::on_init() {
     auto_declare<std::string>("urdf_file", "");
     auto_declare<std::string>("task_file", "");
     auto_declare<std::string>("reference_file", "");
+    auto_declare<bool>("precision_enabled", false);
     auto_declare<bool>("legacy_joy_y_right", true);
     auto_declare<bool>("use_sim_ground_truth", true);
     auto_declare<double>("ground_truth_timeout_s", 0.10);
@@ -150,6 +151,10 @@ controller_interface::CallbackReturn NmpcWbcController::on_configure(
       }
     }
 
+    precision_enabled_ = node->get_parameter("precision_enabled").as_bool();
+    if (precision_enabled_ && IsRealHardware()) {
+      throw std::invalid_argument("QR precision release is simulation-only: real effort/contact calibration not validated");
+    }
     legacy_joy_y_right_ = node->get_parameter("legacy_joy_y_right").as_bool();
     use_sim_ground_truth_ =
         node->get_parameter("use_sim_ground_truth").as_bool();
@@ -316,6 +321,10 @@ controller_interface::CallbackReturn NmpcWbcController::on_configure(
     estimator_ = std::make_unique<KinematicStateEstimator>(
         backend_->pinocchioInterface(), backend_->modelInfo());
     estimator_->Reset(nominal_height_m_);
+    if (precision_enabled_) {
+      if (use_sim_ground_truth_) throw std::invalid_argument("QR precision control forbids ground-truth state input");
+      precision_ = std::make_unique<PrecisionRuntime>(node, *backend_, urdf_file_, task_file_);
+    }
 
     SafetyLimits safety_limits;
     // 策略容许年龄按 MPC 周期换算为秒；实机固定两周期，仿真可配置更宽裕。
@@ -401,6 +410,7 @@ controller_interface::CallbackReturn NmpcWbcController::on_configure(
     return controller_interface::CallbackReturn::SUCCESS;
   } catch (const std::exception& exception) {
     RCLCPP_ERROR(get_node()->get_logger(), "Configuration failed: %s", exception.what());
+    precision_.reset();
     backend_.reset();
     estimator_.reset();
     return controller_interface::CallbackReturn::ERROR;
@@ -435,7 +445,8 @@ controller_interface::CallbackReturn NmpcWbcController::on_activate(
   if (safety_monitor_) {
     safety_monitor_->Reset();
   }
-  backend_->Start();
+  if (precision_) precision_->Activate();
+  else backend_->Start();
   mode_publisher_->on_activate();
   contact_publisher_->on_activate();
   diagnostics_publisher_->on_activate();
@@ -449,6 +460,7 @@ controller_interface::CallbackReturn NmpcWbcController::on_deactivate(
   // 先把命令句柄切到安全输出，再等待求解线程退出；Stop 可能阻塞，
   // 因此放在生命周期路径，而不是周期控制路径。
   mode_ = OperatingMode::FAULT;
+  if (precision_) precision_->Deactivate();
   WriteSafeCommand();
   if (backend_) {
     backend_->Stop();

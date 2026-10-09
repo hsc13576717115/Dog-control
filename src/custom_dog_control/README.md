@@ -177,3 +177,7 @@ ros2 run custom_dog_control keyboard_teleop.py
 - [验收基线](../../docs/validation-baselines.md)：完整包线和地形测试。
 
 以上相对链接适用于源码仓库；安装后的 `share/custom_dog_control/README.md` 请结合源码阅读。
+
+## QR 精确模式
+
+`precision_enabled` 默认关闭。仅 Gazebo 下允许启用，使用 IMU、关节 q/dq/effort 推断接触，无足底传感器输入。原 NMPC 速度模式保留，精确模式使用显式参考 WBC，不启动在线 NMPC。入口和实际验证状态见 [QR 文档](../../docs/qr/README.md)。

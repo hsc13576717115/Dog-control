@@ -1,9 +1,29 @@
 #include <gtest/gtest.h>
+#include <limits>
 
 #include "custom_dog_control/control/JointCommandUtils.hpp"
 
 namespace custom_dog_control {
 namespace {
+
+TEST(JointCommand, FinalOutputClampsCombinedTorqueAndRejectsInvalidFeedback) {
+  JointSample measured;
+  HybridJointCommand command;
+  command.position[0] = 1.;
+  command.kp[0] = 50.;
+  command.effort[0] = 5.;
+  EXPECT_DOUBLE_EQ(BoundedEquivalentEffort(command, measured, 0, 10.), 10.);
+  command.position[0] = -1.;
+  EXPECT_DOUBLE_EQ(BoundedEquivalentEffort(command, measured, 0, 10.), -10.);
+  command.kp[0] = 0.;
+  measured.position[0] = std::numeric_limits<double>::quiet_NaN();
+  EXPECT_DOUBLE_EQ(BoundedEquivalentEffort(command, measured, 0, 10.), 0.);
+  measured.position[0] = 0.;
+  measured.velocity[0] = std::numeric_limits<double>::infinity();
+  EXPECT_DOUBLE_EQ(BoundedEquivalentEffort(command, measured, 0, 10.), 0.);
+  measured.velocity[0] = 0.;
+  EXPECT_DOUBLE_EQ(BoundedEquivalentEffort(command, measured, 0, -1.), 0.);
+}
 
 TEST(JointCommand, PositionPdUsesHipThighCalfOrderOnEveryLeg) {
   std::array<double, kJointCount> pose{};

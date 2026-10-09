@@ -3,6 +3,12 @@
 控制器插件仍是一个 `ros2_control::ControllerInterface` 生命周期实例，内部状态由它持有；
 按职责拆分实现文件，避免把高频链路分散到额外节点。仿真和真机使用同一套 NMPC/WBC。
 
+下图描述原速度控制链路。`RC2027` 分支新增独立启用的 QR 精确换步模式：
+`PrecisionRuntime` 在同一控制插件内执行接触估计、单步阶段和 `PrecisionWbc`，
+此模式不启动 NMPC 求解线程，禁止真实硬件和基座真值输入。
+控制输入为 IMU 与关节 q/dq/effort，机器人没有足底传感器。
+详见 [QR 架构与验收状态](qr/README.md)；后续感知依赖来源见 [MID360 / FAST-LIO](qr/perception-source.md)。
+
 ```text
 /imu + 关节反馈 ──> KinematicStateEstimator ──> observation
 Gazebo ground truth ────────────────────────> observation（仿真配置）
@@ -34,6 +40,7 @@ Gazebo ground truth ────────────────────
 | `include/.../controller/NmpcWbcController.hpp` | 生命周期接口与控制器私有状态 | 与实现文件配套修改 |
 | `include/.../control/JointCommandUtils.hpp` | 纯关节 PD、等效力矩与连续力矩交接计算 | 修改混合控制数学逻辑 |
 | `src/nmpc/` | 模型验证、状态估计、NMPC 与 WBC 适配 | 修改控制算法或估计器 |
+| `src/precision/`、`include/.../precision/` | 仿真精确 WBC、力矩残差接触估计、单步预检和动作执行 | 修改指定落点及承载确认逻辑 |
 | `src/nmpc/NmpcBackend.cpp` 内的 `GaitCommandModule` | 运行时接触计划 | 修改步态调度 |
 | `src/safety/` | 输入有效性、限位、超时与故障锁存 | 修改安全条件 |
 | `src/hardware/` | Unitree 电机协议、串口、方向与标定 | 接入/维护实机 |

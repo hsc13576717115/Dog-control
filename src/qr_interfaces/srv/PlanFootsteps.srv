@@ -1,0 +1,7 @@
+uint8 foot
+geometry_msgs/Point target
+uint32 surface_id
+---
+bool accepted
+string reason
+qr_interfaces/FootstepPlan plan

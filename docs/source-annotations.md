@@ -1,6 +1,8 @@
 # 源码注释约定与阅读入口
 
-本轮将机械式逐行说明改为面向维护的工程注释。对上次处理清单中的
+本页记录历史工作空间级注释整理，统计包含当时的两个仓库；并非本仓库当前文件数量。
+
+当时将机械式逐行说明改为面向维护的工程注释。对上次处理清单中的
 2,497 个源码、构建和配置文件进行了基线对比：2,466 个恢复为原始内容，
 22 个 C++ 文件和 9 个 Python 文件补充或改写了关键约定。
 这表示全范围清理，不表示每个依赖文件都经过逐行人工审阅。
@@ -30,20 +32,6 @@
 
 生命周期、输入仲裁、诊断、混合力矩插值及时间统计的说明位于对应文件中。
 模型校验检查的是模型约定，不能替代实物零点标定；规划接触也不是触地测量。
-
-## 训练与部署阅读入口
-
-`himloco_custom_dog/source/himloco_lab/himloco_lab/` 中的说明重点如下：
-
-- `rsl_rl/modules/him_estimator.py`：观测切片、带缩放的速度监督、原型分配与梯度边界。
-- `rsl_rl/modules/him_actor_critic.py`：非对称观测、历史帧顺序、采样动作和部署均值。
-- `rsl_rl/algorithms/him_ppo.py`、`rsl_rl/storage/him_rollout_storage.py`：旧策略快照、超时处理、GAE 和批次对齐。
-- `rsl_rl/runners/him_on_policy_runner.py`、`rsl_rl/wrappers/himloco_vec_env_wrapper.py`：reset 前后观测的用途、历史排列和优化器状态。
-- `tasks/locomotion/robots/go2/velocity_env_cfg.py`：45 维单帧观测及 critic 速度标签的位置。
-- `utils/export_policy.py`、`utils/export_deploy_cfg.py`：固定维度、潜变量归一化、总历史帧数和部署配置的精度。
-
-这些注释描述当前实现。例如，历史缓冲区未按 dones 清空、JIT 导出固定单帧
-45 维等行为被明确记录，本轮不顺带修改训练或部署逻辑。
 
 ## 验证
 

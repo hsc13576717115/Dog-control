@@ -9,6 +9,9 @@
 [himloco_custom_dog/deployment](https://github.com/hsc13576717115/himloco_custom_dog/tree/master/deployment)。
 该部署工作区包含独立硬件插件，不依赖本仓库。
 
+当前开发与远端同步分支统一为 **`RC2027`**。本阶段提交直接推送到 `origin/RC2027`；
+使用 PR 时，目标分支也选 `RC2027`，不默认合入 `main`。
+
 ## 仓库分工与入口
 
 | 开发目标 | 对应仓库 / 目录 | 文档 |
@@ -56,7 +59,7 @@ Dog/
 ```bash
 mkdir -p Dog
 cd Dog
-git clone https://github.com/hsc13576717115/Dog-control.git
+git clone --branch RC2027 https://github.com/hsc13576717115/Dog-control.git
 git clone https://github.com/hsc13576717115/himloco_custom_dog.git
 git -C himloco_custom_dog lfs install --local
 git -C himloco_custom_dog lfs pull --include='assets/custom_dog_description/**'
@@ -253,3 +256,14 @@ ARM64 必须在目标设备重新编译。实机状态估计、12 电机 RS485 �
 - 上游源码校验：[legged_control_upstream.sha256](src/custom_dog_control/config/legged_control_upstream.sha256)。
 - 本包及 vendored `legged_control` / WBC 使用 BSD-3-Clause；qpOASES 使用 LGPL-2.1，见各第三方目录许可证。
 - 迁移前代码保留在 `pre-ros2-nmpc-wbc` 标签；包级入口说明见 [包 README](src/custom_dog_control/README.md)。
+
+## QR 精确越障开发（RC2027 分支）
+
+**机器人当前只有 IMU 和关节反馈，没有足底接触传感器。** 新增 `qr_*` 模块用于已知支撑面的精确换步仿真，接触由关节力矩残差与运动学估计；精确模式默认关闭，禁止真机启动。架构、构建命令、阶段计划及实际验收状态见 [QR 开发文档](docs/qr/README.md)。当前尚未完成 M1 全量验收或整场比赛自主越障。
+
+后续 MID360 驱动和 FAST-LIO ROS 2 固定取自你的 `ROBOCON_NBUT_R2` 仓库，
+通过 `tools/fetch_perception.sh` 获取到独立的 `external/perception_ws`。
+版本、接口、构建前提及待标定项目见 [感知依赖说明](docs/qr/perception-source.md)。
+当前已获取源码，未运行雷达或定位，也未接入控制闭环。
+
+2026-10-09：已知几何单步矩阵 **100/100 通过**，落点误差 P95 3.77 mm、最大 3.80 mm；完整故障覆盖仍待补齐。条件、早期失败及未执行项目见 [验证记录](docs/qr/validation.md)。

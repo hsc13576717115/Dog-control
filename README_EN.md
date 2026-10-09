@@ -6,6 +6,9 @@ Traditional locomotion control for a custom 12-DoF quadruped: **ROS 2 Humble + O
 
 This repository maintains traditional NMPC/WBC control. RL policies, the RL hardware controller and NX deployment tools live in [himloco_custom_dog/deployment](https://github.com/hsc13576717115/himloco_custom_dog/tree/master/deployment). That workspace has its own hardware plugin and does not depend on this repository.
 
+The active development and remote integration branch is **`RC2027`**. Push this work to
+`origin/RC2027`; pull requests for this work also target `RC2027`, not `main`.
+
 ## Repository responsibilities
 
 | Development area | Repository / location | Documentation |
@@ -48,7 +51,7 @@ Clone into sibling directories. If you already have a robot description package,
 ```bash
 mkdir -p Dog
 cd Dog
-git clone https://github.com/hsc13576717115/Dog-control.git
+git clone --branch RC2027 https://github.com/hsc13576717115/Dog-control.git
 git clone https://github.com/hsc13576717115/himloco_custom_dog.git
 git -C himloco_custom_dog lfs install --local
 git -C himloco_custom_dog lfs pull --include='assets/custom_dog_description/**'
@@ -224,3 +227,14 @@ Recompile on the ARM64 target. Physical state estimation, RS485 timing for all 1
 - Upstream hashes: [legged_control_upstream.sha256](src/custom_dog_control/config/legged_control_upstream.sha256).
 - This package and vendored `legged_control` / WBC use BSD-3-Clause; qpOASES uses LGPL-2.1. See the corresponding third-party licenses.
 - Pre-migration code is retained under the `pre-ros2-nmpc-wbc` tag. See also the [package README](src/custom_dog_control/README.md).
+
+## QR precision development (RC2027)
+
+The experimental Gazebo-only precision branch uses IMU and joint feedback; the robot has no sole contact sensors. Contact is estimated, not measured. See [architecture, build instructions and actual validation status](docs/qr/README_EN.md). Physical deployment and competition autonomy are not validated.
+
+MID360 and ROS 2 FAST-LIO sources are pinned to your `ROBOCON_NBUT_R2` repository.
+`tools/fetch_perception.sh` exports them into the isolated `external/perception_ws`.
+See [provenance, build prerequisites and integration limits](docs/qr/perception-source.md).
+Sources have been retrieved; lidar operation, localization and controller integration have not been tested.
+
+2026-10-09: **100/100 known-fixture step trials passed**, with 3.77 mm P95 and 3.80 mm maximum foot-placement error. Complete fault coverage remains outstanding; see [validation conditions and retained failures](docs/qr/validation.md).

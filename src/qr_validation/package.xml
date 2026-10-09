@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>qr_validation</name>
+  <version>0.1.0</version>
+  <description>QR quadruped validation</description>
+  <maintainer email="maintainer@example.com">Custom Dog Team</maintainer>
+  <license>BSD-3-Clause</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>qr_interfaces</exec_depend>
+  <exec_depend>gazebo_msgs</exec_depend>
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>qr_bringup</exec_depend>
+  <exec_depend>action_msgs</exec_depend>
+</package>

@@ -1,0 +1,11 @@
+{
+  "source_sha256": "a3192e6397680f32c1050eea4775c99db94885044d255be2f4688427a8790d24",
+  "missing_assets": [
+    "terrain.png"
+  ],
+  "stone_center_spacing_m": 0.2999999999999998,
+  "rule_center_spacing_m": 0.6000000000000001,
+  "dimensions_match": false,
+  "robot_present": false,
+  "competition_validated": false
+}

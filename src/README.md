@@ -1,10 +1,23 @@
-# ROS 2 source packages
+# ROS 2 源码包
+
+**中文** | [English](README_EN.md)
 
 该目录由 `colcon` 发现 ROS 2 包，不使用 ROS 1/catkin 顶层构建文件。
 
 - `custom_dog_control`：NMPC、WBC、状态机和 ros2_control 插件。
 - `fdilink_ahrs`：IMU 驱动。
 - `serial_ros2`：源码目录，对外 ROS 包名为 `serial`。
+- `qr_interfaces`：精确换步的状态、支撑面、计划和动作契约。
+- `qr_planning`：安全支撑区域与连续轨迹原语。
+- `qr_course`：规则配置与已知几何测试场景。
+- `qr_bringup`：Gazebo 精确换步启动入口。
+- `qr_validation`：独立评价、冷启动测试和批量报告。
+
+QR 表示四足开发模块，分支名仍为 `RC2027`。精确模式目前仅用于仿真，
+以 IMU 和关节反馈估计接触；机器人没有足底接触传感器。
+具体实现与验收状态见 [QR 文档](../docs/qr/README.md)。
+后续 MID360 和 FAST-LIO 使用独立的 `external/perception_ws`，
+来源和接入边界见 [感知依赖说明](../docs/qr/perception-source.md)。
 
 机器人模型来自外部 underlay 中的 `custom_dog_description` 包。
 

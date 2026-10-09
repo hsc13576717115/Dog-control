@@ -31,3 +31,5 @@ Makefile
 # External dependency workspaces: reproduced by scripts, not committed
 /external/ocs2_ws/
 /external/model_ws/
+
+/external/perception_ws/

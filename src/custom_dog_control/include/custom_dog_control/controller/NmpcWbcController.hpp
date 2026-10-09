@@ -21,6 +21,7 @@
 #include "custom_dog_control/nmpc/KinematicStateEstimator.hpp"
 #include "custom_dog_control/nmpc/NmpcBackend.hpp"
 #include "custom_dog_control/safety/SafetyMonitor.hpp"
+#include "custom_dog_control/precision/PrecisionRuntime.hpp"
 
 namespace custom_dog_control {
 
@@ -177,6 +178,8 @@ class NmpcWbcController final : public controller_interface::ControllerInterface
   TimingWindow<512> io_timing_;
   TimingWindow<512> mpc_timing_;
 
+  std::unique_ptr<PrecisionRuntime> precision_;
+  bool precision_enabled_ = false;
   std::unique_ptr<NmpcBackend> backend_;
   std::unique_ptr<KinematicStateEstimator> estimator_;
   std::unique_ptr<SafetyMonitor> safety_monitor_;

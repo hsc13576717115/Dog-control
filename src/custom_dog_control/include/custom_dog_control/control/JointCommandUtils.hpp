@@ -1,5 +1,8 @@
 #pragma once
 
+#include <algorithm>
+#include <cmath>
+
 #include "custom_dog_control/control/ControlTypes.hpp"
 
 namespace custom_dog_control {
@@ -23,6 +26,19 @@ inline double EquivalentEffort(
   return command.effort[joint] +
          command.kp[joint] * (command.position[joint] - measured.position[joint]) +
          command.kd[joint] * (command.velocity[joint] - measured.velocity[joint]);
+}
+
+// Last simulation output boundary: clamp the combined PD/feedforward effort.
+// A zero gain does not suppress NaN arithmetic (0 * NaN is NaN), so an invalid
+// sample must produce a finite disabled output instead of poisoning physics.
+inline double BoundedEquivalentEffort(
+    const HybridJointCommand& command, const JointSample& measured,
+    std::size_t joint, double effort_limit) {
+  const double effort = EquivalentEffort(command, measured, joint);
+  if (!std::isfinite(effort) || !std::isfinite(effort_limit) || effort_limit < 0.0) {
+    return 0.0;
+  }
+  return std::clamp(effort, -effort_limit, effort_limit);
 }
 
 // 同时插值增益和目标会在 PD 力矩中产生交叉项，故用前馈补偿，保证在

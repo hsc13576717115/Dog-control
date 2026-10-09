@@ -1,0 +1,7 @@
+qr_interfaces/FootstepPlan plan
+---
+bool success
+string reason
+uint32 completed_steps
+---
+qr_interfaces/ExecutionStatus status

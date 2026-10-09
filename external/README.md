@@ -6,8 +6,9 @@
 | --- | --- | --- |
 | `ocs2_ws/` | 固定版本 OCS2、robotic assets、本项目补丁及构建产物 | 主仓库 `fetch_ocs2.sh` + 独立 colcon 构建 |
 | `model_ws/` | 从 RL 仓库复制的规范模型、生成的 Gazebo 点足模型及构建产物 | 主仓库 `build_simulation.sh` 自动准备和构建 |
+| `perception_ws/` | 用户仓库固定版本 MID360 驱动与 FAST-LIO ROS 2 | `tools/fetch_perception.sh` 只获取源码，单独构建 |
 
-两个目录由根 `.gitignore` 排除。版本清单、补丁、模型生成逻辑保存在主仓库，
+这些目录由根 `.gitignore` 排除。版本清单、补丁、模型生成逻辑保存在主仓库，
 无需把依赖副本或二进制提交到 Git。首次准备步骤见 [安装说明](../docs/setup.md)。
 模型原始来源仍是同级 `himloco_custom_dog/assets/custom_dog_description`。
 

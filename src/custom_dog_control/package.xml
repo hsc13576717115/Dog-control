@@ -61,4 +61,8 @@
   <export>
     <build_type>ament_cmake</build_type>
   </export>
+  <depend>qr_interfaces</depend>
+  <depend>qr_planning</depend>
+  <depend>rclcpp_action</depend>
+  <depend>coal</depend>
 </package>

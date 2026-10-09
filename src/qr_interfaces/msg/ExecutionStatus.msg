@@ -1,0 +1,10 @@
+std_msgs/Header header
+uint64 plan_id
+string phase
+string error
+uint32 completed_steps
+bool ready
+bool[4] contacts
+geometry_msgs/Point[4] targets
+float64 solve_time_ms
+float64 equality_residual

@@ -1,0 +1,10 @@
+std_msgs/Header header
+geometry_msgs/Pose pose
+geometry_msgs/Twist twist
+float64[12] joint_position
+float64[12] joint_velocity
+geometry_msgs/Point[4] feet
+bool[4] contacts
+float64[36] pose_covariance
+bool valid
+bool using_ground_truth

@@ -8,6 +8,7 @@
 #include <ocs2_pinocchio_interface/PinocchioInterface.h>
 
 #include "custom_dog_control/control/ControlTypes.hpp"
+#include "custom_dog_control/precision/PrecisionTypes.hpp"
 
 namespace custom_dog_control {
 
@@ -54,6 +55,11 @@ class KinematicStateEstimator {
       const ImuSample& imu,
       const std::array<bool, kLegCount>& planned_contacts,
       double dt);
+
+  // Actual (or explicitly estimated) contact with independent height validity.
+  // Unknown height is not zero; its observation row is removed.
+  EstimatedState Update(const JointSample& joints, const ImuSample& imu,
+                        const ContactSupport& support, double dt);
 
   // 清除滤波历史；下一次有效 Update 会用支撑腿运动学重新初始化高度。
   void Reset(double nominal_height_m);

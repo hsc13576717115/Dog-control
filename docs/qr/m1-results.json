@@ -1,0 +1,182 @@
+{
+  "trials": 100,
+  "passed": 100,
+  "jobs": 2,
+  "p95_error_m": 0.0037717643899606184,
+  "max_error_m": 0.0037984271944519503,
+  "all_error_metrics_available": true,
+  "error_metrics_count": 100,
+  "error_metrics_scope": "completed executions; all startup/rejected/aborted trials remain in success-rate denominator",
+  "step_matrix_accepted": true,
+  "scope": "Known M1 fixtures, not terrain randomization or full fault acceptance",
+  "hardware_tested": false,
+  "date": "2026-10-09",
+  "branch": "RC2027",
+  "base_commit": "662373b880dfafbf8a5d7fa9a9e04481ca47f985",
+  "model_sha256": "43257604c8353ffc993937e7dcf4c93f1379299e5585d28bd24c832040c03fc6",
+  "runtime_source_fingerprints": [
+    "4080d123a66cdb3bffefdeddd0ff3729ddf1cfc26c3bd7e9dcb6508afa2c2c69"
+  ],
+  "per_foot": [
+    {
+      "foot": "FR",
+      "trials": 25,
+      "passed": 25,
+      "p95_error_mm": 1.2556449914874608,
+      "max_error_mm": 1.2655077570181936,
+      "max_support_displacement_mm": 4.16585250964391,
+      "max_tilt_deg": 1.7605843910203525
+    },
+    {
+      "foot": "FL",
+      "trials": 25,
+      "passed": 25,
+      "p95_error_mm": 1.2575480124447977,
+      "max_error_mm": 1.2602164455305134,
+      "max_support_displacement_mm": 4.0734587385692915,
+      "max_tilt_deg": 1.7239742644549836
+    },
+    {
+      "foot": "RR",
+      "trials": 25,
+      "passed": 25,
+      "p95_error_mm": 3.786619546222932,
+      "max_error_mm": 3.797234151611485,
+      "max_support_displacement_mm": 7.9300067757239985,
+      "max_tilt_deg": 1.905318062533645
+    },
+    {
+      "foot": "RL",
+      "trials": 25,
+      "passed": 25,
+      "p95_error_mm": 3.7761830258592517,
+      "max_error_mm": 3.7984271944519503,
+      "max_support_displacement_mm": 8.072474919253917,
+      "max_tilt_deg": 1.860686846165791
+    }
+  ],
+  "faults": [
+    {
+      "name": "unreachable",
+      "status": "passed",
+      "reason": "outside_eroded_surface",
+      "artifact": "artifacts/rc2027/fault-unreachable/result.json"
+    },
+    {
+      "name": "cancel",
+      "status": "passed",
+      "reason": "canceled",
+      "artifact": "artifacts/rc2027/fault-cancel/result.json"
+    },
+    {
+      "name": "replay",
+      "status": "failed",
+      "reason": "standing_not_ready: state_or_attitude",
+      "artifact": "artifacts/rc2027/fault-replay/result.json"
+    },
+    {
+      "name": "missed_touchdown",
+      "status": "passed",
+      "reason": "probe_travel_limit",
+      "artifact": "artifacts/rc2027/fault-missed_touchdown/result.json"
+    },
+    {
+      "name": "stale_imu",
+      "status": "passed",
+      "reason": "invalid_state",
+      "artifact": "artifacts/rc2027/fault-stale_imu/result.json"
+    },
+    {
+      "name": "replay-paused",
+      "status": "passed",
+      "reason": "",
+      "artifact": "artifacts/rc2027/fault-replay-paused/result.json"
+    }
+  ],
+  "full_M1_fault_coverage": false,
+  "prior_attempts_retained": true,
+  "report_note": "Historical matrix precedes finite-output, angular-velocity and snapshot synchronization fixes; focused regression for later changes is recorded separately.",
+  "artifact": "artifacts/rc2027/m1-matrix-paused-100",
+  "unexecuted": [
+    "dynamic early side collision injection",
+    "dynamic slip/support-loss injection",
+    "joint-feedback staleness and solver-timeout injection",
+    "NX",
+    "real hardware",
+    "full competition course"
+  ],
+  "final_focused_smoke": {
+    "status": "passed",
+    "height": 0.05,
+    "foot": 3,
+    "scenario": "normal",
+    "seed": 0,
+    "scene_version": "qr-m1-v1",
+    "reported_height": 0.05,
+    "actual_height": 0.05,
+    "using_ground_truth_for_control": false,
+    "contact_input": "joint_effort_residual_and_kinematics",
+    "hardware_tested": false,
+    "thresholds": {
+      "max_error_m": 0.02,
+      "p95_error_m": 0.01,
+      "max_support_slip_m": 0.01,
+      "max_tilt_deg": 5
+    },
+    "commit": "662373b880dfafbf8a5d7fa9a9e04481ca47f985",
+    "worktree_diff_sha256": "84e03feed7c94ce0a31658dc6fdf162389ff3a45fd919f5de8377c46429056c3",
+    "model_sha256": "43257604c8353ffc993937e7dcf4c93f1379299e5585d28bd24c832040c03fc6",
+    "plan_accepted": true,
+    "plan_reason": "validated_single_step",
+    "execution_success": true,
+    "execution_reason": "",
+    "error_m": 0.0023578891368429217,
+    "support_slip_m": 0.008081606643635298,
+    "max_tilt_deg": 1.8498550861378222,
+    "truth_contact_available": true
+  },
+  "final_legacy_motion": {
+    "requested": [
+      "motion"
+    ],
+    "results": [
+      {
+        "scenario": "motion",
+        "status": "passed",
+        "ros_domain_id": 120,
+        "gazebo_master_uri": "http://127.0.0.1:45439",
+        "logs": "/home/hsc/Desktop/Dog/Dog-control/artifacts/rc2027/final-legacy-motion/motion",
+        "returncode": 0,
+        "duration_seconds": 27.22
+      }
+    ],
+    "interrupted": false
+  },
+  "support_metric_definition": "maximum foot-center displacement from step start; not cumulative contact-patch slip",
+  "publication_regression": {
+    "custom_control_ctest_suites_passed": 8,
+    "planning_ctest_suites_passed": 1,
+    "course_python_tests_passed": 3,
+    "snapshot_smoke": {
+      "status": "passed",
+      "height": 0.05,
+      "foot": 3,
+      "worktree_diff_sha256": "b457d6ff13b2288f4c14a8454f91501ab7bf28ab82c75cda07bd370e03d90d8a",
+      "model_sha256": "43257604c8353ffc993937e7dcf4c93f1379299e5585d28bd24c832040c03fc6",
+      "error_m": 0.0020213177148870483,
+      "support_slip_m": 0.008037251627533897,
+      "max_tilt_deg": 1.8338006232122566
+    },
+    "cancel": "passed",
+    "legacy_motion": "passed",
+    "legacy_motion_seconds": 27.23,
+    "artifact_directories": [
+      "artifacts/rc2027/publish-snapshot-smoke",
+      "artifacts/rc2027/publish-snapshot-cancel",
+      "artifacts/rc2027/publish-legacy-motion"
+    ],
+    "full_matrix_rerun": false,
+    "thread_sanitizer_executed": false,
+    "hardware_tested": false
+  }
+}

@@ -36,6 +36,10 @@ find_package(ocs2_sqp REQUIRED)
 find_package(pinocchio REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_action REQUIRED)
+find_package(qr_interfaces REQUIRED)
+find_package(qr_planning REQUIRED)
+find_package(coal REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 find_package(realtime_tools REQUIRED)
 find_package(sensor_msgs REQUIRED)
@@ -149,6 +153,8 @@ endif()
 target_link_libraries(custom_dog_control_legged_interface Eigen3::Eigen)
 
 add_library(custom_dog_control_core STATIC
+  src/precision/PrecisionModel.cpp
+  src/precision/PrecisionWbc.cpp
   src/nmpc/ModelValidator.cpp
   src/nmpc/KinematicStateEstimator.cpp
   src/nmpc/NmpcBackend.cpp
@@ -174,13 +180,14 @@ ament_target_dependencies(custom_dog_control_core
   pinocchio
   urdf
 )
-target_link_libraries(custom_dog_control_core
+target_link_libraries(custom_dog_control_core coal::coal
   custom_dog_control_legged_interface
   custom_dog_control_wbc
   Eigen3::Eigen
   yaml-cpp)
 
 add_library(custom_dog_control_nmpc_wbc_controller SHARED
+  src/precision/PrecisionRuntime.cpp
   src/controller/NmpcWbcController.cpp
   src/controller/ControllerLifecycle.cpp
   src/controller/ControllerInputs.cpp
@@ -190,6 +197,9 @@ add_library(custom_dog_control_nmpc_wbc_controller SHARED
 )
 target_include_directories(custom_dog_control_nmpc_wbc_controller PUBLIC include)
 ament_target_dependencies(custom_dog_control_nmpc_wbc_controller
+  qr_interfaces
+  qr_planning
+  rclcpp_action
   controller_interface
   diagnostic_msgs
   geometry_msgs
@@ -342,6 +352,10 @@ if(BUILD_TESTING AND CUSTOM_DOG_CONTROL_BUILD_TESTING)
   ament_add_gtest(test_joint_command_utils test/test_joint_command_utils.cpp)
   target_include_directories(test_joint_command_utils PRIVATE include)
 
+  ament_add_gtest(test_latest_snapshot test/test_latest_snapshot.cpp TIMEOUT 15)
+  target_include_directories(test_latest_snapshot PRIVATE include)
+  target_link_libraries(test_latest_snapshot pthread)
+
   ament_add_gtest(test_safety_monitor test/test_safety_monitor.cpp)
   target_include_directories(test_safety_monitor PRIVATE include)
   target_link_libraries(test_safety_monitor custom_dog_control_core)
@@ -354,6 +368,11 @@ if(BUILD_TESTING AND CUSTOM_DOG_CONTROL_BUILD_TESTING)
     set(CUSTOM_DOG_CONTROL_CANONICAL_URDF
         "${CUSTOM_DOG_DESCRIPTION_SHARE}/urdf/custom_dog.urdf")
   endif()
+  ament_add_gtest(test_precision test/test_precision.cpp)
+  target_include_directories(test_precision PRIVATE include)
+  ament_target_dependencies(test_precision qr_planning)
+  target_link_libraries(test_precision custom_dog_control_core)
+  target_compile_definitions(test_precision PRIVATE CUSTOM_DOG_CONTROL_CANONICAL_URDF="${CUSTOM_DOG_CONTROL_CANONICAL_URDF}")
   if(EXISTS "${CUSTOM_DOG_CONTROL_CANONICAL_URDF}")
     add_test(
       NAME test_urdf_contract

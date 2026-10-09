@@ -1,0 +1,30 @@
+version: RC2027-V1.0
+source: 2027年足式机器人挑战赛-V1.0.pdf
+units: m
+facility_tolerance_fraction: 0.05
+limits:
+  duration_s: 180
+  autonomous_max_score: 1500
+  return_score: 150
+  robot_mass_max_kg: 35
+  sole_diameter_max: 0.08
+  folded_envelope: [0.8, 0.6, 0.6]
+  battery_nominal_max_v: 48
+  pages: [11, 13, 14]
+obstacles:
+  slalom: {page: 4, score: 150, post_diameter: 0.1, post_height: 0.1, center_spacing: 0.9, required_zone_diameter: 0.3}
+  low_frame: {page: 5, score: 150, clearance: 0.29, inner_width: 0.8, length: 0.8}
+  wall: {page: 5, score: 150, height: 0.3, width: 0.8, thickness: 0.08}
+  gap: {page: 5, score: 300, width: 0.36, platform_height: 0.36, platform_size: [0.8, 0.8], stair_rise: 0.12, stair_run: 0.32, slope_deg: 20}
+  pit: {page: 5, score: 150, long_extent: 2.0, arm_width: 1.0, rim_height: 0.15}
+  tires: {page: 5, score: 150, rows: 2, columns: 4, outer_diameter_approx: 0.55, inner_diameter_approx: 0.33, tread_width: 0.165}
+  stones: {page: 6, score: 150, count: 6, block_size: [0.2, 0.2, 0.2], platform_size: [0.8, 0.8, 0.2], same_row_clear_gap: 0.4, row_clear_gap: 0.2, total_length: 3.5}
+  bridge: {page: 6, score: 150, length: 3.0, width: 0.4, height: 0.1}
+referee_confirmation_required:
+  - start_zone_1_dimensions
+  - slalom_required_zone_reference_point
+  - valid_sole_contact_definition
+  - normal_entry_exit_ground_contact_boundaries
+  - tire_internal_hole_ground_contact
+  - start_zone_2_gap_partial_credit
+  - passive_markers_and_open_source_reuse

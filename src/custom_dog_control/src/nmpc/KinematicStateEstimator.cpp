@@ -61,7 +61,22 @@ EstimatedState KinematicStateEstimator::Update(
     const ImuSample& imu,
     const std::array<bool, kLegCount>& planned_contacts,
     double dt) {
+  // Compatibility path: the legacy velocity controller explicitly assumes flat ground.
+  ContactSupport support;
+  support.contact = planned_contacts;
+  support.height_valid = planned_contacts;
+  return Update(joints, imu, support, dt);
+}
+
+EstimatedState KinematicStateEstimator::Update(
+    const JointSample& joints, const ImuSample& imu,
+    const ContactSupport& support, double dt) {
+  const auto& planned_contacts = support.contact;
   EstimatedState output;
+  const double quaternion_norm = Eigen::Vector4d(imu.orientation_wxyz.data()).norm();
+  if (!std::isfinite(quaternion_norm) || quaternion_norm < 1e-6) return output;
+  for (size_t i=0;i<kJointCount;++i)
+    if(joints.valid[i]<.5 || !std::isfinite(joints.position[i]) || !std::isfinite(joints.velocity[i])) return output;
   if (!imu.valid || dt <= 0.0 || dt > 0.1) {
     return output;
   }
@@ -102,22 +117,22 @@ EstimatedState KinematicStateEstimator::Update(
             model, data, frame_id, pinocchio::LOCAL_WORLD_ALIGNED).linear();
   }
 
-  // 首帧把规划支撑足放在 z=0 平面；无支撑足时使用 0.28 m 回退高度。
+  // 仅使用可信支撑面的足心高度初始化；未知时保留 Reset 的初始高度。
   if (!initialized_) {
     double height_sum = 0.0;
     int contact_count = 0;
     for (std::size_t leg = 0; leg < kLegCount; ++leg) {
-      if (planned_contacts[leg]) {
-        height_sum += -foot_in_world_at_origin[leg].z();
+      if (planned_contacts[leg] && support.height_valid[leg]) {
+        height_sum += support.foot_center_height[leg] - foot_in_world_at_origin[leg].z();
         ++contact_count;
       }
     }
-    state_(2) = contact_count > 0 ? height_sum / contact_count : 0.28;
+    if (contact_count > 0) state_(2) = height_sum / contact_count;
     for (std::size_t leg = 0; leg < kLegCount; ++leg) {
       state_.segment<3>(6 + 3 * leg) =
           state_.head<3>() + foot_in_world_at_origin[leg];
-      if (planned_contacts[leg]) {
-        state_(6 + 3 * leg + 2) = 0.0;
+      if (planned_contacts[leg] && support.height_valid[leg]) {
+        state_(6 + 3 * leg + 2) = support.foot_center_height[leg];
       }
     }
     initialized_ = true;
@@ -139,9 +154,10 @@ EstimatedState KinematicStateEstimator::Update(
       Eigen::Matrix<double, 12, 12>::Identity();
 
   // 支撑足近似静止：v_base = -v_foot_relative。摆动时该假设不成立，
-  // 通过更大的协方差降低权重；足端 z=0 也只是同样加权的软约束。
+  // 通过更大的协方差降低权重；未知支撑高度不构成高度观测。
   ObservationCovariance measurement_noise = ObservationCovariance::Zero();
   ObservationVector measurement = ObservationVector::Zero();
+  auto observation = observation_model_;
   for (std::size_t leg = 0; leg < kLegCount; ++leg) {
     const double scale = planned_contacts[leg] ? 1.0 : noise_.swing_covariance_scale;
     process_noise.block<3, 3>(6 + 3 * leg, 6 + 3 * leg) *= scale;
@@ -153,7 +169,11 @@ EstimatedState KinematicStateEstimator::Update(
         scale * noise_.foot_height;
     measurement.segment<3>(3 * leg) = -foot_in_world_at_origin[leg];
     measurement.segment<3>(12 + 3 * leg) = -foot_velocity_at_origin[leg];
-    measurement(24 + leg) = 0.0;
+    measurement(24 + leg) = support.foot_center_height[leg];
+    if (!planned_contacts[leg] || !support.height_valid[leg]) {
+      observation.row(24 + leg).setZero();
+      measurement(24 + leg) = 0.;
+    }
   }
 
   const Eigen::Vector3d acceleration_body(
@@ -168,16 +188,32 @@ EstimatedState KinematicStateEstimator::Update(
   const StateMatrix predicted_covariance =
       transition * covariance_ * transition.transpose() + process_noise;
   const ObservationCovariance innovation_covariance =
-      observation_model_ * predicted_covariance * observation_model_.transpose() +
+      observation * predicted_covariance * observation.transpose() +
       measurement_noise;
   const auto kalman_gain =
-      predicted_covariance * observation_model_.transpose() *
+      predicted_covariance * observation.transpose() *
       innovation_covariance.ldlt().solve(ObservationCovariance::Identity());
   state_ = predicted_state +
-           kalman_gain * (measurement - observation_model_ * predicted_state);
+           kalman_gain * (measurement - observation * predicted_state);
   covariance_ =
-      (StateMatrix::Identity() - kalman_gain * observation_model_) *
+      (StateMatrix::Identity() - kalman_gain * observation) *
       predicted_covariance;
+  // Confirmed, non-slipping support anchors fix the local horizontal gauge.
+  // They are captured from estimated FK at contact, never from a new map pose.
+  // The legacy planned-contact overload supplies no anchors and is unchanged.
+  for (size_t leg = 0; leg < kLegCount; ++leg) {
+    if (!support.contact[leg] || !support.anchor_valid[leg] ||
+        !support.anchor_position[leg].allFinite()) continue;
+    Eigen::Matrix<double, 2, 18> h = Eigen::Matrix<double, 2, 18>::Zero();
+    h.block<2, 2>(0, 6 + 3 * leg).setIdentity();
+    const Eigen::Matrix2d r = 1e-6 * Eigen::Matrix2d::Identity();
+    const Eigen::Matrix2d innovation = h * covariance_ * h.transpose() + r;
+    const Eigen::Matrix<double, 18, 2> gain = covariance_ * h.transpose() *
+        innovation.ldlt().solve(Eigen::Matrix2d::Identity());
+    state_ += gain * (support.anchor_position[leg].head<2>() - h * state_);
+    const StateMatrix correction = StateMatrix::Identity() - gain * h;
+    covariance_ = correction * covariance_ * correction.transpose() + gain * r * gain.transpose();
+  }
   // 消除浮点运算造成的非对称项，便于后续创新协方差的 LDLT 分解。
   covariance_ = 0.5 * (covariance_ + covariance_.transpose());
 

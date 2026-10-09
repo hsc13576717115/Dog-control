@@ -36,6 +36,22 @@ controller_interface::return_type NmpcWbcController::update(
   // 回调只更新输入缓冲；本周期读取快照后统一仲裁速度、推进状态和写入硬件。
   imu_sample_ = *imu_buffer_.readFromRT();
   const JoyInput joy = *joy_buffer_.readFromRT();
+  if (precision_) {
+    HybridJointCommand output;
+    const bool stop = physical_estop_ || joy.requested_mode == RequestedMode::ESTOP;
+    if (precision_->Update(now_seconds, dt, joints_state_, imu_sample_, stop, output)) {
+      WriteHybridCommand(output);
+    } else {
+      // Do not command the flat stand-up pose after a precision fault.
+      for (std::size_t i = 0; i < kJointCount; ++i) {
+        output.position[i] = std::isfinite(joints_state_.position[i])
+                                 ? joints_state_.position[i] : 0.0;
+        output.kd[i] = safe_damping_;
+      }
+      WriteHybridCommand(output);
+    }
+    return controller_interface::return_type::OK;
+  }
   const VelocityCommand command = SelectVelocityCommand(now_seconds, dt);
 
   // 估计器先使用上一份有效策略的接触计划；首次获得策略前按四足支撑初始化。

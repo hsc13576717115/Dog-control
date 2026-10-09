@@ -194,10 +194,8 @@ void NmpcWbcController::WriteHybridCommand(
     // 仿真与真机保持同一 tau_ff + kp*(q_des-q) + kd*(dq_des-dq) 语义，
     // 合成后再按 URDF 力矩上限截断，避免把 PD 项遗漏在限幅之外。
     for (std::size_t i = 0; i < kJointCount; ++i) {
-      const double equivalent_effort = EquivalentEffort(command, joints_state_, i);
-      const double effort_limit = std::max(0.0, effort_limits[i]);
       command_interfaces_[command_interface_indices_[i][0]].set_value(
-          std::clamp(equivalent_effort, -effort_limit, effort_limit));
+          BoundedEquivalentEffort(command, joints_state_, i, effort_limits[i]));
     }
   }
 }
