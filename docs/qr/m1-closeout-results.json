@@ -1,0 +1,54 @@
+{
+  "stage": "M1 scoped simulation acceptance",
+  "commit": "55f7dd56728d5dd88a7799f5442b0ed0e4e6e94d",
+  "hardware_tested": false,
+  "matrix": {
+    "trials": 100,
+    "passed": 99,
+    "p95_error_m": 0.0037656538313443166,
+    "max_error_m": 0.003788771262643172,
+    "step_matrix_accepted": true,
+    "thresholds": {
+      "max_error_m": 0.02,
+      "p95_error_m": 0.01,
+      "max_support_slip_m": 0.01,
+      "max_contact_slip_m": 0.01,
+      "max_tilt_deg": 5.0,
+      "minimum_success_rate": 0.95,
+      "minimum_trials_per_foot": 25
+    },
+    "thresholds_sha256": "5312dbf230bfd8a8c3db8db1714c055e202988f221b67fc603599a68a4a4b609"
+  },
+  "max_support_contact_slip_m": 0.004434967095378879,
+  "max_support_foot_center_displacement_m": 0.008142282916114204,
+  "max_tilt_deg": 1.9038931957236005,
+  "failed_trials": [
+    {
+      "trial": "foot2-05",
+      "status": "failed",
+      "error": "action_rejected"
+    }
+  ],
+  "all_failed_trials_retained": true,
+  "source_fingerprint": "87e65b60bd0b93fbd41072fc16970440c923971ccb71886217df9732f30fca88",
+  "source_fingerprint_variants": 1,
+  "not_verified": [
+    "stable recovery after disturbance",
+    "self collision planning",
+    "sensor noise / real bus timing",
+    "NX / motors",
+    "full obstacles / competition"
+  ],
+  "regression": {
+    "status": "passed",
+    "entries": 25,
+    "path": "artifacts/rc2027/m1-closeout-regression/summary.json",
+    "sha256": "38e427221d8ab88b9d6a78dc7274c380f50c5bd01a65514c8962511721a155e5"
+  },
+  "robustness-v2": {
+    "status": "passed",
+    "entries": 16,
+    "path": "artifacts/rc2027/m1-closeout-robustness-v2/summary.json",
+    "sha256": "ad96a69e6d2c68ba3addd7ffe655ca3407a9c040df3344795020f0c0f6258101"
+  }
+}

@@ -83,3 +83,5 @@ fallback, and independent contact-point slip integration (`qr_simulation`). Phys
 fault injection is separate from execution-core timestamp/deadline tests. Added physics
 profiles cover mass/inertia ±5% and sole friction 0.35; they do not constitute sensor
 noise validation or hardware calibration. See [closeout evidence](m1-closeout.md).
+
+M1 closeout reached 99/100. The new C++ finite-template client and static-force screening begin M2; full obstacle, rear-leg and dynamic validation remain open. See [M2 record](m2-entry.md).

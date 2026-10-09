@@ -74,20 +74,39 @@ struct PrecisionRosAdapter::Impl {
                std::shared_ptr<const Action::Goal> request) {
           std::lock_guard<std::mutex> lock(callback_mutex);
           auto s = channel.snapshot.Read();
-          if (!channel.active || busy || !s.ready ||
-              request->plan != approved || request->plan.id == accepted_id ||
-              regions.revision != approved.map_revision ||
-              !SnapshotFresh(s, PrecisionSteadyNow(), config.state_timeout_s) ||
-              approved.steps.size() != 1 ||
-              node->now() > rclcpp::Time(approved.valid_until))
+          auto reject = [&](const char *reason) {
+            RCLCPP_WARN(
+                node->get_logger(),
+                "QR_ADMISSION_REJECT plan=%lu reason=%s snapshot_age_s=%.6f",
+                request->plan.id, reason,
+                PrecisionSteadyNow() - s.steady_stamp);
             return rclcpp_action::GoalResponse::REJECT;
+          };
+          if (!channel.active)
+            return reject("inactive");
+          if (busy)
+            return reject("busy");
+          if (!s.ready)
+            return reject("state_not_ready");
+          if (request->plan != approved)
+            return reject("plan_not_approved");
+          if (request->plan.id == accepted_id)
+            return reject("replay");
+          if (regions.revision != approved.map_revision)
+            return reject("map_revision_changed");
+          if (!SnapshotFresh(s, PrecisionSteadyNow(), config.state_timeout_s))
+            return reject("stale_snapshot");
+          if (approved.steps.size() != 1)
+            return reject("unsupported_step_count");
+          if (node->now() > rclcpp::Time(approved.valid_until))
+            return reject("expired_plan");
           if ((s.ref.body - approved_reference.body).norm() >
               config.body_drift_m)
-            return rclcpp_action::GoalResponse::REJECT;
+            return reject("body_reference_drift");
           for (size_t f = 0; f < 4; ++f)
             if ((s.estimate.foot_position_world[f] - approved_reference.foot[f])
                     .norm() > config.target_tolerance_m)
-              return rclcpp_action::GoalResponse::REJECT;
+              return reject("foot_state_drift");
           accepted_id = approved.id;
           channel.cancel = false;
           busy = true;

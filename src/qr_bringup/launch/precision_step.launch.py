@@ -224,6 +224,8 @@ def setup(context):
             str(course / "scripts/known_surfaces.py"),
             "--height",
             str(observed_height),
+            "--mode",
+            LaunchConfiguration("surface_mode"),
             "--ros-args",
             "-p",
             "use_sim_time:=true",
@@ -264,6 +266,7 @@ def setup(context):
 def generate_launch_description():
     return LaunchDescription(
         [
+            DeclareLaunchArgument("surface_mode", default_value="pads"),
             DeclareLaunchArgument("artifact_dir", default_value=""),
             DeclareLaunchArgument("model_config", default_value=""),
             DeclareLaunchArgument("control_config", default_value=""),

@@ -12,9 +12,15 @@ from course import fixture
 
 
 class Surfaces(Node):
-    def __init__(self, height):
+    def __init__(self, height, mode="pads"):
         super().__init__("qr_known_surfaces")
         self.spec = fixture(height)
+        if mode == "ground":
+            if height != 0:
+                raise ValueError("ground sequence fixture must be flat")
+            self.spec["pads"] = [{"id": 0, "center": [0.0, 0.0], "size": [4.0, 4.0]}]
+        elif mode != "pads":
+            raise ValueError("unknown support fixture mode")
         qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.pub = self.create_publisher(SupportRegionArray, "/qr/support_regions", qos)
         self.markers = self.create_publisher(MarkerArray, "/qr/support_markers", qos)
@@ -35,9 +41,15 @@ class Surfaces(Node):
             region.observed_at = msg.header.stamp
             x, y = p["center"]
             z = self.spec["height"]
+            half_x, half_y = [v / 2 for v in p["size"]]
             region.polygon.points = [
                 Point32(x=x + dx, y=y + dy, z=z)
-                for dx, dy in [(-0.1, -0.1), (0.1, -0.1), (0.1, 0.1), (-0.1, 0.1)]
+                for dx, dy in [
+                    (-half_x, -half_y),
+                    (half_x, -half_y),
+                    (half_x, half_y),
+                    (-half_x, half_y),
+                ]
             ]
             msg.regions.append(region)
             m = Marker()
@@ -50,8 +62,8 @@ class Surfaces(Node):
             m.pose.position.y = y
             m.pose.position.z = z - 0.001
             m.pose.orientation.w = 1.0
-            m.scale.x = 0.2
-            m.scale.y = 0.2
+            m.scale.x = p["size"][0]
+            m.scale.y = p["size"][1]
             m.scale.z = 0.002
             m.color.r = 0.1
             m.color.g = 0.8
@@ -63,10 +75,11 @@ class Surfaces(Node):
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
+    p.add_argument("--mode", choices=["pads", "ground"], default="pads")
     p.add_argument("--height", type=float, default=0.0)
     a, rest = p.parse_known_args()
     rclpy.init(args=rest)
-    n = Surfaces(a.height)
+    n = Surfaces(a.height, a.mode)
     try:
         rclpy.spin(n)
     finally:

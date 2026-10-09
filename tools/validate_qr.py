@@ -77,7 +77,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--suite",
-        choices=["unit", "smoke", "faults", "regression", "matrix", "robustness"],
+        choices=["unit", "smoke", "faults", "regression", "matrix", "robustness", "m2"],
         default="unit",
     )
     parser.add_argument("--output", type=Path, required=True)
@@ -195,6 +195,70 @@ def main():
                     300,
                 )
             )
+        if args.suite == "m2":
+            report["stage_accepted"] = False
+            report["scope"] = (
+                "M2 entry tools only; full mechanical and obstacle gates remain open"
+            )
+            cases.append(
+                (
+                    "mechanical-screen",
+                    [
+                        "ros2",
+                        "run",
+                        "custom_dog_control",
+                        "precision_envelope",
+                        str(
+                            ROOT
+                            / "external/model_ws/src/custom_dog_description/urdf/custom_dog.urdf"
+                        ),
+                        str(
+                            ROOT / "src/custom_dog_control/config/precision_model.yaml"
+                        ),
+                        str(
+                            ROOT
+                            / "src/custom_dog_control/config/precision_control.yaml"
+                        ),
+                        str(ROOT / "src/custom_dog_control/config/nmpc/task.info"),
+                        str(ROOT / "src/qr_course/config/rules.yaml"),
+                        str(args.output / "mechanical-screen.yaml"),
+                    ],
+                    120,
+                )
+            )
+            for index in range(3):
+                cases.append(
+                    (
+                        f"sequence-{index}",
+                        [
+                            sys.executable,
+                            str(ROOT / "src/qr_validation/scripts/run_sequence.py"),
+                            "--domain",
+                            str(args.domain),
+                            "--output",
+                            str(args.output / f"sequence-{index}"),
+                        ],
+                        220,
+                    )
+                )
+            cases.append(
+                (
+                    "sequence-abort",
+                    [
+                        sys.executable,
+                        str(ROOT / "src/qr_validation/scripts/run_sequence.py"),
+                        "--domain",
+                        str(args.domain),
+                        "--fault",
+                        "--output",
+                        str(args.output / "sequence-abort"),
+                    ],
+                    220,
+                )
+            )
+            for foot in range(4):
+                trial(f"m1-compat-{foot}", foot, 0.05)
+            trial("admission-replay", 0, 0, "replay")
         if args.suite == "matrix":
             cases.append(
                 (

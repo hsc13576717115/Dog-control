@@ -128,6 +128,7 @@ class Probe(Node):
                 {
                     "time": m.header.stamp.sec + 1e-9 * m.header.stamp.nanosec,
                     "phase": m.phase,
+                    "plan_id": m.plan_id,
                     "ready": m.ready,
                     "error": m.error,
                     "feet": [[p.x, p.y, p.z] for p in self.state.feet],

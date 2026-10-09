@@ -8,7 +8,7 @@
 - `fdilink_ahrs`：IMU 驱动。
 - `serial_ros2`：源码目录，对外 ROS 包名为 `serial`。
 - `qr_interfaces`：精确换步的状态、支撑面、计划和动作契约。
-- `qr_planning`：安全支撑区域与连续轨迹原语。
+- `qr_planning`：安全支撑区、轨迹原语与非实时 C++ 有限模板客户端。
 - `qr_course`：规则配置与已知几何测试场景。
 - `qr_bringup`：Gazebo 精确换步启动入口。
 - `qr_simulation`：每个物理步累计的独立接触滑移评价，不给控制器提供真值。

@@ -249,3 +249,7 @@ are separate. Use `tools/validate_qr.py` for unified checks; see the
 See [M1 closeout evidence](docs/qr/m1-closeout.md) for the latest fault-handling work.
 The new `qr_simulation` plugin is an independent physics evaluator, never a contact
 sensor input for the controller.
+
+M1 scoped simulation closeout reached 99/100 on frozen commit `55f7dd5`.
+M2 now has a finite four-foot sequence client and offline mechanical screening;
+its full mechanical/obstacle gate remains open. See [M2 development record](docs/qr/m2-entry.md).

@@ -1,5 +1,7 @@
 # QR 验证记录
 
+> 最新结果见 [M1 收尾](m1-closeout.md)：冻结版本 `55f7dd5`，99/100 单步矩阵、独立累计接触滑移及动态故障测试。下文保留历史版本记录，其“未执行”仅指相应历史版本。
+
 [中文入口](README.md) | [English overview](README_EN.md)
 
 后续模块化改造、三缓冲与配置化的独立回归见 [改造验证](refactoring-results.md)。

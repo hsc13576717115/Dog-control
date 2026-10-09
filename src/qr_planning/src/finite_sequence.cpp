@@ -1,0 +1,179 @@
+// Non-real-time finite-template client. Every step uses the existing planner
+// and action admission path; there is no joint-command publisher here.
+#include "qr_planning/FiniteTemplate.hpp"
+#include <array>
+#include <chrono>
+#include <cmath>
+#include <filesystem>
+#include <fstream>
+#include <future>
+#include <qr_interfaces/action/execute_footsteps.hpp>
+#include <qr_interfaces/msg/execution_status.hpp>
+#include <qr_interfaces/msg/robot_state.hpp>
+#include <qr_interfaces/srv/plan_footsteps.hpp>
+#include <rclcpp/rclcpp.hpp>
+#include <rclcpp_action/rclcpp_action.hpp>
+#include <thread>
+#include <vector>
+#include <yaml-cpp/yaml.h>
+
+using Plan = qr_interfaces::srv::PlanFootsteps;
+using Execute = qr_interfaces::action::ExecuteFootsteps;
+using Steady = std::chrono::steady_clock;
+
+int main(int argc, char **argv) {
+  rclcpp::init(argc, argv);
+  auto node = std::make_shared<rclcpp::Node>("qr_finite_sequence");
+  const auto file = node->declare_parameter<std::string>("template_file", "");
+  const auto result_file =
+      node->declare_parameter<std::string>("result_file", "");
+  const bool validate_only =
+      node->declare_parameter<bool>("validate_only", false);
+  YAML::Node report;
+  report["success"] = false;
+  report["completed_steps"] = 0;
+  report["hardware_tested"] = false;
+  int exit_code = 1;
+  try {
+    if (!result_file.empty() && std::filesystem::exists(result_file))
+      throw std::runtime_error("result_file_already_exists");
+    const auto steps = qr_planning::ParseFiniteTemplate(YAML::LoadFile(file));
+    if (validate_only) {
+      rclcpp::shutdown();
+      return 0;
+    }
+    // Precision action server independently rejects real hardware. This client
+    // additionally requires simulation time and valid, non-ground-truth state.
+    if (!node->get_parameter("use_sim_time").as_bool())
+      throw std::runtime_error("simulation_time_required");
+    qr_interfaces::msg::RobotState state;
+    qr_interfaces::msg::ExecutionStatus status;
+    bool got_state = false, got_status = false;
+    Steady::time_point state_time{}, status_time{};
+    auto state_sub = node->create_subscription<qr_interfaces::msg::RobotState>(
+        "/qr/state", 10, [&](qr_interfaces::msg::RobotState::SharedPtr m) {
+          state = *m;
+          got_state = true;
+          state_time = Steady::now();
+        });
+    auto status_sub =
+        node->create_subscription<qr_interfaces::msg::ExecutionStatus>(
+            "/qr/execution", 10,
+            [&](qr_interfaces::msg::ExecutionStatus::SharedPtr m) {
+              status = *m;
+              got_status = true;
+              status_time = Steady::now();
+            });
+    auto planner = node->create_client<Plan>("/qr/plan_footsteps");
+    auto executor =
+        rclcpp_action::create_client<Execute>(node, "/qr/execute_footsteps");
+    auto wait = [&](auto predicate, double seconds) {
+      const auto deadline =
+          Steady::now() + std::chrono::duration<double>(seconds);
+      while (rclcpp::ok() && Steady::now() < deadline) {
+        rclcpp::spin_some(node);
+        if (predicate())
+          return true;
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+      }
+      return false;
+    };
+    auto ready = [&] {
+      const auto now = Steady::now();
+      return got_state && got_status && state.valid &&
+             !state.using_ground_truth && state.header.frame_id == "odom" &&
+             status.ready &&
+             now - state_time < std::chrono::milliseconds(200) &&
+             now - status_time < std::chrono::milliseconds(200);
+    };
+    if (!wait(ready, 30.))
+      throw std::runtime_error("initial_state_not_ready");
+    const auto initial = state.feet;
+    for (size_t index = 0; index < steps.size(); ++index) {
+      if (!wait(ready, 3.))
+        throw std::runtime_error("support_not_ready_for_next_step");
+      const auto &step = steps[index];
+      auto request = std::make_shared<Plan::Request>();
+      request->foot = step.foot;
+      request->surface_id = step.surface;
+      request->target = initial[step.foot];
+      request->target.x += step.offset[0];
+      request->target.y += step.offset[1];
+      request->target.z += step.offset[2];
+      if (!planner->wait_for_service(std::chrono::seconds(3)))
+        throw std::runtime_error("planner_unavailable");
+      auto future = planner->async_send_request(request);
+      if (!wait(
+              [&] {
+                return future.wait_for(std::chrono::seconds(0)) ==
+                       std::future_status::ready;
+              },
+              5.))
+        throw std::runtime_error("planning_timeout");
+      const auto planned = future.get();
+      if (!planned->accepted)
+        throw std::runtime_error("plan_rejected: " + planned->reason);
+      if (!executor->wait_for_action_server(std::chrono::seconds(3)))
+        throw std::runtime_error("executor_unavailable");
+      Execute::Goal goal;
+      goal.plan = planned->plan;
+      auto accepted = executor->async_send_goal(goal);
+      if (!wait(
+              [&] {
+                return accepted.wait_for(std::chrono::seconds(0)) ==
+                       std::future_status::ready;
+              },
+              3.))
+        throw std::runtime_error("action_admission_timeout");
+      const auto handle = accepted.get();
+      if (!handle)
+        throw std::runtime_error("action_rejected");
+      auto result = executor->async_get_result(handle);
+      if (!wait(
+              [&] {
+                return result.wait_for(std::chrono::seconds(0)) ==
+                       std::future_status::ready;
+              },
+              30.)) {
+        // Cancellation follows the same controlled-abort action contract. No
+        // next step is issued even if a disconnected server cannot acknowledge.
+        auto cancel = executor->async_cancel_goal(handle);
+        wait(
+            [&] {
+              return cancel.wait_for(std::chrono::seconds(0)) ==
+                     std::future_status::ready;
+            },
+            2.);
+        throw std::runtime_error("action_timeout_cancel_requested");
+      }
+      const auto completed = result.get();
+      if (!completed.result)
+        throw std::runtime_error("missing_action_result");
+      report["steps"][index]["foot"] = static_cast<unsigned>(step.foot);
+      report["steps"][index]["plan_id"] = goal.plan.id;
+      report["steps"][index]["reason"] = completed.result->reason;
+      if (completed.code != rclcpp_action::ResultCode::SUCCEEDED ||
+          !completed.result->success)
+        throw std::runtime_error("execution_aborted: " +
+                                 completed.result->reason);
+      if (!wait([&] { return ready() && status.plan_id == goal.plan.id; }, 3.))
+        throw std::runtime_error("completed_step_support_not_confirmed");
+      report["completed_steps"] = index + 1;
+      RCLCPP_INFO(node->get_logger(), "Completed %zu/%zu: foot %u, plan %lu",
+                  index + 1, steps.size(), step.foot, goal.plan.id);
+    }
+    report["success"] = true;
+    exit_code = 0;
+  } catch (const std::exception &e) {
+    report["error"] = e.what();
+    RCLCPP_ERROR(node->get_logger(), "%s", e.what());
+  }
+  if (!result_file.empty() && !std::filesystem::exists(result_file)) {
+    std::ofstream out(result_file);
+    out << report;
+    if (!out)
+      exit_code = 1;
+  }
+  rclcpp::shutdown();
+  return exit_code;
+}

@@ -1,0 +1,8 @@
+# M2 entry fixture, not a walking gait or competition route.
+frame: odom
+target_mode: initial_foot_offset
+steps:
+  - {foot: 0, surface_id: 0, offset: [0.025, 0.0, 0.0]}
+  - {foot: 3, surface_id: 0, offset: [0.025, 0.0, 0.0]}
+  - {foot: 1, surface_id: 0, offset: [0.025, 0.0, 0.0]}
+  - {foot: 2, surface_id: 0, offset: [0.025, 0.0, 0.0]}

@@ -153,6 +153,7 @@ endif()
 target_link_libraries(custom_dog_control_legged_interface Eigen3::Eigen)
 
 add_library(custom_dog_control_core STATIC
+  src/model/StaticSupport.cpp
   src/model/RobotModel.cpp
   src/model/RobotModelConfig.cpp
   src/precision/PrecisionConfig.cpp
@@ -191,6 +192,10 @@ target_link_libraries(custom_dog_control_core coal::coal
   custom_dog_control_wbc
   Eigen3::Eigen
   yaml-cpp)
+
+add_executable(precision_envelope tools/precision_envelope.cpp)
+target_link_libraries(precision_envelope custom_dog_control_core)
+install(TARGETS precision_envelope DESTINATION lib/${PROJECT_NAME})
 
 add_library(custom_dog_control_nmpc_wbc_controller SHARED
   src/precision/PrecisionRosAdapter.cpp
@@ -399,6 +404,11 @@ if(BUILD_TESTING AND CUSTOM_DOG_CONTROL_BUILD_TESTING)
     CUSTOM_DOG_CONTROL_CANONICAL_URDF="${CUSTOM_DOG_CONTROL_CANONICAL_URDF}"
     CUSTOM_DOG_CONTROL_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 
+  ament_add_gtest(test_static_support test/test_static_support.cpp)
+  target_include_directories(test_static_support PRIVATE include)
+  target_link_libraries(test_static_support custom_dog_control_core)
+  target_compile_definitions(test_static_support PRIVATE
+    CUSTOM_DOG_CONTROL_CANONICAL_URDF="${CUSTOM_DOG_CONTROL_CANONICAL_URDF}")
   if(EXISTS "${CUSTOM_DOG_CONTROL_CANONICAL_URDF}")
     add_test(
       NAME test_urdf_contract

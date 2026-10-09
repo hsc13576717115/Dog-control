@@ -18,7 +18,7 @@
 | --- | --- |
 | `custom_dog_control` | 同一个控制器实例内增加精确 WBC、接触估计、单步执行及多高度状态估计；原速度入口保留 |
 | `qr_interfaces` | ROS 2 消息、PlanFootsteps 服务、ExecuteFootsteps 动作 |
-| `qr_planning` | 凸支撑区安全裕量、支撑几何和连续参考函数；模型预检在控制器非实时服务回调执行 |
+| `qr_planning` | 凸支撑区、参考函数和 C++ 有限模板客户端；模型预检在控制器非实时服务回调执行 |
 | `qr_course` | 规则配置、原始 XML 差异检查、M1 目标面 SDF 与同源 RViz/已知支撑面 |
 | `qr_bringup` | 仅仿真的完整碰撞单步启动入口 |
 | `qr_simulation` | Gazebo 物理步接触滑移积分，只供独立评价 |
@@ -115,3 +115,5 @@ python3 tools/validate_qr.py --suite regression --output artifacts/qr/regression
 `faults` 为现有五类异常；`regression` 为四足×三高度＋五类异常＋原速度运动；
 `matrix` 单独执行 100 次矩阵。各套件先检查依赖，写统一 `summary.json` 和分项日志；
 失败非零退出。未涵盖的动态故障列在报告中，不因套件通过而宣称完整验收。
+
+M1 收尾结果为 99/100；M2 有限连续模板与机械筛查正在推进，完整阶段尚未通过，见 [M2 记录](m2-entry.md)。
