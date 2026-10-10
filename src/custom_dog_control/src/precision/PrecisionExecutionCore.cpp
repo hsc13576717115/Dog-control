@@ -58,7 +58,8 @@ struct PrecisionExecutionCore::Impl {
     latest = {};
     for (auto &observer : observers)
       observer = ContactObserver(config);
-    support.foot_center_height.fill(model_config.foot_radius_m);
+    support.foot_center_height.fill(model_config.foot_radius_m +
+                                   model_config.initial_support_height_m);
     support.height_valid.fill(true);
     state.position.z() = model_config.initial_height_m;
     estimator.Reset(model_config.initial_height_m);

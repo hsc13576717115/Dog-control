@@ -61,8 +61,9 @@ legged::Task PrecisionWbc::formulateWeightedTasks(const ocs2::vector_t &,
   for (int k = 0; k < 3; ++k)
     angle_error(k) =
         std::atan2(std::sin(angle_error(k)), std::cos(angle_error(k)));
-  b.segment<3>(3) = config_.orientation_kp * angle_error -
-                    config_.orientation_kd * vMeasured_.segment<3>(3);
+  b.segment<3>(3) =
+      ref_.euler_acceleration + config_.orientation_kp * angle_error +
+      config_.orientation_kd * (ref_.euler_velocity - vMeasured_.segment<3>(3));
   for (size_t f = 0; f < 4; ++f)
     if (!contactFlag_[f]) {
       const auto &d = pinocchioInterfaceMeasured_.getData();

@@ -14,6 +14,9 @@ void RobotModelConfig::Validate() const {
 #define QR_PARAM(name, value, lower, upper) Check(name, lower, upper, #name);
 #include "custom_dog_control/model/RobotModelConfig.def"
 #undef QR_PARAM
+  if (initial_height_m <= initial_support_height_m + foot_radius_m)
+    throw std::invalid_argument(
+        "initial body height must exceed the known support plane");
 }
 RobotModelConfig RobotModelConfig::Load(const std::string &path) {
   const auto root = YAML::LoadFile(path);

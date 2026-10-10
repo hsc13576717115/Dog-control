@@ -4,6 +4,7 @@
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 import xml.etree.ElementTree as ET
 import yaml
@@ -42,8 +43,33 @@ def fixture(height, mode="pads"):
     return spec
 
 
-def generate(height, output, mode="pads"):
-    spec = fixture(height, mode)
+def load_fixture(path):
+    """Known engineering boxes, not an observed or automatically verified map."""
+    spec = yaml.safe_load(Path(path).read_text())
+    if not isinstance(spec, dict) or spec.get("version") != "qr-coordinated-local-v1":
+        raise ValueError("unsupported local fixture")
+    pads = spec.get("pads")
+    if not isinstance(pads, list) or not 1 <= len(pads) <= 16:
+        raise ValueError("fixture requires 1..16 boxes")
+    seen = set()
+    for pad in pads:
+        if not isinstance(pad.get("id"), int) or pad["id"] < 1 or pad["id"] in seen:
+            raise ValueError("unique positive fixture ids required")
+        seen.add(pad["id"])
+        if len(pad["center"]) != 2 or len(pad["size"]) != 2:
+            raise ValueError("invalid box dimensions")
+        if not all(
+            math.isfinite(x) for x in pad["center"] + pad["size"] + [pad["height"]]
+        ):
+            raise ValueError("nonfinite box")
+        if min(pad["size"]) <= 0 or not 0 < pad["height"] <= 0.4:
+            raise ValueError("invalid box size/height")
+    spec["height"] = 0.0
+    return spec
+
+
+def generate(height, output, mode="pads", spec=None):
+    spec = fixture(height, mode) if spec is None else spec
     root = ET.Element("sdf", version="1.6")
     world = ET.SubElement(root, "world", name="qr_m1")
     for uri in ["model://sun", "model://ground_plane"]:

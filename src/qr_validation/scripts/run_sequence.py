@@ -24,6 +24,9 @@ def main():
         "--template", type=Path, default=Path("src/qr_planning/config/flat_shift.yaml")
     )
     parser.add_argument("--control-config", type=Path)
+    parser.add_argument("--model-config", type=Path)
+    parser.add_argument("--fixture-file", type=Path)
+    parser.add_argument("--startup-file", type=Path)
     parser.add_argument("--minimum-body-advance", type=float, default=0.0)
     parser.add_argument(
         "--surface-mode", choices=["ground", "platform"], default="ground"
@@ -35,11 +38,17 @@ def main():
     )
     parser.add_argument("--height", type=float, default=0.0)
     parser.add_argument("--expect-preview-rejection", action="store_true")
+    parser.add_argument("--coordinated", action="store_true")
+    parser.add_argument("--exercise-body-orientation", action="store_true")
     parser.add_argument("--fault", action="store_true")
     parser.add_argument("--fault-after-steps", type=int, default=0)
     args = parser.parse_args()
     if not math.isfinite(args.minimum_body_advance) or args.minimum_body_advance < 0:
         parser.error("minimum-body-advance must be finite and nonnegative")
+    if args.exercise_body_orientation and not args.coordinated:
+        parser.error("exercise-body-orientation requires coordinated references")
+    if bool(args.fixture_file) != bool(args.startup_file):
+        parser.error("fixture-file and startup-file must be paired")
     args.output.mkdir(parents=True, exist_ok=False)
     os.environ.update(
         ROS_DOMAIN_ID=str(args.domain),
@@ -54,6 +63,8 @@ def main():
         status="failed",
         hardware_tested=False,
         fault=args.fault,
+        coordinated=args.coordinated,
+        exercise_body_orientation=args.exercise_body_orientation,
         scope="finite sequence with optional low platform; no competition obstacle certification",
         surface_mode=args.surface_mode,
         height_m=args.height,
@@ -122,6 +133,19 @@ def main():
                     if args.control_config
                     else []
                 ),
+                *(
+                    [f"model_config:={args.model_config.resolve()}"]
+                    if args.model_config
+                    else []
+                ),
+                *(
+                    [
+                        f"fixture_file:={args.fixture_file.resolve()}",
+                        f"startup_file:={args.startup_file.resolve()}",
+                    ]
+                    if args.fixture_file
+                    else []
+                ),
                 f"artifact_dir:={args.output.resolve()/'inputs'}",
             ],
             stdout=log,
@@ -143,6 +167,12 @@ def main():
                 "--ros-args",
                 "-p",
                 "use_sim_time:=true",
+                "-p",
+                f"coordinated:={str(args.coordinated).lower()}",
+                "-p",
+                f"coordinated_yaw_rad:={0.03 if args.exercise_body_orientation else 0.0}",
+                "-p",
+                f"coordinated_body_lift_m:={0.005 if args.exercise_body_orientation else 0.0}",
                 "-p",
                 f"template_file:={template}",
                 "-p",

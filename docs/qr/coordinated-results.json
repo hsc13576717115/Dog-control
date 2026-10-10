@@ -1,0 +1,536 @@
+{
+  "schema_version": 1,
+  "stage": "M2",
+  "stage_accepted": false,
+  "scope": "Bounded coordinated single-step references on known flat/30/50 mm fixtures, plus explicit known-plane initialization; not nominal competition obstacles.",
+  "hardware_tested": false,
+  "ground_truth_used_by_controller": false,
+  "evaluation_uses_gazebo_truth": true,
+  "control_observations": [
+    "IMU",
+    "joint q/dq/effort; contact inferred, no foot force sensor"
+  ],
+  "directory": "artifacts/rc2027/m2-coordinated-final-r2",
+  "status": "passed",
+  "passed_entries": 14,
+  "total_entries": 14,
+  "entries": [
+    {
+      "name": "unit-custom_dog_control",
+      "status": "passed",
+      "returncode": 0,
+      "timed_out": false
+    },
+    {
+      "name": "unit-qr_planning",
+      "status": "passed",
+      "returncode": 0,
+      "timed_out": false
+    },
+    {
+      "name": "unit-qr_course",
+      "status": "passed",
+      "returncode": 0,
+      "timed_out": false
+    },
+    {
+      "name": "unit-qr_validation",
+      "status": "passed",
+      "returncode": 0,
+      "timed_out": false
+    },
+    {
+      "name": "flat_walk-0",
+      "status": "passed",
+      "returncode": 0,
+      "timed_out": false
+    },
+    {
+      "name": "platform_30mm-0",
+      "status": "passed",
+      "returncode": 0,
+      "timed_out": false
+    },
+    {
+      "name": "platform_50mm-0",
+      "status": "passed",
+      "returncode": 0,
+      "timed_out": false
+    },
+    {
+      "name": "future-step-rejected",
+      "status": "passed",
+      "returncode": 0,
+      "timed_out": false
+    },
+    {
+      "name": "sequence-midrun-abort",
+      "status": "passed",
+      "returncode": 0,
+      "timed_out": false
+    },
+    {
+      "name": "m1-compat-0",
+      "status": "passed",
+      "returncode": 0,
+      "timed_out": false
+    },
+    {
+      "name": "m1-compat-1",
+      "status": "passed",
+      "returncode": 0,
+      "timed_out": false
+    },
+    {
+      "name": "m1-compat-2",
+      "status": "passed",
+      "returncode": 0,
+      "timed_out": false
+    },
+    {
+      "name": "m1-compat-3",
+      "status": "passed",
+      "returncode": 0,
+      "timed_out": false
+    },
+    {
+      "name": "raised-start",
+      "status": "passed",
+      "returncode": 0,
+      "timed_out": false
+    }
+  ],
+  "provenance_note": "Tests ran on an uncommitted implementation snapshot. Mid-run user-authorized author-history rewrite changed the base commit id without changing source trees; see history-author-map.json. Case source/binary/input fingerprints are preserved in raw artifacts.",
+  "cases": {
+    "future-step-rejected": {
+      "status": "passed",
+      "git_commit": "de467029605cb6070010f559b1e3b897b42c5982",
+      "thresholds": {
+        "max_error_m": 0.02,
+        "p95_error_m": 0.01,
+        "max_support_slip_m": 0.01,
+        "max_contact_slip_m": 0.01,
+        "max_tilt_deg": 5.0,
+        "minimum_success_rate": 0.95,
+        "minimum_trials_per_foot": 25
+      },
+      "binary_hashes": {
+        "install/custom_dog_control/lib/libcustom_dog_control_nmpc_wbc_controller.so": "a38f02729796df9f8e7df7195b3e14540a2e5fc1f5d901a82edbe6c496121359",
+        "install/qr_planning/lib/qr_planning/finite_sequence": "91e9b71f9cca2b70ba6967c42af0fa3ec8d5ef4de9a56f4a25149f8dcb951d2f"
+      },
+      "input_hashes": {
+        "fixture.world": "ce9ca7e1d702f18c7cf875380cfccb33c46b39ac76c8574ceab6eec78a20d405",
+        "fixture.world.json": "a5caec89ed2a48888baa45a5225b65d387e4bfd441bcb49358255e26ca793e72",
+        "precision_model.yaml": "f8ce776672a795646ce74ade2033038f06cae03f7a034b21e87a97a42e4f9c46",
+        "precision_control.yaml": "934ed40b2fd18bacb5b0ac2d79358b80613cb30b51ba9000c5d1ef4ff3753e68",
+        "controllers.yaml": "334b9c48e32fe8286e230293b4456c61fdd2d287c6d76ec741f64942a1364edb",
+        "robot.urdf": "c5a9432957e0a2d72e4e3424efefbeb130e216c766fb3ee80fcdae697438abf3"
+      },
+      "exercise_body_orientation": false,
+      "result_sha256": "ac54fde13dd9b53dd08426b5e1806c04c7226f516f38678c9d246e47ab232cdd",
+      "client_result": {
+        "success": false,
+        "completed_steps": 0,
+        "error": "sequence_preview_rejected: unknown_surface",
+        "preview_accepted": false
+      },
+      "source_manifest_sha256": "0718d9667138e2f8c94f7656cf132b8da92409cf25e26db2d35de08e327e676f"
+    },
+    "platform_50mm-0": {
+      "status": "passed",
+      "git_commit": "de467029605cb6070010f559b1e3b897b42c5982",
+      "p95_error_m": 0.007570742200862647,
+      "body_advance_m": 0.5374582228833154,
+      "violations": [],
+      "thresholds": {
+        "max_error_m": 0.02,
+        "p95_error_m": 0.01,
+        "max_support_slip_m": 0.01,
+        "max_contact_slip_m": 0.01,
+        "max_tilt_deg": 5.0,
+        "minimum_success_rate": 0.95,
+        "minimum_trials_per_foot": 25
+      },
+      "binary_hashes": {
+        "install/custom_dog_control/lib/libcustom_dog_control_nmpc_wbc_controller.so": "a38f02729796df9f8e7df7195b3e14540a2e5fc1f5d901a82edbe6c496121359",
+        "install/qr_planning/lib/qr_planning/finite_sequence": "91e9b71f9cca2b70ba6967c42af0fa3ec8d5ef4de9a56f4a25149f8dcb951d2f"
+      },
+      "input_hashes": {
+        "fixture.world": "9aee223cffacdb03ad18111caace74b36cfe1d55759ed65121e15b765f8d57d3",
+        "fixture.world.json": "350787739188bf305b6a21e9c94f909e5ea72ff3b3b21468c75ba77ada6bc6c6",
+        "precision_model.yaml": "f8ce776672a795646ce74ade2033038f06cae03f7a034b21e87a97a42e4f9c46",
+        "precision_control.yaml": "934ed40b2fd18bacb5b0ac2d79358b80613cb30b51ba9000c5d1ef4ff3753e68",
+        "controllers.yaml": "334b9c48e32fe8286e230293b4456c61fdd2d287c6d76ec741f64942a1364edb",
+        "robot.urdf": "657eb686dad7cb8ae187ffdfdc7497da4c05776e6aa620f9936419fc3293d23d"
+      },
+      "exercise_body_orientation": false,
+      "result_sha256": "1211b171091666878695060c801cb1c4b785ef1072d8337da1e53ef74674a2d9",
+      "completed_evaluated_steps": 16,
+      "client_result": {
+        "success": true,
+        "completed_steps": 16,
+        "preview_accepted": true
+      },
+      "max_error_m": 0.007570742200862647,
+      "max_support_contact_slip_m": 4.3726462957577664e-05,
+      "max_support_foot_center_displacement_m": 0.009740860689321292,
+      "max_max_tilt_deg": 1.9247192284945125,
+      "source_manifest_sha256": "0718d9667138e2f8c94f7656cf132b8da92409cf25e26db2d35de08e327e676f"
+    },
+    "m1-compat-2": {
+      "status": "passed",
+      "thresholds": {
+        "max_error_m": 0.02,
+        "p95_error_m": 0.01,
+        "max_support_slip_m": 0.01,
+        "max_contact_slip_m": 0.01,
+        "max_tilt_deg": 5.0,
+        "minimum_success_rate": 0.95,
+        "minimum_trials_per_foot": 25
+      },
+      "result_sha256": "5f36b42e44e2f1124d61775cb0d38af4873d4dab27e718afcd4e484832ec0a26",
+      "error_m": 0.0033600025518579204,
+      "support_contact_slip_m": 0.004365475342721072,
+      "support_foot_center_displacement_m": 0.007805015475617391,
+      "max_tilt_deg": 1.89430749450191,
+      "execution_success": true,
+      "execution_reason": "",
+      "commit": "de467029605cb6070010f559b1e3b897b42c5982",
+      "generated_input_hashes": {
+        "controllers.yaml": "cc65bf11aea240635800a85bdb00e15071f2a582d17a2e31b5ba43bc53fd9906",
+        "fixture.world": "34ffc889f2f82adf14f72208c41f743082e66f68ae7eb77b089bd52683096b6f",
+        "fixture.world.json": "3e1bd62ba632bdcc52dc19d6c194fbb38635e29feaad557407df92d19642cc5c",
+        "precision_control.yaml": "5392f52cbf56901ad6c704171188c3cb96fab1b00d29b5867ded8e43a2b046a8",
+        "precision_model.yaml": "f8ce776672a795646ce74ade2033038f06cae03f7a034b21e87a97a42e4f9c46",
+        "robot.urdf": "956ae1c350e9d6edfdeca107ee44f5e2817d8d8bc7489645e98d69afa1a66a65"
+      },
+      "source_manifest_sha256": "f4ef1b36b171578f4fe173a5e14bb2d907859e0d1ee8d9358daffe16495f4702"
+    },
+    "flat_walk-0": {
+      "status": "passed",
+      "git_commit": "2b34874e3ef71b3cc1e8ed656c25093ab844e835",
+      "p95_error_m": 0.006109924261080852,
+      "body_advance_m": 0.10586724383207613,
+      "violations": [],
+      "thresholds": {
+        "max_error_m": 0.02,
+        "p95_error_m": 0.01,
+        "max_support_slip_m": 0.01,
+        "max_contact_slip_m": 0.01,
+        "max_tilt_deg": 5.0,
+        "minimum_success_rate": 0.95,
+        "minimum_trials_per_foot": 25
+      },
+      "binary_hashes": {
+        "install/custom_dog_control/lib/libcustom_dog_control_nmpc_wbc_controller.so": "a38f02729796df9f8e7df7195b3e14540a2e5fc1f5d901a82edbe6c496121359",
+        "install/qr_planning/lib/qr_planning/finite_sequence": "91e9b71f9cca2b70ba6967c42af0fa3ec8d5ef4de9a56f4a25149f8dcb951d2f"
+      },
+      "input_hashes": {
+        "fixture.world": "ce9ca7e1d702f18c7cf875380cfccb33c46b39ac76c8574ceab6eec78a20d405",
+        "fixture.world.json": "a5caec89ed2a48888baa45a5225b65d387e4bfd441bcb49358255e26ca793e72",
+        "precision_model.yaml": "f8ce776672a795646ce74ade2033038f06cae03f7a034b21e87a97a42e4f9c46",
+        "precision_control.yaml": "934ed40b2fd18bacb5b0ac2d79358b80613cb30b51ba9000c5d1ef4ff3753e68",
+        "controllers.yaml": "334b9c48e32fe8286e230293b4456c61fdd2d287c6d76ec741f64942a1364edb",
+        "robot.urdf": "8b1335bf174e9d51b6ccac8f9502f4bd19c977119b5ecc17b698d4feb6c16d3c"
+      },
+      "exercise_body_orientation": true,
+      "result_sha256": "1788b5e431fb4dd95da0586a37cc53628bea18db4b310a4f616362b4c6d2f377",
+      "completed_evaluated_steps": 16,
+      "client_result": {
+        "success": true,
+        "completed_steps": 16,
+        "preview_accepted": true
+      },
+      "max_error_m": 0.006109924261080852,
+      "max_support_contact_slip_m": 3.41411462462676e-05,
+      "max_support_foot_center_displacement_m": 0.00697402534167016,
+      "max_max_tilt_deg": 1.8906975477818946,
+      "source_manifest_sha256": "0718d9667138e2f8c94f7656cf132b8da92409cf25e26db2d35de08e327e676f"
+    },
+    "m1-compat-1": {
+      "status": "passed",
+      "thresholds": {
+        "max_error_m": 0.02,
+        "p95_error_m": 0.01,
+        "max_support_slip_m": 0.01,
+        "max_contact_slip_m": 0.01,
+        "max_tilt_deg": 5.0,
+        "minimum_success_rate": 0.95,
+        "minimum_trials_per_foot": 25
+      },
+      "result_sha256": "1e4057ce31dd243c848267e5162f1a0a9bd5bd99016782ea77602f45d95d1af6",
+      "error_m": 0.0021710951855783344,
+      "support_contact_slip_m": 0.004008313473270387,
+      "support_foot_center_displacement_m": 0.0038934563461831416,
+      "max_tilt_deg": 1.6872718098830326,
+      "execution_success": true,
+      "execution_reason": "",
+      "commit": "de467029605cb6070010f559b1e3b897b42c5982",
+      "generated_input_hashes": {
+        "controllers.yaml": "cc65bf11aea240635800a85bdb00e15071f2a582d17a2e31b5ba43bc53fd9906",
+        "fixture.world": "34ffc889f2f82adf14f72208c41f743082e66f68ae7eb77b089bd52683096b6f",
+        "fixture.world.json": "3e1bd62ba632bdcc52dc19d6c194fbb38635e29feaad557407df92d19642cc5c",
+        "precision_control.yaml": "5392f52cbf56901ad6c704171188c3cb96fab1b00d29b5867ded8e43a2b046a8",
+        "precision_model.yaml": "f8ce776672a795646ce74ade2033038f06cae03f7a034b21e87a97a42e4f9c46",
+        "robot.urdf": "213bfa3df9357a9371395f77520daa975d50184cd15797ac87ab5dddbae54343"
+      },
+      "source_manifest_sha256": "f4ef1b36b171578f4fe173a5e14bb2d907859e0d1ee8d9358daffe16495f4702"
+    },
+    "platform_30mm-0": {
+      "status": "passed",
+      "git_commit": "2b34874e3ef71b3cc1e8ed656c25093ab844e835",
+      "p95_error_m": 0.007686717620697875,
+      "body_advance_m": 0.538212076689501,
+      "violations": [],
+      "thresholds": {
+        "max_error_m": 0.02,
+        "p95_error_m": 0.01,
+        "max_support_slip_m": 0.01,
+        "max_contact_slip_m": 0.01,
+        "max_tilt_deg": 5.0,
+        "minimum_success_rate": 0.95,
+        "minimum_trials_per_foot": 25
+      },
+      "binary_hashes": {
+        "install/custom_dog_control/lib/libcustom_dog_control_nmpc_wbc_controller.so": "a38f02729796df9f8e7df7195b3e14540a2e5fc1f5d901a82edbe6c496121359",
+        "install/qr_planning/lib/qr_planning/finite_sequence": "91e9b71f9cca2b70ba6967c42af0fa3ec8d5ef4de9a56f4a25149f8dcb951d2f"
+      },
+      "input_hashes": {
+        "fixture.world": "fdc6790560a5551af4c4b7eacbfbab970aa66f9936c37f16463bd03bf491e945",
+        "fixture.world.json": "a54c3177de30b3358b168ca81397fa27f527f6c6045b9f5a406e29dad8b811df",
+        "precision_model.yaml": "f8ce776672a795646ce74ade2033038f06cae03f7a034b21e87a97a42e4f9c46",
+        "precision_control.yaml": "934ed40b2fd18bacb5b0ac2d79358b80613cb30b51ba9000c5d1ef4ff3753e68",
+        "controllers.yaml": "334b9c48e32fe8286e230293b4456c61fdd2d287c6d76ec741f64942a1364edb",
+        "robot.urdf": "44444e9928f983b82c54d010e9666d5f0efebc7a99dde3cd0b16ab12e465fccd"
+      },
+      "exercise_body_orientation": false,
+      "result_sha256": "dfcb44f8cd2b0e3ffe18e8e4e35e0ff363b48dd4fea6233b0bc822df5c8aa1a1",
+      "completed_evaluated_steps": 16,
+      "client_result": {
+        "success": true,
+        "completed_steps": 16,
+        "preview_accepted": true
+      },
+      "max_error_m": 0.007686717620697875,
+      "max_support_contact_slip_m": 3.841946078606733e-05,
+      "max_support_foot_center_displacement_m": 0.009435447815871256,
+      "max_max_tilt_deg": 1.9146736649527107,
+      "source_manifest_sha256": "0718d9667138e2f8c94f7656cf132b8da92409cf25e26db2d35de08e327e676f"
+    },
+    "m1-compat-0": {
+      "status": "passed",
+      "thresholds": {
+        "max_error_m": 0.02,
+        "p95_error_m": 0.01,
+        "max_support_slip_m": 0.01,
+        "max_contact_slip_m": 0.01,
+        "max_tilt_deg": 5.0,
+        "minimum_success_rate": 0.95,
+        "minimum_trials_per_foot": 25
+      },
+      "result_sha256": "db224af489342d430613a51ab39caae0e38d81c7ec4aa63e6676ded88793a1a7",
+      "error_m": 0.0021396514644633057,
+      "support_contact_slip_m": 0.004067356993754542,
+      "support_foot_center_displacement_m": 0.003941970395302987,
+      "max_tilt_deg": 1.7350796772756751,
+      "execution_success": true,
+      "execution_reason": "",
+      "commit": "de467029605cb6070010f559b1e3b897b42c5982",
+      "generated_input_hashes": {
+        "controllers.yaml": "cc65bf11aea240635800a85bdb00e15071f2a582d17a2e31b5ba43bc53fd9906",
+        "fixture.world": "34ffc889f2f82adf14f72208c41f743082e66f68ae7eb77b089bd52683096b6f",
+        "fixture.world.json": "3e1bd62ba632bdcc52dc19d6c194fbb38635e29feaad557407df92d19642cc5c",
+        "precision_control.yaml": "5392f52cbf56901ad6c704171188c3cb96fab1b00d29b5867ded8e43a2b046a8",
+        "precision_model.yaml": "f8ce776672a795646ce74ade2033038f06cae03f7a034b21e87a97a42e4f9c46",
+        "robot.urdf": "7ebbc3896e38894e8ccd8c6618808ab9db9774db0013028bbb7b8e3f580a1b07"
+      },
+      "source_manifest_sha256": "f4ef1b36b171578f4fe173a5e14bb2d907859e0d1ee8d9358daffe16495f4702"
+    },
+    "sequence-midrun-abort": {
+      "status": "passed",
+      "git_commit": "de467029605cb6070010f559b1e3b897b42c5982",
+      "thresholds": {
+        "max_error_m": 0.02,
+        "p95_error_m": 0.01,
+        "max_support_slip_m": 0.01,
+        "max_contact_slip_m": 0.01,
+        "max_tilt_deg": 5.0,
+        "minimum_success_rate": 0.95,
+        "minimum_trials_per_foot": 25
+      },
+      "binary_hashes": {
+        "install/custom_dog_control/lib/libcustom_dog_control_nmpc_wbc_controller.so": "a38f02729796df9f8e7df7195b3e14540a2e5fc1f5d901a82edbe6c496121359",
+        "install/qr_planning/lib/qr_planning/finite_sequence": "91e9b71f9cca2b70ba6967c42af0fa3ec8d5ef4de9a56f4a25149f8dcb951d2f"
+      },
+      "input_hashes": {
+        "fixture.world": "ce9ca7e1d702f18c7cf875380cfccb33c46b39ac76c8574ceab6eec78a20d405",
+        "fixture.world.json": "a5caec89ed2a48888baa45a5225b65d387e4bfd441bcb49358255e26ca793e72",
+        "precision_model.yaml": "f8ce776672a795646ce74ade2033038f06cae03f7a034b21e87a97a42e4f9c46",
+        "precision_control.yaml": "934ed40b2fd18bacb5b0ac2d79358b80613cb30b51ba9000c5d1ef4ff3753e68",
+        "controllers.yaml": "334b9c48e32fe8286e230293b4456c61fdd2d287c6d76ec741f64942a1364edb",
+        "robot.urdf": "188b9e4cf38020f5b5ce3a9da5240462586e067c4a65b021696d11a86d56d3a4"
+      },
+      "exercise_body_orientation": false,
+      "result_sha256": "b40d8019ce3ce22d597ed333238329aee367b6b01e606cd8a6913e7d99b1281d",
+      "client_result": {
+        "success": false,
+        "completed_steps": 4,
+        "error": "execution_aborted: total_torque_limit",
+        "preview_accepted": true
+      },
+      "injection": {
+        "type": "finite_link_wrench",
+        "target_foot": "FL",
+        "duration_s": 0.35,
+        "force_world_n": [
+          0.0,
+          0.0,
+          120.0
+        ],
+        "sim_stamp": 41.924
+      },
+      "source_manifest_sha256": "0718d9667138e2f8c94f7656cf132b8da92409cf25e26db2d35de08e327e676f"
+    },
+    "raised-start/sequence": {
+      "status": "passed",
+      "git_commit": "de467029605cb6070010f559b1e3b897b42c5982",
+      "p95_error_m": 0.006038373639032333,
+      "body_advance_m": 0.02535667759234559,
+      "violations": [],
+      "thresholds": {
+        "max_error_m": 0.02,
+        "p95_error_m": 0.01,
+        "max_support_slip_m": 0.01,
+        "max_contact_slip_m": 0.01,
+        "max_tilt_deg": 5.0,
+        "minimum_success_rate": 0.95,
+        "minimum_trials_per_foot": 25
+      },
+      "binary_hashes": {
+        "install/custom_dog_control/lib/libcustom_dog_control_nmpc_wbc_controller.so": "a38f02729796df9f8e7df7195b3e14540a2e5fc1f5d901a82edbe6c496121359",
+        "install/qr_planning/lib/qr_planning/finite_sequence": "91e9b71f9cca2b70ba6967c42af0fa3ec8d5ef4de9a56f4a25149f8dcb951d2f"
+      },
+      "input_hashes": {
+        "fixture.world": "b8adcf28dcc9d9e48c24d30c09fb3c90b1956050d8e437e3a08b54732685d16d",
+        "startup.yaml": "efd5ae74e3e34dbcf466d6c13a8629040f427b9433ca8035db0ff30b2b47244b",
+        "fixture.yaml": "fdc033ee60bf1c97d7609608ff2349afff33bf6a3c395c695ffcfe2810f1be21",
+        "fixture.world.json": "cdc34eec4d030438966873b977a50176b91ca6a76c1e02b1217343c1040e340b",
+        "precision_model.yaml": "672e7b758a105f4d0d5dc46d0be1ad97affe9a1ff03ced837da454b8a8fdee41",
+        "precision_control.yaml": "934ed40b2fd18bacb5b0ac2d79358b80613cb30b51ba9000c5d1ef4ff3753e68",
+        "controllers.yaml": "305c02c4bc72aaf7974ef86dab431249f8ebdb1f7e4ccf08680c476d719ec03e",
+        "robot.urdf": "e258d509f0f87d2eae70ca231f57c2aadabed2fda1ac5391d115240918abddce"
+      },
+      "exercise_body_orientation": false,
+      "result_sha256": "a6f2eeb31d119e5a8bccaa1cccb20a1ebe4937cf4c79e7549cfcaa734d22ffc4",
+      "completed_evaluated_steps": 4,
+      "client_result": {
+        "success": true,
+        "completed_steps": 4,
+        "preview_accepted": true
+      },
+      "max_error_m": 0.006038373639032333,
+      "max_support_contact_slip_m": 3.212334014768155e-05,
+      "max_support_foot_center_displacement_m": 0.005751060102862859,
+      "max_max_tilt_deg": 1.8931431878830467,
+      "source_manifest_sha256": "0718d9667138e2f8c94f7656cf132b8da92409cf25e26db2d35de08e327e676f"
+    },
+    "m1-compat-3": {
+      "status": "passed",
+      "thresholds": {
+        "max_error_m": 0.02,
+        "p95_error_m": 0.01,
+        "max_support_slip_m": 0.01,
+        "max_contact_slip_m": 0.01,
+        "max_tilt_deg": 5.0,
+        "minimum_success_rate": 0.95,
+        "minimum_trials_per_foot": 25
+      },
+      "result_sha256": "27dfa64cbe74d70bd01f23838d3fc2a89aa267e3f4f07a7fd2f87cf9cd9d034c",
+      "error_m": 0.0033946815981226214,
+      "support_contact_slip_m": 0.004419504115782405,
+      "support_foot_center_displacement_m": 0.007966898101211145,
+      "max_tilt_deg": 1.8353957743785296,
+      "execution_success": true,
+      "execution_reason": "",
+      "commit": "de467029605cb6070010f559b1e3b897b42c5982",
+      "generated_input_hashes": {
+        "controllers.yaml": "cc65bf11aea240635800a85bdb00e15071f2a582d17a2e31b5ba43bc53fd9906",
+        "fixture.world": "34ffc889f2f82adf14f72208c41f743082e66f68ae7eb77b089bd52683096b6f",
+        "fixture.world.json": "3e1bd62ba632bdcc52dc19d6c194fbb38635e29feaad557407df92d19642cc5c",
+        "precision_control.yaml": "5392f52cbf56901ad6c704171188c3cb96fab1b00d29b5867ded8e43a2b046a8",
+        "precision_model.yaml": "f8ce776672a795646ce74ade2033038f06cae03f7a034b21e87a97a42e4f9c46",
+        "robot.urdf": "d74173250963cd3349ac46854aa465ed33db7e8afa7d9a8ff179509e8c25f908"
+      },
+      "source_manifest_sha256": "f4ef1b36b171578f4fe173a5e14bb2d907859e0d1ee8d9358daffe16495f4702"
+    }
+  },
+  "retained_failures": [
+    {
+      "directory": "artifacts/rc2027/m2-coordinated-runtime/platform50-r1",
+      "status": "failed",
+      "violations": [
+        {
+          "plan_id": 8,
+          "reason": "sequence_support_displacement_or_tilt"
+        },
+        {
+          "plan_id": 16,
+          "reason": "sequence_support_displacement_or_tilt"
+        },
+        {
+          "plan_id": 32,
+          "reason": "sequence_support_displacement_or_tilt"
+        }
+      ],
+      "max_support_center_displacement_m": 0.015490828105940367,
+      "result_sha256": "a839cfad190d9c030cef5b9f89387a678325d595fa02f10bba3f1735beef21d6"
+    },
+    {
+      "directory": "artifacts/rc2027/m2-coordinated-final/platform_30mm-0",
+      "status": "failed",
+      "violations": [
+        {
+          "plan_id": 16,
+          "reason": "sequence_support_displacement_or_tilt"
+        },
+        {
+          "plan_id": 32,
+          "reason": "sequence_support_displacement_or_tilt"
+        }
+      ],
+      "max_support_center_displacement_m": 0.010409135267563322,
+      "result_sha256": "23b216302232f02ccf67a88af88252c20f3ebddd0375c45ba7d407ec1a2eb203"
+    },
+    {
+      "directory": "artifacts/rc2027/m2-coordinated-final/platform_50mm-0",
+      "status": "failed",
+      "violations": [
+        {
+          "plan_id": 8,
+          "reason": "sequence_support_displacement_or_tilt"
+        },
+        {
+          "plan_id": 16,
+          "reason": "sequence_support_displacement_or_tilt"
+        },
+        {
+          "plan_id": 32,
+          "reason": "sequence_support_displacement_or_tilt"
+        }
+      ],
+      "max_support_center_displacement_m": 0.010723747666106743,
+      "result_sha256": "dc29e1d3609bc38991068f277cff180d6238039970b0b06cc2a69eee4432da10"
+    }
+  ],
+  "not_executed": [
+    "Nominal stone/gap candidates in dynamic closed loop",
+    "Complete wall approach/body/rear-leg sequence",
+    "Whole coordinated multi-step preview",
+    "New 100-trial M1 campaign",
+    "Terrain/noise/latency perturbation campaign",
+    "NX and physical motors",
+    "Perception and full competition"
+  ],
+  "model_sha256": "43257604c8353ffc993937e7dcf4c93f1379299e5585d28bd24c832040c03fc6",
+  "failure_interpretation": "Earlier tests with an extra 0.03 rad yaw and 5 mm body lift on platforms exceeded the unchanged 10 mm support-center displacement threshold. The final platform inputs omit that optional motion; the flat case retains it. Platform yaw robustness is not accepted."
+}

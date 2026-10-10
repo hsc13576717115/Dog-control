@@ -19,6 +19,9 @@ struct PlanningRequest {
   size_t foot = 0;
   uint32_t surface_id = 0;
   Eigen::Vector3d target;
+  // Requested body/Euler offsets from the admission snapshot; feet in odom.
+  CoordinatedReference trajectory;
+  bool keep_terminal_body = false;
 };
 struct PlanningResult {
   bool accepted = false;

@@ -16,9 +16,28 @@ struct WholeBodyReference {
   Eigen::Vector3d body = Eigen::Vector3d::Zero(),
                   body_velocity = Eigen::Vector3d::Zero(),
                   body_acceleration = Eigen::Vector3d::Zero();
-  Eigen::Vector3d euler = Eigen::Vector3d::Zero();
+  // ZYX coordinate derivatives, not world-frame angular velocity.
+  Eigen::Vector3d euler = Eigen::Vector3d::Zero(),
+                  euler_velocity = Eigen::Vector3d::Zero(),
+                  euler_acceleration = Eigen::Vector3d::Zero();
   std::array<Eigen::Vector3d, 4> foot{}, velocity{}, acceleration{};
   std::array<bool, 4> contact{true, true, true, true};
+};
+struct ReferenceKnot {
+  double time = 0.;
+  Eigen::Vector3d body = Eigen::Vector3d::Zero(),
+                  euler = Eigen::Vector3d::Zero(),
+                  foot = Eigen::Vector3d::Zero();
+};
+// Fixed capacity bounds the command copy and interpolation work in control.
+// Contact transitions remain executor events; knots cannot declare touchdown.
+struct CoordinatedReference {
+  static constexpr size_t capacity = 192;
+  CoordinatedReference();
+  CoordinatedReference(const CoordinatedReference &);
+  CoordinatedReference &operator=(const CoordinatedReference &);
+  std::array<ReferenceKnot, capacity> knots;
+  size_t size = 0, lift_index = 0;
 };
 struct PrecisionStep {
   uint64_t id = 0;
@@ -29,6 +48,7 @@ struct PrecisionStep {
   bool has_body_finish = false;
   Eigen::Vector3d body_finish = Eigen::Vector3d::Zero();
   double shift = 2., swing = 1.5, clearance = .06, timeout = .8;
+  CoordinatedReference trajectory;
 };
 enum class StepPhase : uint8_t {
   STANCE = 0,

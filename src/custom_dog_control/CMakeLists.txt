@@ -156,6 +156,7 @@ add_library(custom_dog_control_core STATIC
   src/model/StaticSupport.cpp
   src/model/RobotModel.cpp
   src/model/RobotModelConfig.cpp
+  src/precision/CoordinatedReference.cpp
   src/precision/PrecisionConfig.cpp
   src/precision/PrecisionPlanner.cpp
   src/precision/PrecisionExecutionCore.cpp

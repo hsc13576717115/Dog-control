@@ -1,5 +1,7 @@
 // name, default, inclusive minimum, inclusive maximum; SI except explicit suffix.
 QR_PARAM(foot_radius_m, 0.026, 0.001, 0.1)
 QR_PARAM(initial_height_m, 0.29, 0.1, 0.6)
+// Known initialization fixture only; never inferred from absent foot sensors.
+QR_PARAM(initial_support_height_m, 0.0, 0.0, 0.4)
 QR_PARAM(expected_mass_kg, 13.84916, 0.1, 1000)
 QR_PARAM(mass_tolerance_kg, 1e-05, 1e-09, 1)

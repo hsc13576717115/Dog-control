@@ -1,6 +1,9 @@
 uint8 foot
 geometry_msgs/Point target
 uint32 surface_id
+qr_interfaces/ReferenceKnot[<=192] trajectory
+uint16 lift_index
+bool keep_terminal_body
 ---
 bool accepted
 uint16 error_code

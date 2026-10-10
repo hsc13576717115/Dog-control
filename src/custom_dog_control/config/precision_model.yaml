@@ -2,5 +2,6 @@
 model:
   foot_radius_m: 0.026
   initial_height_m: 0.29
+  initial_support_height_m: 0.0
   expected_mass_kg: 13.84916
   mass_tolerance_kg: 1e-05

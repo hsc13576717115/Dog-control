@@ -140,8 +140,9 @@ bool PrecisionModel::Inverse(const WholeBodyReference &ref,
   q.head<3>() = ref.body;
   q.segment<3>(3) = ref.euler;
   dq.head<3>() = ref.body_velocity;
+  dq.segment<3>(3) = ref.euler_velocity;
   if (!ref.body.allFinite() || !ref.euler.allFinite() ||
-      !ref.body_velocity.allFinite())
+      !ref.body_velocity.allFinite() || !ref.euler_velocity.allFinite())
     return false;
   for (size_t f = 0; f < 4; ++f)
     if (!ref.foot[f].allFinite() || !ref.velocity[f].allFinite())
@@ -184,7 +185,7 @@ bool PrecisionModel::Inverse(const WholeBodyReference &ref,
           j.transpose() *
           (j * j.transpose() + 1e-5 * Eigen::Matrix3d::Identity())
               .ldlt()
-              .solve(ref.velocity[f] - ref.body_velocity);
+              .solve(ref.velocity[f] - jac.topLeftCorner(3, 6) * dq.head<6>());
       for (int k = 0; k < 3; ++k)
         dq(6 + slot(3 * f + k)) = speed(k);
     }

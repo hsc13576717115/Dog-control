@@ -87,3 +87,5 @@ noise validation or hardware calibration. See [closeout evidence](m1-closeout.md
 M1 closeout reached 99/100. M2 now includes body-following 16-step sequences, four-foot 30/50 mm platform transfers, bounded whole-sequence preview, a separate planning executor, spherical contact consistency and dense mechanical-candidate replay. The known IMU/joint-only sensor contract and hardware prohibition remain. Full nominal-obstacle dynamic execution is not certified; the wall path remains unresolved. See [current M2 record](m2-progress.md) and the [historical entry baseline](m2-entry.md).
 
 Latest evidence: 9 repeated runs (144 steps), future-step rejection, a mid-sequence support-loss abort and M1 compatibility checks passed. The final 25-entry regression and a fresh 16-step platform run also passed. These are scoped results; full M2 acceptance remains false. [Results and open gates](m2-progress.md).
+
+[New bounded coordinated-reference interface and remaining gates](coordinated-reference.md).

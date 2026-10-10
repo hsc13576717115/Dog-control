@@ -86,6 +86,7 @@ def main():
             "robustness",
             "m2",
             "m2-continuous",
+            "m2-coordinated",
         ],
         default="unit",
     )
@@ -268,12 +269,16 @@ def main():
             for foot in range(4):
                 trial(f"m1-compat-{foot}", foot, 0.05)
             trial("admission-replay", 0, 0, "replay")
-        if args.suite == "m2-continuous":
+        if args.suite in ("m2-continuous", "m2-coordinated"):
+            coordinated = args.suite == "m2-coordinated"
+            control_config = (
+                "precision_coordinated.yaml" if coordinated else "precision_m2.yaml"
+            )
             report["stage_accepted"] = False
             report["scope"] = (
                 "Repeated continuous walking and four-foot low-platform transfer; nominal obstacle gate evaluated separately"
             )
-            for repeat in range(3):
+            for repeat in range(1 if coordinated else 3):
                 for kind, height, advance in (
                     ("flat_walk", 0.0, 0.09),
                     ("platform_30mm", 0.03, 0.50),
@@ -293,7 +298,14 @@ def main():
                                 "--control-config",
                                 str(
                                     ROOT
-                                    / "src/custom_dog_control/config/precision_m2.yaml"
+                                    / "src/custom_dog_control/config"
+                                    / control_config
+                                ),
+                                *(["--coordinated"] if coordinated else []),
+                                *(
+                                    ["--exercise-body-orientation"]
+                                    if coordinated and height == 0
+                                    else []
                                 ),
                                 "--surface-mode",
                                 "ground" if height == 0 else "platform",
@@ -333,10 +345,11 @@ def main():
                             str(ROOT / f"src/qr_planning/config/{template}.yaml"),
                             "--control-config",
                             str(
-                                ROOT / "src/custom_dog_control/config/precision_m2.yaml"
+                                ROOT / "src/custom_dog_control/config" / control_config
                             ),
                             "--solver-iterations",
                             "400",
+                            *(["--coordinated"] if coordinated else []),
                             *flags,
                             "--output",
                             str(args.output / name),
@@ -346,6 +359,21 @@ def main():
                 )
             for foot in range(4):
                 trial(f"m1-compat-{foot}", foot, 0.05)
+        if args.suite == "m2-coordinated":
+            cases.append(
+                (
+                    "raised-start",
+                    [
+                        sys.executable,
+                        str(ROOT / "src/qr_validation/scripts/run_raised_start.py"),
+                        "--domain",
+                        str(args.domain),
+                        "--output",
+                        str(args.output / "raised-start"),
+                    ],
+                    220,
+                )
+            )
         if args.suite == "matrix":
             cases.append(
                 (

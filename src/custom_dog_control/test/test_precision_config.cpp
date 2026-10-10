@@ -24,6 +24,9 @@ TEST(PrecisionConfig, RejectsNonfiniteAndContradictoryThresholds) {
   c.early_contact_delay_s = c.swing_s;
   EXPECT_THROW(c.Validate(), std::invalid_argument);
   c = {};
+  c.coordinated_enabled = .5;
+  EXPECT_THROW(c.Validate(), std::invalid_argument);
+  c = {};
   c.sole_rolling_model = .5;
   EXPECT_THROW(c.Validate(), std::invalid_argument);
 }
@@ -34,6 +37,8 @@ TEST(PrecisionConfig, FilesAreCompleteAndTyposRejected) {
   EXPECT_NO_THROW(
       RobotModelConfig::Load(root + "/config/precision_model.yaml"));
   EXPECT_NO_THROW(PrecisionConfig::Load(root + "/config/precision_m2.yaml"));
+  EXPECT_NO_THROW(
+      PrecisionConfig::Load(root + "/config/precision_coordinated.yaml"));
   const auto p = std::filesystem::temp_directory_path() /
                  ("qr-bad-config-" + std::to_string(getpid()) + ".yaml");
   {

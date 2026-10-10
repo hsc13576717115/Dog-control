@@ -276,8 +276,8 @@
     },
     {
       "name": "coordinated_reference_execution",
-      "status": "not_implemented",
-      "reason": "The current action supports validated single-foot steps and terminal body translation, not the offline body-position/orientation knot paths."
+      "status": "implemented_pending_nominal_obstacle_validation",
+      "reason": "Bounded body/ZYX/foot knots now support single-step preflight and execution. Whole coordinated sequence preview, nominal candidate conversion and nominal dynamic repeats remain unvalidated; see coordinated-results.json."
     },
     {
       "name": "nominal_local_obstacle_dynamic_repeats",
@@ -318,5 +318,7 @@
     "Full nominal wall or gap dynamic traversal",
     "Perception, mission, NX and physical motors",
     "180-second full competition"
-  ]
+  ],
+  "historical_commit_mapping": "history-author-map.json",
+  "coordinated_reference_results": "coordinated-results.json"
 }

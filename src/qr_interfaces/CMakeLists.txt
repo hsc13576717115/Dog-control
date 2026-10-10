@@ -13,6 +13,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/SupportRegion.msg"
   "msg/SupportRegionArray.msg"
   "msg/Footstep.msg"
+  "msg/ReferenceKnot.msg"
   "msg/FootstepPlan.msg"
   "msg/ExecutionStatus.msg"
   "msg/ExecutionError.msg"

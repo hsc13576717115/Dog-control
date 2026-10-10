@@ -2,10 +2,12 @@ import sys
 from pathlib import Path
 import tempfile
 import unittest
+import copy
+import yaml
 import xml.etree.ElementTree as ET
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from course import fixture, generate
+from course import fixture, generate, load_fixture
 
 
 class Course(unittest.TestCase):
@@ -53,6 +55,39 @@ class Course(unittest.TestCase):
                 './world/model[@name="pad_1"]/link/collision/geometry/box/size'
             )
             self.assertEqual(list(map(float, size.split())), [0.8, 0.8, 0.05])
+
+    def test_custom_fixture_keeps_height_and_rejects_bad_geometry(self):
+        spec = {
+            "version": "qr-coordinated-local-v1",
+            "pads": [
+                {"id": 1, "center": [-0.4, 0.0], "size": [0.8, 0.8], "height": 0.36},
+                {"id": 2, "center": [0.76, 0.0], "size": [0.8, 0.8], "height": 0.36},
+            ],
+        }
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "fixture.yaml"
+            p.write_text(yaml.safe_dump(spec))
+            loaded = load_fixture(p)
+            world = Path(d) / "fixture.world"
+            generate(0.0, world, spec=loaded)
+            tree = ET.parse(world)
+            for index in [1, 2]:
+                self.assertEqual(
+                    tree.findtext(
+                        f'./world/model[@name="pad_{index}"]/link/collision/geometry/box/size'
+                    ),
+                    "0.8 0.8 0.36",
+                )
+            for field, value in [
+                ("id", 1),
+                ("height", float("nan")),
+                ("size", [0.0, 0.8]),
+            ]:
+                bad = copy.deepcopy(spec)
+                bad["pads"][1][field] = value
+                p.write_text(yaml.safe_dump(bad))
+                with self.assertRaises(ValueError):
+                    load_fixture(p)
 
     def test_no_flattening_raised_support(self):
         self.assertEqual(fixture(0.03)["height"], 0.03)

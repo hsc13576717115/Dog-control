@@ -1,4 +1,4 @@
-uint16 PROTOCOL_VERSION=1
+uint16 PROTOCOL_VERSION=2
 uint16 protocol_version
 uint8 PHASE_STANCE=0
 uint8 PHASE_SHIFT=1

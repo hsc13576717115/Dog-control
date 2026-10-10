@@ -4,6 +4,7 @@
 #include "custom_dog_control/precision/PrecisionWbc.hpp"
 #include <ocs2_centroidal_model/CentroidalModelPinocchioMapping.h>
 #include <ocs2_pinocchio_interface/PinocchioEndEffectorKinematics.h>
+#include <ocs2_robotic_tools/common/RotationDerivativesTransforms.h>
 namespace custom_dog_control {
 struct PrecisionPlanner::Impl {
   RobotModelConfig model_config;
@@ -187,6 +188,45 @@ struct PrecisionPlanner::Impl {
       reject(PrecisionError::SUPPORT_MARGIN_INFEASIBLE);
       return result;
     }
+    const bool coordinated = req.trajectory.size != 0;
+    if (coordinated) {
+      if (config.coordinated_enabled != 1. ||
+          req.trajectory.size > CoordinatedReference::capacity) {
+        reject(PrecisionError::INVALID_REQUEST);
+        return result;
+      }
+      step.trajectory = req.trajectory;
+      auto &path = step.trajectory;
+      for (size_t k = 0; k < path.size; ++k) {
+        path.knots[k].body += s.ref.body;
+        path.knots[k].euler += s.ref.euler;
+        // During load transfer the current confirmed support remains anchored.
+        // Reject a caller trying to move it; absorb only sensor/reference
+        // drift.
+        if (k <= path.lift_index) {
+          if ((path.knots[k].foot - s.ref.foot[step.foot]).norm() >
+              config.target_tolerance_m) {
+            reject(PrecisionError::INVALID_REQUEST);
+            return result;
+          }
+          path.knots[k].foot = s.ref.foot[step.foot];
+        }
+      }
+      if (path.size < 3 || path.lift_index == 0 ||
+          path.lift_index >= path.size - 1) {
+        reject(PrecisionError::INVALID_REQUEST);
+        return result;
+      }
+      step.shift = path.knots[path.lift_index].time;
+      step.swing = path.knots[path.size - 1].time - step.shift;
+      if (!ValidTrajectory(step, s.ref, config)) {
+        reject(PrecisionError::INVALID_REQUEST);
+        return result;
+      }
+      step.body = path.knots[path.lift_index].body;
+      if (req.keep_terminal_body)
+        step.body_finish = path.knots[path.size - 1].body;
+    }
     auto validate = [&]() {
       FootstepExecutor trial(config);
       trial.Reset(s.ref);
@@ -232,6 +272,12 @@ struct PrecisionPlanner::Impl {
         rbd.head<3>() = q.segment<3>(3);
         rbd.segment<3>(3) = q.head<3>();
         rbd.segment<12>(6) = q.tail<12>();
+        rbd.segment<3>(18) =
+            ocs2::getGlobalAngularVelocityFromEulerAnglesZyxDerivatives<double>(
+                ref.euler, ref.euler_velocity);
+        rbd.segment<3>(21) = dq.head<3>();
+        rbd.tail<12>() = dq.tail<12>();
+        u.tail<12>() = dq.tail<12>();
         int count = 0;
         for (bool c : ref.contact)
           count += c;
@@ -256,7 +302,10 @@ struct PrecisionPlanner::Impl {
     bool feasible = false;
     for (double lift :
          {0., config.lift_increment_m, 2 * config.lift_increment_m}) {
-      step.body.z() = s.ref.body.z() + lift;
+      if (coordinated && lift != 0.)
+        break;
+      if (!coordinated)
+        step.body.z() = s.ref.body.z() + lift;
       if (validate()) {
         feasible = true;
         break;

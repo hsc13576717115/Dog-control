@@ -1,4 +1,5 @@
 #pragma once
+#include "custom_dog_control/precision/CoordinatedReference.hpp"
 #include "custom_dog_control/precision/PrecisionConfig.hpp"
 #include "custom_dog_control/precision/PrecisionTypes.hpp"
 #include "qr_planning/Geometry.hpp"
@@ -14,6 +15,10 @@ public:
   void Start(const PrecisionStep &step, double now) {
     tracking_error_since_ = -1;
     step_ = step;
+    if (step.trajectory.size && !ValidTrajectory(step, reference_, config_)) {
+      Abort(PrecisionError::INVALID_REQUEST);
+      return;
+    }
     start_ = reference_;
     entered_ = now;
     phase_ = StepPhase::SHIFT;
@@ -38,6 +43,8 @@ public:
     reference_.probe_force = 0.;
     reference_.body_velocity.setZero();
     reference_.body_acceleration.setZero();
+    reference_.euler_velocity.setZero();
+    reference_.euler_acceleration.setZero();
     for (size_t i = 0; i < 4; ++i) {
       reference_.velocity[i].setZero();
       reference_.acceleration[i].setZero();
@@ -66,31 +73,42 @@ public:
     const double t = now - entered_;
     const auto f = step_.foot;
     if (phase_ == StepPhase::SHIFT) {
-      auto b = qr_planning::Quintic(t, step_.shift);
-      const Eigen::Vector3d d = step_.body - start_.body;
-      reference_.body = start_.body + b.p * d;
-      reference_.body_velocity = b.v * d;
-      reference_.body_acceleration = b.a * d;
+      if (step_.trajectory.size) {
+        SampleTrajectory(step_.trajectory, t, false, f, reference_);
+      } else {
+        auto b = qr_planning::Quintic(t, step_.shift);
+        const Eigen::Vector3d d = step_.body - start_.body;
+        reference_.body = start_.body + b.p * d;
+        reference_.body_velocity = b.v * d;
+        reference_.body_acceleration = b.a * d;
+      }
       if (t >= step_.shift) {
         phase_ = StepPhase::SWING;
         entered_ = now;
         reference_.contact[f] = false;
+        if (step_.trajectory.size)
+          step_.trajectory.knots[step_.trajectory.lift_index].foot =
+              reference_.foot[f];
       }
     } else if (phase_ == StepPhase::SWING) {
-      auto b = qr_planning::Quintic(t, step_.swing);
-      const Eigen::Vector3d d = step_.target - start_.foot[f];
-      reference_.foot[f] = start_.foot[f] + b.p * d;
-      reference_.velocity[f] = b.v * d;
-      reference_.acceleration[f] = b.a * d;
-      // Smooth lift with zero p/v/a at both endpoints.
-      const double s = std::clamp(t / step_.swing, 0., 1.);
-      const double h = step_.clearance;
-      reference_.foot[f].z() += 64 * h * s * s * s * std::pow(1 - s, 3);
-      reference_.velocity[f].z() +=
-          192 * h * s * s * (1 - s) * (1 - s) * (1 - 2 * s) / step_.swing;
-      reference_.acceleration[f].z() += 384 * h * s * (1 - s) *
-                                        (1 - 5 * s + 5 * s * s) /
-                                        (step_.swing * step_.swing);
+      if (step_.trajectory.size) {
+        SampleTrajectory(step_.trajectory, t, true, f, reference_);
+      } else {
+        auto b = qr_planning::Quintic(t, step_.swing);
+        const Eigen::Vector3d d = step_.target - start_.foot[f];
+        reference_.foot[f] = start_.foot[f] + b.p * d;
+        reference_.velocity[f] = b.v * d;
+        reference_.acceleration[f] = b.a * d;
+        // Smooth lift with zero p/v/a at both endpoints.
+        const double s = std::clamp(t / step_.swing, 0., 1.);
+        const double h = step_.clearance;
+        reference_.foot[f].z() += 64 * h * s * s * s * std::pow(1 - s, 3);
+        reference_.velocity[f].z() +=
+            192 * h * s * s * (1 - s) * (1 - s) * (1 - 2 * s) / step_.swing;
+        reference_.acceleration[f].z() += 384 * h * s * (1 - s) *
+                                          (1 - 5 * s + 5 * s * s) /
+                                          (step_.swing * step_.swing);
+      }
       if (t > config_.early_contact_delay_s &&
           t < step_.swing * config_.early_contact_fraction &&
           contacts[f].loaded) {
@@ -158,10 +176,13 @@ public:
         return reference_;
       }
       auto b = qr_planning::Quintic(t, step_.shift);
+      const Eigen::Vector3d origin =
+          step_.trajectory.size
+              ? step_.trajectory.knots[step_.trajectory.size - 1].body
+              : step_.body;
       const Eigen::Vector3d d =
-          (step_.has_body_finish ? step_.body_finish : start_.body) -
-          step_.body;
-      reference_.body = step_.body + b.p * d;
+          (step_.has_body_finish ? step_.body_finish : start_.body) - origin;
+      reference_.body = origin + b.p * d;
       reference_.body_velocity = b.v * d;
       reference_.body_acceleration = b.a * d;
       if (t >= step_.shift)

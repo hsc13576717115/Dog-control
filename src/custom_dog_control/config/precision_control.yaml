@@ -62,3 +62,8 @@ control:
   acc_limit: 80.0
   swing_error_m: 0.025
   swing_error_dwell_s: 0.08
+  coordinated_enabled: 0.0
+  trajectory_duration_s: 120.0
+  trajectory_body_speed_mps: 0.15
+  trajectory_foot_speed_mps: 0.25
+  trajectory_euler_speed_rps: 0.3

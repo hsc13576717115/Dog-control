@@ -2,6 +2,7 @@
 #include "custom_dog_control/precision/ContactObserver.hpp"
 #include "custom_dog_control/precision/FootstepExecutor.hpp"
 #include <gtest/gtest.h>
+#include <limits>
 #include <ocs2_centroidal_model/FactoryFunctions.h>
 using namespace custom_dog_control;
 TEST(ContactObserver, StillnessDoesNotProveLoad) {
@@ -173,4 +174,96 @@ TEST(Executor,
   EXPECT_NEAR((ex.reference().body - s.body_finish).norm(), 0., 1e-12);
   EXPECT_NEAR(ex.reference().body_velocity.norm(), 0., 1e-12);
   EXPECT_NEAR(ex.reference().body_acceleration.norm(), 0., 1e-12);
+}
+
+static PrecisionStep CoordinatedStep(const WholeBodyReference &r) {
+  PrecisionStep s;
+  s.id = 72;
+  s.target = r.foot[0] + Eigen::Vector3d(.02, 0, 0);
+  s.body = r.body + Eigen::Vector3d(-.01, .01, 0);
+  s.has_body_finish = true;
+  s.body_finish = s.body;
+  s.shift = 2;
+  s.swing = 4;
+  s.trajectory.size = 4;
+  s.trajectory.lift_index = 1;
+  s.trajectory.knots[0] = {0., r.body, r.euler, r.foot[0]};
+  s.trajectory.knots[1] = {2., s.body, r.euler, r.foot[0]};
+  s.trajectory.knots[2] = {4., s.body, r.euler + Eigen::Vector3d(.02, 0, 0),
+                           r.foot[0] + Eigen::Vector3d(.01, 0, .04)};
+  s.trajectory.knots[3] = {6., s.body, r.euler + Eigen::Vector3d(.02, 0, 0),
+                           s.target};
+  return s;
+}
+TEST(CoordinatedReference, BoundsAndKnotDerivatives) {
+  auto r = Stance();
+  auto s = CoordinatedStep(r);
+  ASSERT_TRUE(ValidTrajectory(s, r, {}));
+  for (double t : {0., 2., 4.}) {
+    SampleTrajectory(s.trajectory, t, true, 0, r);
+    EXPECT_LT(r.body_velocity.norm() + r.euler_velocity.norm() +
+                  r.velocity[0].norm(),
+              1e-12);
+    EXPECT_LT(r.body_acceleration.norm() + r.euler_acceleration.norm() +
+                  r.acceleration[0].norm(),
+              1e-12);
+  }
+  EXPECT_LT((r.foot[0] - s.target).norm(), 1e-12);
+  s.trajectory.size = 193;
+  EXPECT_FALSE(ValidTrajectory(s, Stance(), {}));
+  s.trajectory.size = 4;
+  auto invalid_duration = s;
+  invalid_duration.shift = std::numeric_limits<double>::quiet_NaN();
+  EXPECT_FALSE(ValidTrajectory(invalid_duration, Stance(), {}));
+  invalid_duration = s;
+  invalid_duration.swing += .1;
+  EXPECT_FALSE(ValidTrajectory(invalid_duration, Stance(), {}));
+  s.trajectory.knots[2].time = 2.;
+  EXPECT_FALSE(ValidTrajectory(s, Stance(), {}));
+  s = CoordinatedStep(Stance());
+  s.trajectory.knots[2].euler.y() = .36;
+  EXPECT_FALSE(ValidTrajectory(s, Stance(), {}));
+  s = CoordinatedStep(Stance());
+  s.trajectory.knots[1].foot.z() += .02;
+  EXPECT_FALSE(ValidTrajectory(s, Stance(), {}));
+}
+TEST(CoordinatedReference,
+     TimingNeverFabricatesContactAndAbortStopsAngularReference) {
+  auto r = Stance();
+  auto s = CoordinatedStep(r);
+  FootstepExecutor ex;
+  ex.Reset(r);
+  ex.Start(s, 0);
+  std::array<ContactEstimate, 4> c;
+  for (auto &v : c)
+    v.valid = v.loaded = true;
+  for (int k = 0; k < 750; ++k) {
+    const double t = k * .01;
+    c[0].loaded = t < 2.;
+    ex.Update(t, c, ex.reference().foot);
+  }
+  EXPECT_EQ(ex.phase(), StepPhase::HOLD);
+  EXPECT_EQ(ex.error_code(), PrecisionError::TOUCHDOWN_TIMEOUT);
+  EXPECT_EQ(ex.id(), 72u);
+  EXPECT_TRUE(ex.reference().euler_velocity.isZero());
+  EXPECT_TRUE(ex.reference().euler_acceleration.isZero());
+}
+TEST(CoordinatedReference, ConfirmedTouchdownKeepsTerminalBodyAndOrientation) {
+  auto r = Stance();
+  auto s = CoordinatedStep(r);
+  FootstepExecutor ex;
+  ex.Reset(r);
+  ex.Start(s, 0);
+  std::array<ContactEstimate, 4> c;
+  for (auto &v : c)
+    v.valid = v.loaded = true;
+  for (int k = 0; k < 900; ++k) {
+    const double t = k * .01;
+    c[0].loaded = t < 2. || t > 6.02;
+    c[0].estimated_force.z() = c[0].loaded ? 30. : 0.;
+    ex.Update(t, c, ex.reference().foot);
+  }
+  EXPECT_EQ(ex.phase(), StepPhase::DONE);
+  EXPECT_LT((ex.reference().body - s.body_finish).norm(), 1e-12);
+  EXPECT_LT((ex.reference().euler - s.trajectory.knots[3].euler).norm(), 1e-12);
 }

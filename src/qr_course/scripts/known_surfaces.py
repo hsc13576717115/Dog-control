@@ -8,13 +8,15 @@ from rclpy.qos import QoSProfile, DurabilityPolicy
 from geometry_msgs.msg import Point32
 from qr_interfaces.msg import SupportRegionArray, SupportRegion
 from visualization_msgs.msg import MarkerArray, Marker
-from course import fixture
+from course import fixture, load_fixture
 
 
 class Surfaces(Node):
-    def __init__(self, height, mode="pads"):
+    def __init__(self, height, mode="pads", fixture_file=""):
         super().__init__("qr_known_surfaces")
-        self.spec = fixture(height, mode)
+        self.spec = (
+            load_fixture(fixture_file) if fixture_file else fixture(height, mode)
+        )
         qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.pub = self.create_publisher(SupportRegionArray, "/qr/support_regions", qos)
         self.markers = self.create_publisher(MarkerArray, "/qr/support_markers", qos)
@@ -70,10 +72,11 @@ class Surfaces(Node):
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--mode", choices=["pads", "ground", "platform"], default="pads")
+    p.add_argument("--fixture-file", default="")
     p.add_argument("--height", type=float, default=0.0)
     a, rest = p.parse_known_args()
     rclpy.init(args=rest)
-    n = Surfaces(a.height, a.mode)
+    n = Surfaces(a.height, a.mode, a.fixture_file)
     try:
         rclpy.spin(n)
     finally:

@@ -1,6 +1,7 @@
 """QR M1: full collision, IMU/joints only, no physical motor plugin."""
 
 import atexit
+import math
 import os
 from pathlib import Path
 import shutil
@@ -35,7 +36,12 @@ def setup(context):
     description = Path(get_package_share_directory("custom_dog_description"))
     course = Path(get_package_share_directory("qr_course"))
     sys.path.insert(0, str(course / "scripts"))
-    from course import generate
+    from course import generate, load_fixture
+
+    fixture_file = LaunchConfiguration("fixture_file").perform(context)
+    startup_file = LaunchConfiguration("startup_file").perform(context)
+    if bool(fixture_file) != bool(startup_file):
+        raise ValueError("local fixture and explicit startup must be supplied together")
 
     runtime = Path(tempfile.mkdtemp(prefix="qr_m1_"))
     atexit.register(lambda: shutil.rmtree(runtime, ignore_errors=True))
@@ -43,6 +49,7 @@ def setup(context):
         height,
         runtime / "fixture.world",
         LaunchConfiguration("surface_mode").perform(context),
+        load_fixture(fixture_file) if fixture_file else None,
     )
     scene = ET.parse(runtime / "fixture.world")
     solver_iterations = LaunchConfiguration("solver_iterations").perform(context)
@@ -86,6 +93,27 @@ def setup(context):
         use_sim_ground_truth=False,
         simulation_passive_hold=False,
     )
+    startup = yaml.safe_load(Path(startup_file).read_text()) if startup_file else None
+    if startup_file:
+        if not isinstance(startup, dict) or not startup:
+            raise ValueError("explicit nonempty startup pose required")
+        joint_names = [
+            leg + "_" + joint + "_joint"
+            for leg in ("FR", "FL", "RR", "RL")
+            for joint in ("hip", "thigh", "calf")
+        ]
+        if (
+            startup.get("joint_names") != joint_names
+            or len(startup["joint_positions"]) != 12
+        ):
+            raise ValueError("startup joint ordering mismatch")
+        if len(startup["euler_zyx"]) != 3 or not all(
+            math.isfinite(x) for x in startup["joint_positions"] + startup["euler_zyx"]
+        ):
+            raise ValueError("nonfinite startup pose")
+        cfg["nmpc_wbc_controller"]["ros__parameters"]["nominal_joint_positions"] = (
+            startup["joint_positions"]
+        )
     (runtime / "controllers.yaml").write_text(yaml.safe_dump(cfg))
     robot = xacro.process_file(
         str(control / "urdf/custom_dog.ros2_control.xacro"),
@@ -187,6 +215,9 @@ def setup(context):
             shutil.copyfile(runtime / name, destination / name)
         shutil.copyfile(model_file, destination / "precision_model.yaml")
         shutil.copyfile(control_file, destination / "precision_control.yaml")
+        if startup:
+            shutil.copyfile(startup_file, destination / "startup.yaml")
+            shutil.copyfile(fixture_file, destination / "fixture.yaml")
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             str(
@@ -217,6 +248,12 @@ def setup(context):
             str(runtime / "robot.urdf"),
             "-z",
             str(model_parameters["initial_height_m"]),
+            "-R",
+            str(startup["euler_zyx"][2] if startup else 0.0),
+            "-P",
+            str(startup["euler_zyx"][1] if startup else 0.0),
+            "-Y",
+            str(startup["euler_zyx"][0] if startup else 0.0),
         ],
         output="screen",
     )
@@ -236,6 +273,7 @@ def setup(context):
         cmd=[
             "python3",
             str(course / "scripts/known_surfaces.py"),
+            *(["--fixture-file", fixture_file] if fixture_file else []),
             "--height",
             str(observed_height),
             "--mode",
@@ -281,6 +319,8 @@ def generate_launch_description():
     return LaunchDescription(
         [
             DeclareLaunchArgument("solver_iterations", default_value="legacy"),
+            DeclareLaunchArgument("fixture_file", default_value=""),
+            DeclareLaunchArgument("startup_file", default_value=""),
             DeclareLaunchArgument("surface_mode", default_value="pads"),
             DeclareLaunchArgument("artifact_dir", default_value=""),
             DeclareLaunchArgument("model_config", default_value=""),

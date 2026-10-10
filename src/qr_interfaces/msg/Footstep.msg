@@ -8,3 +8,5 @@ float64 shift_duration
 float64 swing_duration
 float64 clearance
 float64 contact_timeout
+qr_interfaces/ReferenceKnot[<=192] trajectory
+uint16 lift_index

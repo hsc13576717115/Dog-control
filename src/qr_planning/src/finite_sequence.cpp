@@ -31,12 +31,24 @@ int main(int argc, char **argv) {
       node->declare_parameter<std::string>("result_file", "");
   const bool validate_only =
       node->declare_parameter<bool>("validate_only", false);
+  const bool coordinated = node->declare_parameter<bool>("coordinated", false);
+  const double diagnostic_yaw =
+      node->declare_parameter<double>("coordinated_yaw_rad", 0.);
+  const double diagnostic_lift =
+      node->declare_parameter<double>("coordinated_body_lift_m", 0.);
   YAML::Node report;
+  report["coordinated_yaw_rad"] = diagnostic_yaw;
+  report["coordinated_body_lift_m"] = diagnostic_lift;
+  report["coordinated"] = coordinated;
   report["success"] = false;
   report["completed_steps"] = 0;
   report["hardware_tested"] = false;
   int exit_code = 1;
   try {
+    if (!std::isfinite(diagnostic_yaw) || !std::isfinite(diagnostic_lift) ||
+        std::abs(diagnostic_yaw) > .1 || diagnostic_lift < 0 ||
+        diagnostic_lift > .03)
+      throw std::runtime_error("invalid_diagnostic_body_reference");
     if (!result_file.empty() && std::filesystem::exists(result_file))
       throw std::runtime_error("result_file_already_exists");
     const auto steps = qr_planning::ParseFiniteTemplate(YAML::LoadFile(file));
@@ -142,9 +154,50 @@ int main(int argc, char **argv) {
               },
               5.))
         throw std::runtime_error("planning_timeout");
-      const auto planned = future.get();
+      auto planned = future.get();
       if (!planned->accepted)
         throw std::runtime_error("plan_rejected: " + planned->reason);
+      if (coordinated) {
+        // First plan supplies a validated unload shift. This diagnostic client
+        // proposes an explicit body/yaw/foot curve; the server independently
+        // validates the complete curve again before granting a new approval.
+        const auto &base = planned->plan.steps.front();
+        for (size_t k = 0; k < 4; ++k) {
+          qr_interfaces::msg::ReferenceKnot knot;
+          knot.time_from_start = 2. * k;
+          knot.foot = state.feet[step.foot];
+          if (k) {
+            knot.body.x = base.body_target.x - state.pose.position.x;
+            knot.body.y = base.body_target.y - state.pose.position.y;
+            knot.body.z = base.body_target.z - state.pose.position.z;
+          }
+          if (k == 2) {
+            knot.foot.x = .5 * (knot.foot.x + request->target.x);
+            knot.foot.y = .5 * (knot.foot.y + request->target.y);
+            knot.foot.z = std::max(knot.foot.z, request->target.z) + .06;
+            knot.body.z += diagnostic_lift;
+            knot.euler_zyx.x = diagnostic_yaw;
+          }
+          if (k == 3)
+            knot.foot = request->target;
+          request->trajectory.push_back(knot);
+        }
+        request->lift_index = 1;
+        auto coordinated_future = planner->async_send_request(request);
+        if (!wait(
+                [&] {
+                  return coordinated_future.wait_for(std::chrono::seconds(0)) ==
+                         std::future_status::ready;
+                },
+                30.))
+          throw std::runtime_error("coordinated_planning_timeout");
+        planned = coordinated_future.get();
+        if (!planned->accepted)
+          throw std::runtime_error("coordinated_plan_rejected: " +
+                                   planned->reason);
+        report["steps"][index]["trajectory_knots"] =
+            planned->plan.steps.front().trajectory.size();
+      }
       if (!executor->wait_for_action_server(std::chrono::seconds(3)))
         throw std::runtime_error("executor_unavailable");
       Execute::Goal goal;

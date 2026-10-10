@@ -3,6 +3,7 @@
 #include "custom_dog_control/precision/PrecisionModel.hpp"
 #include <gtest/gtest.h>
 #include <limits>
+#include <ocs2_robotic_tools/common/RotationDerivativesTransforms.h>
 #include <pinocchio/multibody/model.hpp>
 using namespace custom_dog_control;
 TEST(StaticSupport, StandingCanBalanceAndNoContactsCannot) {
@@ -154,4 +155,38 @@ TEST(StaticSupport, WallFrontLandingPoseIsNotAWholeBodyTraversalCertificate) {
     EXPECT_GE(q[k], model.lowerPositionLimit[k] + .05 - 1e-12);
     EXPECT_LE(q[k], model.upperPositionLimit[k] - .05 + 1e-12);
   }
+}
+
+TEST(InverseKinematics, RotatingBodyPreservesWorldFootVelocity) {
+  RobotModel robot(CUSTOM_DOG_CONTROL_CANONICAL_URDF, {});
+  PrecisionModel geometry(robot.pin, robot.info,
+                          CUSTOM_DOG_CONTROL_CANONICAL_URDF);
+  JointSample seed;
+  for (size_t f = 0; f < 4; ++f) {
+    seed.position[3 * f + 1] = .8;
+    seed.position[3 * f + 2] = -1.6;
+  }
+  EstimatedState state;
+  state.position = {0, 0, .3};
+  state.euler_zyx = {.2, -.1, .05};
+  geometry.Measure(seed, state, 0.);
+  WholeBodyReference ref;
+  ref.body = state.position;
+  ref.euler = state.euler_zyx;
+  ref.foot = geometry.feet();
+  ref.body_velocity = {.01, -.02, .005};
+  ref.euler_velocity = {.1, -.05, .04};
+  Eigen::VectorXd q, dq;
+  ASSERT_TRUE(geometry.Inverse(ref, seed, q, dq));
+  for (size_t k = 0; k < 12; ++k) {
+    seed.position[k] = q[6 + geometry.slot(k)];
+    seed.velocity[k] = dq[6 + geometry.slot(k)];
+  }
+  state.velocity_world = ref.body_velocity;
+  state.angular_velocity_world =
+      ocs2::getGlobalAngularVelocityFromEulerAnglesZyxDerivatives<double>(
+          ref.euler, ref.euler_velocity);
+  geometry.Measure(seed, state, 0.);
+  for (const auto &v : geometry.velocities())
+    EXPECT_LT(v.norm(), 1e-4);
 }

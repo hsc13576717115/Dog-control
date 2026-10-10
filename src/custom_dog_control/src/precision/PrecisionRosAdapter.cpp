@@ -108,8 +108,15 @@ struct PrecisionRosAdapter::Impl {
             res->reason = "preview_requires_1_to_16_steps";
             return;
           }
-          for (const auto &step : req->steps)
+          for (const auto &step : req->steps) {
+            if (!step.trajectory.empty()) {
+              res->error_code =
+                  static_cast<uint16_t>(PrecisionError::INVALID_REQUEST);
+              res->reason = "coordinated_sequence_preview_not_implemented";
+              return;
+            }
             requests.push_back({step.foot, step.surface_id, Vec(step.target)});
+          }
           const auto state = channel.snapshot.Read();
           const auto surfaces = Surfaces();
           const double now = node->now().seconds();
@@ -170,6 +177,9 @@ struct PrecisionRosAdapter::Impl {
           if ((s.ref.body - approved_reference.body).norm() >
               config.body_drift_m)
             return reject("body_reference_drift");
+          if ((s.ref.euler - approved_reference.euler).norm() >
+              config.body_drift_m)
+            return reject("orientation_reference_drift");
           for (size_t f = 0; f < 4; ++f)
             if ((s.estimate.foot_position_world[f] - approved_reference.foot[f])
                     .norm() > config.target_tolerance_m)
@@ -234,8 +244,24 @@ struct PrecisionRosAdapter::Impl {
     const auto surfaces = Surfaces();
     const auto revision = regions.revision;
     lock.unlock();
-    const auto result = preflight.Plan(
-        {req.foot, req.surface_id, Vec(req.target)}, s, surfaces, now);
+    PlanningRequest request{req.foot, req.surface_id, Vec(req.target)};
+    request.keep_terminal_body = req.keep_terminal_body;
+    if (req.trajectory.size() > CoordinatedReference::capacity) {
+      res.error_code = static_cast<uint16_t>(PrecisionError::INVALID_REQUEST);
+      res.reason = "trajectory_capacity_exceeded";
+      return;
+    }
+    request.trajectory.size = req.trajectory.size();
+    request.trajectory.lift_index = req.lift_index;
+    for (size_t k = 0; k < req.trajectory.size(); ++k) {
+      const auto &in = req.trajectory[k];
+      auto &out = request.trajectory.knots[k];
+      out.time = in.time_from_start;
+      out.body = Vec(in.body);
+      out.euler = {in.euler_zyx.x, in.euler_zyx.y, in.euler_zyx.z};
+      out.foot = Vec(in.foot);
+    }
+    const auto result = preflight.Plan(request, s, surfaces, now);
     res.accepted = result.accepted;
     res.error_code = static_cast<uint16_t>(result.error);
     res.reason =
@@ -269,6 +295,18 @@ struct PrecisionRosAdapter::Impl {
     out.swing_duration = approved_step.swing;
     out.clearance = approved_step.clearance;
     out.contact_timeout = approved_step.timeout;
+    out.lift_index = approved_step.trajectory.lift_index;
+    for (size_t k = 0; k < approved_step.trajectory.size; ++k) {
+      const auto &in = approved_step.trajectory.knots[k];
+      qr_interfaces::msg::ReferenceKnot knot;
+      knot.time_from_start = in.time;
+      knot.body = Point(in.body);
+      knot.euler_zyx.x = in.euler.x();
+      knot.euler_zyx.y = in.euler.y();
+      knot.euler_zyx.z = in.euler.z();
+      knot.foot = Point(in.foot);
+      out.trajectory.push_back(knot);
+    }
     approved = qr_interfaces::msg::FootstepPlan{};
     approved.header.frame_id = "odom";
     approved.header.stamp = node->now();
@@ -316,7 +354,7 @@ struct PrecisionRosAdapter::Impl {
     status.header = msg.header;
     status.plan_id = s.id;
     status.phase = PhaseName(s.phase);
-    status.protocol_version = 1;
+    status.protocol_version = qr_interfaces::msg::ExecutionStatus::PROTOCOL_VERSION;
     status.phase_code = static_cast<uint8_t>(s.phase);
     status.error_code = static_cast<uint16_t>(s.error);
     status.error = ErrorName(s.error);
